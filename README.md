@@ -164,8 +164,6 @@ Because **CarAutoPad** uses zero private Apple entitlements, you can install it 
 2. Sign and sideload `CarAutoPad.ipa` onto your iPad using [SideStore](https://sidestore.io/), [AltStore](https://altstore.io/), [Sideloadly](https://sideloadly.io/), or an Apple Developer certificate.
 3. Launch **CarAutoPad** on your iPad and grant **Local Network**, **Microphone**, and **Location** permissions when prompted.
 
-> **Note:** Thanks to its independent bundle identifier (`com.bryanmaki.CarAutoPad`), **CarAutoPad** can be installed side-by-side with the original `HeadunitPad` app without overwriting your existing installation.
-
 ### Option 2: Build from Source
 
 #### Prerequisites
