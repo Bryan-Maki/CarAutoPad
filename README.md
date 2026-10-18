@@ -1,10 +1,13 @@
 # CarAutoPad
 
-[[https://img.shields.io/badge/version-v0.5.0--beta-orange.svg?style=flat-square]](https://github.com/Bryan-Maki/HeadunitPad-Auto/releases)
-[[https://img.shields.io/github/actions/workflow/status/Bryan-Maki/HeadunitPad-Auto/build-ipa.yml?branch=main&style=flat-square&label=Build%20IPA]](https://github.com/Bryan-Maki/HeadunitPad-Auto/actions/workflows/build-ipa.yml)
-[[https://img.shields.io/badge/platform-iPadOS%2017.0%2B-blue.svg?style=flat-square]](https://developer.apple.com/ipados/)
-[[https://img.shields.io/badge/Swift-5.0-F05138.svg?style=flat-square&logo=swift&logoColor=white]](https://swift.org)
-[[https://img.shields.io/badge/License-AGPL%20v3-brightgreen.svg?style=flat-square]](LICENSE.txt)
+[![Release](https://img.shields.io/badge/version-v0.5.0--beta-orange.svg?style=flat-square)](https://github.com/Bryan-Maki/CarAutoPad/releases)
+[![Build Unsigned IPA](https://img.shields.io/github/actions/workflow/status/bryan-maki/headunitpad-auto/build-ipa.yml?branch=main&style=flat-square&label=Build%20IPA)](.github/workflows/build-ipa.yml)
+[![Platform](https://img.shields.io/badge/platform-iPadOS%2015.0%2B-blue.svg?style=flat-square)](https://developer.apple.com/ipados/)
+[![Swift](https://img.shields.io/badge/Swift-5.0-F05138.svg?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
+[![License](https://img.shields.io/badge/License-AGPL%20v3-brightgreen.svg?style=flat-square)](LICENSE.txt)
+
+
+
 
 **A native, pure-wireless Android Auto head unit receiver for iPadOS with edge-to-edge full-screen adaptation.**
 
@@ -259,9 +262,6 @@ When opening an issue on GitHub, please include:
 
 **CarAutoPad** (`v0.5.0-beta`) is actively evolving. Planned enhancements for upcoming releases include:
 
-- [ ] **HUD Turn-by-Turn Navigation Overlay**: Translucent floating maneuver cards parsed directly from the AAP Navigation channel (`AapNavigation`).
-- [ ] **Geofence Night Mode Trigger**: Automatic dark-mode switching when entering user-pinned tunnels or underground parking garages.
-- [ ] **Global Floating Quick-Action Button**: Draggable, auto-dimming overlay button during full-screen projection for one-tap Home return, Day/Night toggle, and Voice Assistant activation.
 - [ ] **Localization (i18n)**: Multi-language UI support (Simplified/Traditional Chinese, English, Japanese, and European languages).
 - [ ] **AltStore / SideStore Source Feed**: Automated JSON repository feed for one-tap OTA updates in SideStore and AltStore.
 
@@ -278,5 +278,5 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 **Bryan Maki** ([@Bryan-Maki](https://github.com/Bryan-Maki))
 
-- **GitHub Repository**: [Bryan-Maki/HeadunitPad-Auto](https://github.com/Bryan-Maki/HeadunitPad-Auto)
-- **Issue Tracker**: [GitHub Issues](https://github.com/Bryan-Maki/HeadunitPad-Auto/issues)
+- **GitHub Repository**: [Bryan-Maki/CarAutoPad](https://github.com/Bryan-Maki/CarAutoPad)
+- **Issue Tracker**: [GitHub Issues](https://github.com/Bryan-Maki/CarAutoPad/issues)
