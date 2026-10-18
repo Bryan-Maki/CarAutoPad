@@ -1,0 +1,194 @@
+import Foundation
+import AVFoundation
+
+extension Notification.Name {
+    static let carAutoPadMicrophoneCaptureStateChanged = Notification.Name("carAutoPadMicrophoneCaptureStateChanged")
+}
+
+final class MicrophoneCapture {
+    var onPCMData: ((Data) -> Void)?
+
+    private let engine = AVAudioEngine()
+    private let processingQueue = DispatchQueue(label: "com.carautopad.audio.mic.processing", qos: .userInitiated)
+    private var converter: AVAudioConverter?
+    private var outputFormat: AVAudioFormat?
+    private var isCapturing = false
+
+    public let decimator = MicPcmDecimator(factor: 3)
+    public let accumulator = MicChunkAccumulator(chunkBytes: MicCaptureFormat.CHUNK_BYTES)
+
+    func start(sampleRate: Double = 16_000, channels: AVAudioChannelCount = 1) {
+        guard !isCapturing else { return }
+
+        decimator.reset()
+        accumulator.reset()
+        configureAudioSession(sampleRate: sampleRate, channels: channels)
+
+        let inputNode = engine.inputNode
+        let inputFormat = inputNode.inputFormat(forBus: 0)
+
+        guard let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channels, interleaved: false) else {
+            print("MicrophoneCapture: Failed to create target audio format")
+            return
+        }
+
+        guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+            print("MicrophoneCapture: Failed to create audio converter")
+            return
+        }
+
+        self.converter = converter
+        self.outputFormat = targetFormat
+
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+            self?.processInputBuffer(buffer)
+        }
+
+        do {
+            engine.prepare()
+            try engine.start()
+            isCapturing = true
+            NotificationCenter.default.post(name: .carAutoPadMicrophoneCaptureStateChanged, object: nil, userInfo: ["active": true])
+            print("MicrophoneCapture: Started")
+        } catch {
+            print("MicrophoneCapture: Failed to start engine: \(error)")
+            inputNode.removeTap(onBus: 0)
+            self.converter = nil
+            self.outputFormat = nil
+            NotificationCenter.default.post(name: .carAutoPadMicrophoneCaptureStateChanged, object: nil, userInfo: ["active": false])
+        }
+    }
+
+    func stop() {
+        guard isCapturing else { return }
+
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        engine.reset()
+        converter = nil
+        outputFormat = nil
+        decimator.reset()
+        accumulator.reset()
+        isCapturing = false
+        NotificationCenter.default.post(name: .carAutoPadMicrophoneCaptureStateChanged, object: nil, userInfo: ["active": false])
+        restorePlaybackAudioSession()
+        print("MicrophoneCapture: Stopped")
+    }
+
+    private func configureAudioSession(sampleRate: Double, channels: AVAudioChannelCount) {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            let preferExternalMic = !ProjectionSettings.effectiveUseIpadMic
+            var options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetoothA2DP]
+            if preferExternalMic {
+                options.insert(.allowBluetooth)
+            }
+            try session.setCategory(.playAndRecord, mode: .default, options: options)
+            try session.setPreferredSampleRate(sampleRate)
+            try session.setPreferredInputNumberOfChannels(Int(channels))
+            try session.setActive(true)
+            if let inputs = session.availableInputs {
+                if preferExternalMic,
+                   let extMic = inputs.first(where: { [.bluetoothHFP, .carAudio, .headsetMic, .usbAudio].contains($0.portType) }) {
+                    try? session.setPreferredInput(extMic)
+                } else if let builtIn = inputs.first(where: { $0.portType == .builtInMic }) {
+                    try? session.setPreferredInput(builtIn)
+                }
+            }
+        } catch {
+            print("MicrophoneCapture: Failed to configure session: \(error)")
+        }
+    }
+
+    private func restorePlaybackAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        if !ProjectionSettings.isAudioSinkEnabled {
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            return
+        }
+        do {
+            try session.setCategory(.playback, mode: .default, options: [])
+            try? session.setPreferredSampleRate(48000)
+            try session.setActive(true)
+            NowPlayingCoordinator.shared.activate()
+        } catch {
+            print("MicrophoneCapture: Failed to restore playback session: \(error)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                guard ProjectionSettings.isAudioSinkEnabled else { return }
+                do {
+                    try session.setCategory(.playback, mode: .default, options: [])
+                    try? session.setPreferredSampleRate(48000)
+                    try session.setActive(true)
+                    NowPlayingCoordinator.shared.activate()
+                    print("MicrophoneCapture: Restored playback session on retry")
+                } catch {
+                    print("MicrophoneCapture: Retry restore playback session failed: \(error)")
+                }
+            }
+        }
+    }
+
+    private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
+        guard let converter = converter, let outputFormat = outputFormat else { return }
+
+        processingQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            let ratio = outputFormat.sampleRate / buffer.format.sampleRate
+            let capacity = max(Int(Double(buffer.frameLength) * ratio) + 32, 256)
+
+            guard let converted = AVAudioPCMBuffer(
+                pcmFormat: outputFormat,
+                frameCapacity: AVAudioFrameCount(capacity)
+            ) else {
+                return
+            }
+
+            var consumed = false
+            var conversionError: NSError?
+
+            let status = converter.convert(to: converted, error: &conversionError) { _, outStatus in
+                if consumed {
+                    outStatus.pointee = .noDataNow
+                    return nil
+                }
+                consumed = true
+                outStatus.pointee = .haveData
+                return buffer
+            }
+
+            if status == .error {
+                if let conversionError = conversionError {
+                    print("MicrophoneCapture: Conversion error: \(conversionError)")
+                }
+                return
+            }
+
+            guard converted.frameLength > 0 else { return }
+            guard let channelData = converted.floatChannelData else { return }
+
+            let frameCount = Int(converted.frameLength)
+            let source = channelData[0]
+            var pcm = Data(count: frameCount * MemoryLayout<Int16>.size)
+            var peak = 0
+
+            pcm.withUnsafeMutableBytes { raw in
+                let out = raw.bindMemory(to: Int16.self)
+                for i in 0..<frameCount {
+                    let sample = max(-1.0, min(1.0, source[i]))
+                    let int16Sample = Int16(clamping: Int(sample * 32767.0))
+                    out[i] = int16Sample
+                    let absVal = abs(Int(int16Sample))
+                    if absVal > peak { peak = absVal }
+                }
+            }
+
+            let capturedAtUs = Int64(Date().timeIntervalSince1970 * 1_000_000)
+            self.accumulator.offer(src: pcm, srcLen: pcm.count, capturedAtUs: capturedAtUs, peak: peak) { chunk, length, _, _ in
+                let chunkData = chunk.subdata(in: 0..<length)
+                self.onPCMData?(chunkData)
+            }
+        }
+    }
+}

@@ -29,7 +29,7 @@ A native, pure-wireless Android Auto head unit receiver for iPadOS with full-scr
 
 ## Security
 
-**CarAutoPad** performs local TLS handshakes required by the Android Auto protocol using embedded credentials (`HeadunitPad/Resources/Raw/cert` and `privkey`) managed by `OpenSslTlsHandler`. All projection streams, touch inputs, microphone audio, and location updates are transmitted strictly over your local Wi-Fi network or personal hotspot between your iPad and Android phone—no external servers or cloud relays are involved.
+**CarAutoPad** performs local TLS handshakes required by the Android Auto protocol using embedded credentials (`CarAutoPad/Resources/Raw/cert` and `privkey`) managed by `OpenSslTlsHandler`. All projection streams, touch inputs, microphone audio, and location updates are transmitted strictly over your local Wi-Fi network or personal hotspot between your iPad and Android phone—no external servers or cloud relays are involved.
 
 ## Background
 
@@ -50,7 +50,7 @@ Running Android Auto on an iPad traditionally suffers from wired USB accessory l
 
 ### Option 1: Sideload Prebuilt IPA (Recommended)
 
-1. Download the latest unsigned `CarAutoPad.ipa` (or `HeadunitPad.ipa`) from the [Releases](../../releases) page (current release: `v0.4.1-beta`).
+1. Download the latest unsigned `CarAutoPad.ipa` from the [Releases](../../releases) page (current release: `v0.4.1-beta`).
 2. Sign and install the `.ipa` onto your iPad using your preferred sideloading tool (**SideStore**, **AltStore**, **Sideloadly**, or an Apple Developer certificate).
 3. On first launch, grant **Local Network**, **Microphone**, and **Location** permissions when prompted.
 
@@ -69,7 +69,7 @@ cd headunitpad-auto
 pod install
 
 # 3. Open the workspace in Xcode
-open HeadunitPad.xcworkspace
+open CarAutoPad.xcworkspace
 
 # Or build an unsigned IPA directly via the helper script:
 bash scripts/build_unsigned_ipa.sh
@@ -98,7 +98,7 @@ bash scripts/build_unsigned_ipa.sh
 ## Architecture
 
 ```text
-HeadunitPad/
+CarAutoPad/
 ├── Core/
 │   ├── AAP/          # Frame reassembly, Protobuf codecs, channel multiplexing & link watchdogs
 │   ├── Audio/        # AAC/PCM decoders, navigation ducking envelope, NowPlaying & mic uplink
@@ -117,7 +117,7 @@ HeadunitPad/
 
 ## Testing
 
-The repository includes a comprehensive unit and smoke test suite in `HeadunitPadTests/` covering all engineering phases:
+The repository includes a comprehensive unit and smoke test suite in `CarAutoPadTests/` covering all engineering phases:
 
 * `ByteStreamConnectionTests` & `H264NALParserTests`: Core byte stream and NAL unit parsing verification
 * `Phase1ScreenAndFramingTests`: Screen geometry adaptation and AAP fragmented frame reassembly
@@ -140,7 +140,7 @@ Run all tests in Xcode by pressing `Cmd + U`.
 Issues and Pull Requests are welcome! When submitting a bug report, please attach a diagnostic log exported via `LogExporter`. Before opening a Pull Request, please ensure:
 
 1. New protocol or recovery logic follows the modular `*Policy` architecture.
-2. All unit test suites under `HeadunitPadTests` pass without regressions.
+2. All unit test suites under `CarAutoPadTests` pass without regressions.
 
 ## Acknowledgments
 
