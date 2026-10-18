@@ -9,7 +9,7 @@
 
 
 
-**A native, pure-wireless Android Auto head unit receiver for iPadOS with edge-to-edge full-screen adaptation.**
+**A pure-wireless Android Auto head unit receiver for iPadOS with edge-to-edge full-screen adaptation.**
 
 **CarAutoPad** transforms any modern iPad into a high-performance, wireless Android Auto head unit—without requiring a jailbreak, TrollStore, or wired USB host privileges. Built natively in Swift, it implements a complete Android Auto Protocol (AAP) stack over Wi-Fi (`Port 5277`), hardware-accelerated H.264/HEVC video decoding, multi-channel audio ducking, iOS Lock Screen **Now Playing** integration, and self-healing link recovery.
 
@@ -148,7 +148,7 @@ HeadunitPad-Auto/
 ├── CarAutoPadTests/                # Comprehensive unit & smoke tests across Phases 1–9
 ├── scripts/
 │   └── build_unsigned_ipa.sh       # Automated CLI script to build & verify unsigned CarAutoPad.ipa
-├── Podfile                         # CocoaPods manifest (OpenSSL-Universal ~> 3.6, iOS 17.0+)
+├── Podfile                         # CocoaPods manifest (OpenSSL-Universal ~> 3.6, iOS 15.0+)
 ├── PRD.md                          # Product Requirements Document & engineering phase history
 ├── LICENSE.txt                     # GNU Affero General Public License v3.0
 └── README.md
@@ -158,7 +158,7 @@ HeadunitPad-Auto/
 
 ### Option 1: Sideload Prebuilt IPA (Recommended)
 
-Because **CarAutoPad** uses zero private Apple entitlements, you can install it on any non-jailbroken iPad running **iPadOS 17.0 or later** using a free Apple ID:
+Because **CarAutoPad** uses zero private Apple entitlements, you can install it on any non-jailbroken iPad running **iPadOS 15.0 or later** using a free Apple ID:
 
 1. Download the latest `CarAutoPad.ipa` from the [Releases](https://github.com/Bryan-Maki/HeadunitPad-Auto/releases) page (latest release: `v0.5.0-beta`).
 2. Sign and sideload `CarAutoPad.ipa` onto your iPad using [SideStore](https://sidestore.io/), [AltStore](https://altstore.io/), [Sideloadly](https://sideloadly.io/), or an Apple Developer certificate.
@@ -168,7 +168,7 @@ Because **CarAutoPad** uses zero private Apple entitlements, you can install it 
 
 #### Prerequisites
 
-- **macOS** with **Xcode 15.0+** (iOS/iPadOS 17.0+ SDK)
+- **macOS** with **Xcode 15.0+** (iOS/iPadOS 15.0+ SDK)
 - **CocoaPods** (`brew install cocoapods`)
 
 #### Step-by-Step Build Instructions
