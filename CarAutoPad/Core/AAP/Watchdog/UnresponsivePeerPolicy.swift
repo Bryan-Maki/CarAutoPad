@@ -4,22 +4,16 @@ public enum UnresponsivePeerPolicy {
 
     public static let silentFailuresBeforeBackoff: Int = 3
 
-    public static let silentFailuresBeforeLastTier: Int = 10
+    public static let silentFailuresBeforeLastTier: Int = 3
 
-    public static let normalRescanMs: Int64 = 10_000
+    public static let normalRescanMs: Int64 = 3_000
 
-    public static let backoffRescanMs: Int64 = 60_000
+    public static let backoffRescanMs: Int64 = 3_000
 
-    public static let lastTierRescanMs: Int64 = 300_000
+    public static let lastTierRescanMs: Int64 = 3_000
 
     public static func rescanDelayMs(consecutiveSilentFailures: Int) -> Int64 {
-        if consecutiveSilentFailures >= silentFailuresBeforeLastTier {
-            return lastTierRescanMs
-        } else if consecutiveSilentFailures >= silentFailuresBeforeBackoff {
-            return backoffRescanMs
-        } else {
-            return normalRescanMs
-        }
+        return normalRescanMs
     }
 
     public static func shouldExplain(consecutiveSilentFailures: Int) -> Bool {

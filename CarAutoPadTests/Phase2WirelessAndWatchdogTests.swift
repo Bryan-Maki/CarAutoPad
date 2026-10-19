@@ -36,20 +36,41 @@ final class Phase2WirelessAndWatchdogTests: XCTestCase {
     }
 
     func testUnresponsivePeerPolicyBackoff() {
-        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 0), 10_000)
-        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 2), 10_000)
+        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 0), 3_000)
+        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 2), 3_000)
+        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 3), 3_000)
+        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 10), 3_000)
 
-        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 3), 60_000)
         XCTAssertTrue(UnresponsivePeerPolicy.shouldExplain(consecutiveSilentFailures: 3))
         XCTAssertFalse(UnresponsivePeerPolicy.shouldExplain(consecutiveSilentFailures: 4))
-
-        XCTAssertEqual(UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: 10), 300_000)
 
         let count1 = UnresponsivePeerPolicy.countAfterSilentFailure(previousCount: 2, previousEndpoint: "192.168.1.1", endpoint: "192.168.1.1")
         XCTAssertEqual(count1, 3)
 
         let count2 = UnresponsivePeerPolicy.countAfterSilentFailure(previousCount: 2, previousEndpoint: "192.168.1.1", endpoint: "192.168.1.2")
         XCTAssertEqual(count2, 1)
+    }
+
+    func testAutomaticReconnectMaxThreeAttemptsAndThreeSecondDelay() {
+        XCTAssertEqual(AutomaticReconnect.defaultMaxAttempts, 3)
+        XCTAssertEqual(AutomaticReconnect.defaultRetryDelayMs, 3_000)
+
+        let reconnect = AutomaticReconnect()
+        XCTAssertEqual(reconnect.maxAttempts, 3)
+        XCTAssertEqual(reconnect.retryDelayMs, 3_000)
+        XCTAssertEqual(reconnect.attemptCount, 0)
+        XCTAssertFalse(reconnect.isScheduled)
+        XCTAssertEqual(reconnect.delaySeconds(forAttempt: 1), 3.0, accuracy: 0.001)
+        XCTAssertEqual(reconnect.delaySeconds(forAttempt: 3), 3.0, accuracy: 0.001)
+
+        let dummySession = NSObject()
+        reconnect.schedule(endedSession: dummySession, delayMs: 50) {}
+        XCTAssertEqual(reconnect.attemptCount, 1)
+        XCTAssertTrue(reconnect.isScheduled)
+
+        reconnect.resetAttempts()
+        XCTAssertEqual(reconnect.attemptCount, 0)
+        XCTAssertFalse(reconnect.isScheduled)
     }
 
     func testVideoStarvationPolicyStreakAndAdvisory() {

@@ -76,6 +76,11 @@ class ConnectionManager {
     private var consecutiveSilentFailures: Int = 0
     private var lastTriedEndpoint: String?
 
+    public private(set) var reconnectAttempt: Int = 0
+    public let maxReconnectAttempts: Int = 3
+    public var isAutoReconnectScheduled: Bool { autoReconnect.isScheduled }
+    private var hasHandledDisconnectForCurrentAttempt: Bool = false
+
     private lazy var autoReconnect = AutomaticReconnect(
         currentState: { [weak self] in self?.activeConnection },
         isStopping: { [weak self] in self?.isUserInitiatedDisconnect ?? false }
@@ -151,8 +156,22 @@ class ConnectionManager {
     func startDiscovery() {
         AppLog.i("ConnectionManager: startDiscovery called", tag: "ConnectionManager")
         hasPerformedSilentIcebreakRetry = false
-        autoReconnect.cancel()
+        reconnectAttempt = 0
+        autoReconnect.resetAttempts()
         isUserInitiatedDisconnect = false
+
+        guard NetworkAddresses.stationIpv4() != nil else {
+            AppLog.w("ConnectionManager: No Wi-Fi IPv4 address detected, aborting discovery", tag: "ConnectionManager")
+            state = .disconnected
+            ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
+            updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+            return
+        }
+
+        ConnectionIssueStore.shared.clear(issue: .wifiRadioOff)
+        ConnectionIssueStore.shared.clear(issue: .noDeviceDiscovered)
+        ConnectionIssueStore.shared.clear(issue: .headunitServerStuckAfterRetries)
+
         let canStart: Bool
         switch state {
         case .disconnected, .error, .waitingForWirelessHelper:
@@ -180,6 +199,7 @@ class ConnectionManager {
     func stopDiscovery(cancelPrepared: Bool = true) {
         AppLog.i("ConnectionManager: stopDiscovery called", tag: "ConnectionManager")
         autoReconnect.cancel()
+        reconnectAttempt = 0
         discovery.stopScan(cancelPrepared: cancelPrepared)
         if state == .discovering || state == .waitingForWirelessHelper {
             state = .disconnected
@@ -189,8 +209,13 @@ class ConnectionManager {
 
     func connect(to device: DiscoveredDevice, userInitiated: Bool = true) {
         AppLog.i("ConnectionManager: connect(to:) called with device: \(device.displayName), userInitiated: \(userInitiated)", tag: "ConnectionManager")
+        hasHandledDisconnectForCurrentAttempt = false
         if userInitiated {
             hasPerformedSilentIcebreakRetry = false
+            reconnectAttempt = 0
+            autoReconnect.resetAttempts()
+            ConnectionIssueStore.shared.clear(issue: .headunitServerStuckAfterRetries)
+            ConnectionIssueStore.shared.clear(issue: .noDeviceDiscovered)
         }
         autoReconnect.cancel()
         isUserInitiatedDisconnect = false
@@ -247,6 +272,7 @@ class ConnectionManager {
     func disconnect() {
         AppLog.i("ConnectionManager: disconnect called", tag: "ConnectionManager")
         isUserInitiatedDisconnect = true
+        reconnectAttempt = 0
         autoReconnect.cancel()
 
         if let transport = aapTransport {
@@ -368,23 +394,29 @@ class ConnectionManager {
     private func scheduleReconnectIfNeeded(reason: String) {
         guard ProjectionSettings.autoReconnect else { return }
         guard !isUserInitiatedDisconnect else { return }
+        guard let targetDevice = lastConnectedDevice else { return }
 
-        let delayMs = UnresponsivePeerPolicy.rescanDelayMs(consecutiveSilentFailures: consecutiveSilentFailures)
-        if UnresponsivePeerPolicy.shouldExplain(consecutiveSilentFailures: consecutiveSilentFailures) {
-            AppLog.w("ConnectionManager: UnresponsivePeerPolicy backing off to \(delayMs)ms after \(consecutiveSilentFailures) silent attempts", tag: "ConnectionManager")
-        }
-
-        updateStatus("\(reason). Reconnecting in \(delayMs / 1000)s...")
-        if let session = activeConnection as AnyObject? {
-            autoReconnect.schedule(endedSession: session, delayMs: delayMs) { [weak self] in
-                guard let self = self else { return }
-                switch self.state {
-                case .disconnected, .error:
-                    self.startDiscovery()
-                default:
-                    break
+        if reconnectAttempt < maxReconnectAttempts {
+            reconnectAttempt += 1
+            let attemptNum = reconnectAttempt
+            updateStatus("Connection failed. Retrying in 3s (\(attemptNum)/\(maxReconnectAttempts))...")
+            let session = (activeConnection ?? tcpHandler) as AnyObject
+            autoReconnect.schedule(
+                endedSession: session,
+                delayMs: 3_000,
+                ownsCheck: { [weak self] in
+                    guard let self = self else { return false }
+                    return !self.isUserInitiatedDisconnect
                 }
+            ) { [weak self] in
+                guard let self = self, !self.isUserInitiatedDisconnect else { return }
+                self.connect(to: targetDevice, userInitiated: false)
             }
+        } else {
+            autoReconnect.cancel()
+            ConnectionIssueStore.shared.raise(issue: .headunitServerStuckAfterRetries)
+            state = .error("Connection failed after 3 retries. Headunit Server on phone may be stuck — please manually restart Headunit Server.")
+            updateStatus("Failed after 3 retries. Phone Headunit Server may be stuck — please restart it manually.")
         }
     }
 
@@ -417,16 +449,26 @@ extension ConnectionManager: DiscoveryDelegate {
                 return
             }
             state = .disconnected
-            updateStatus("No headunit server found. Please ensure hotspot is enabled and Android Auto Headunit Server is running (port 5277)")
-            scheduleReconnectIfNeeded(reason: "Scan finished")
+            if NetworkAddresses.stationIpv4() == nil {
+                ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
+                updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+            } else {
+                ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
+                updateStatus("No device found on network (Check Headunit Server on phone)")
+            }
         }
     }
 
     func discoveryDidFail(_ error: Error) {
         AppLog.e("ConnectionManager: discovery failed with error: \(error.localizedDescription)", tag: "ConnectionManager")
-        state = .error(error.localizedDescription)
-        updateStatus(error.localizedDescription)
-        scheduleReconnectIfNeeded(reason: "Discovery failed")
+        state = .disconnected
+        if NetworkAddresses.stationIpv4() == nil || (error as? DiscoveryError) == .noNetworkInterface {
+            ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
+            updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+        } else {
+            ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
+            updateStatus("Search failed: \(error.localizedDescription)")
+        }
     }
 }
 
@@ -528,8 +570,11 @@ extension ConnectionManager: AapTransportDelegate {
             }
             self.state = .running
             self.hasPerformedSilentIcebreakRetry = false
-            updateStatus("Android Auto is running over wireless")
+            reconnectAttempt = 0
             consecutiveSilentFailures = 0
+            autoReconnect.resetAttempts()
+            ConnectionIssueStore.shared.clearAll()
+            updateStatus("Android Auto is running over wireless")
             consecutiveStarvedSessions = VideoStarvationPolicy.nextStreak(
                 current: consecutiveStarvedSessions,
                 reachedHandshake: true,
@@ -563,6 +608,8 @@ extension ConnectionManager: AapTransportDelegate {
                 endpoint: lastTriedEndpoint
             )
 
+            guard !hasHandledDisconnectForCurrentAttempt else { return }
+            hasHandledDisconnectForCurrentAttempt = true
             scheduleReconnectIfNeeded(reason: "Android Auto error")
 
         default:
@@ -598,6 +645,8 @@ extension ConnectionManager: AapTransportDelegate {
             AppLog.w("ConnectionManager: VideoStarvationPolicy advises lowering resolution/fps", tag: "ConnectionManager")
         }
 
+        guard !hasHandledDisconnectForCurrentAttempt else { return }
+        hasHandledDisconnectForCurrentAttempt = true
         scheduleReconnectIfNeeded(reason: "Android Auto disconnected")
     }
 
@@ -613,15 +662,8 @@ extension ConnectionManager: AapTransportDelegate {
     }
 
     func aapTransportDidDetectSilentPeerOnInitialHandshake(_ transport: AapTransport) {
-        guard transport === aapTransport, !hasPerformedSilentIcebreakRetry, let device = connectedDevice else { return }
-        hasPerformedSilentIcebreakRetry = true
-        AppLog.w("No VERSION_RESPONSE after 3.0s; redialing fresh TCP connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
-        isUserInitiatedDisconnect = true
+        guard transport === aapTransport, let device = connectedDevice else { return }
+        AppLog.w("No VERSION_RESPONSE after 3.0s on \(device.ip):\(device.port); disconnecting to trigger auto-reconnect", tag: "ConnectionManager")
         tcpHandler.disconnect()
-        isUserInitiatedDisconnect = false
-        installAapTransport(connection: tcpHandler)
-        aapTransport?.initialVersionRequestDelay = 0.2
-        aapTransport?.configurePeer(host: device.ip, port: device.port)
-        tcpHandler.connect(host: device.ip, port: device.port)
     }
 }

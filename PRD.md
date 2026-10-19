@@ -272,4 +272,20 @@ The overall port is considered complete only when all of the following criteria 
   - Enables side-by-side coexistence on iPad with upstream `andyching168.HeadunitPad` without overwriting installs.
   - Renamed internal target name `PRODUCT_NAME = "$(TARGET_NAME)"` (`CarAutoPad.app/CarAutoPad`) and `vehicleId = "iPad-CarAutoPad"` to establish 100% full project consistency.
 * **AAP Broadcast & System Lockscreen Alignment**:
-  - Updated `ServiceDiscoveryResponse` (`headUnitMake: "CarAutoPad"`, `headUnitModel: "CarAutoPad"`, `displayName: "CarAutoPad"`), `AapTransport` connected device announcements, and `NowPlayingCoordinator` placeholder and owner identifiers.
+  - Updated `ServiceDiscoveryResponse` (`headUnitMake: "CarAutoPad"`, `headUnitModel: "CarAutoPad"`, `displayName: "CarAutoPad"`), `AapTransport` connected device announcements, and `NowPlayingCoordinator` placeholder and owner identifiers.
+
+### 10.6 Smart 3-Attempt Targeted Auto-Reconnect & Precise Discovery Failure Diagnosis (100% Completed)
+* **No Blind Rescan or Reconnect on Empty Discovery**:
+  - Pre-discovery check validates local IPv4 interface before network scanning; immediately raises `.wifiRadioOff` if disconnected from Wi-Fi/Hotspot.
+  - Accurately distinguishes between `.wifiRadioOff` ("Search Failed: No Wi-Fi / Hotspot") and `.noDeviceDiscovered` ("No Device Found on Network (Port 5277)").
+  - Terminates discovery cleanly on empty scan without triggering endless blind background scans.
+* **Targeted 3-Attempt 3.0s Auto-Reconnect for Discovered Peers**:
+  - Directly reconnects to the target peer (`lastConnectedDevice`) at fixed 3.0-second intervals without repeating full subnet sweeps.
+  - Enforces a hard ceiling of 3 retries (`reconnectAttempt` 1/3, 2/3, 3/3).
+  - Single-event latch (`hasHandledDisconnectForCurrentAttempt`) eliminates duplicate reconnect dispatching across `.error` and `aapTransportDidDisconnect`.
+* **Headunit Server Unresponsive / Stuck Alert**:
+  - When all 3 retries are exhausted, terminates auto-reconnect and raises `.headunitServerStuckAfterRetries`.
+  - Clearly alerts the user that the phone's Headunit Server may be frozen and provides actionable instructions to restart it in Android Auto developer settings (⋮ -> Stop head unit server, then Start head unit server).
+* **UI Feedback & Banner Dismiss Fix**:
+  - Dashboard dynamically surfaces retry countdown progress (`Retrying in 3s (X/3)...`), orange status pill, active loading indicator, and accessible disconnect button during reconnection.
+  - Banner dismiss accurately dismisses the most recently raised standing issue (`max(by: raisedAtEpochMs)`).

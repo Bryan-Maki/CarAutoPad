@@ -1013,16 +1013,34 @@ final class MainViewController: UIViewController {
             videoRenderer.reset()
             audioPlayer.reset()
             settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemGreen
-            statusLabel.text = "iPad IP: \(currentIp) • Ready"
-            statusLabel.textColor = .secondaryLabel
-            connectButton.isEnabled = true
-            directConnectButton.isEnabled = true
             if directIpTextField.text?.isEmpty ?? true {
                 directIpTextField.text = NetworkAddresses.currentHotspotGatewayIpv4()
             }
-            disconnectButton.isHidden = true
-            activityIndicator.stopAnimating()
+
+            if connectionManager.isAutoReconnectScheduled {
+                statusDotView.backgroundColor = .systemOrange
+                statusLabel.text = connectionManager.statusDetail
+                statusLabel.textColor = .systemOrange
+                connectButton.isEnabled = false
+                directConnectButton.isEnabled = false
+                disconnectButton.isHidden = false
+                activityIndicator.startAnimating()
+            } else {
+                let detail = connectionManager.statusDetail
+                if detail.contains("No device found") || detail.contains("Search failed") || detail.contains("Failed after 3 retries") {
+                    statusDotView.backgroundColor = .systemOrange
+                    statusLabel.text = detail
+                    statusLabel.textColor = .systemOrange
+                } else {
+                    statusDotView.backgroundColor = .systemGreen
+                    statusLabel.text = "iPad IP: \(currentIp) • Ready"
+                    statusLabel.textColor = .secondaryLabel
+                }
+                connectButton.isEnabled = true
+                directConnectButton.isEnabled = true
+                disconnectButton.isHidden = true
+                activityIndicator.stopAnimating()
+            }
             setNeedsStatusBarAppearanceUpdate()
             setNeedsUpdateOfHomeIndicatorAutoHidden()
 
@@ -1126,8 +1144,6 @@ final class MainViewController: UIViewController {
                 ConnectionIssueStore.shared.raise(issue: .connectionRefused5277)
             } else if lower.contains("tls") || lower.contains("handshake") {
                 ConnectionIssueStore.shared.raise(issue: .tlsHandshakeFailed)
-            } else {
-                ConnectionIssueStore.shared.raise(issue: .headunitServerNotAnswering)
             }
             stopVideoWatchdog()
             videoContainerView.isHidden = true
@@ -1135,13 +1151,24 @@ final class MainViewController: UIViewController {
             view.bringSubviewToFront(homeScrollView)
             audioPlayer.reset()
             settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemRed
-            statusLabel.text = connectionManager.statusDetail.isEmpty ? message : connectionManager.statusDetail
-            statusLabel.textColor = .systemRed
-            connectButton.isEnabled = true
-            directConnectButton.isEnabled = true
-            disconnectButton.isHidden = true
-            activityIndicator.stopAnimating()
+
+            if connectionManager.isAutoReconnectScheduled {
+                statusDotView.backgroundColor = .systemOrange
+                statusLabel.text = connectionManager.statusDetail
+                statusLabel.textColor = .systemOrange
+                connectButton.isEnabled = false
+                directConnectButton.isEnabled = false
+                disconnectButton.isHidden = false
+                activityIndicator.startAnimating()
+            } else {
+                statusDotView.backgroundColor = .systemRed
+                statusLabel.text = connectionManager.statusDetail.isEmpty ? message : connectionManager.statusDetail
+                statusLabel.textColor = .systemRed
+                connectButton.isEnabled = true
+                directConnectButton.isEnabled = true
+                disconnectButton.isHidden = true
+                activityIndicator.stopAnimating()
+            }
             setNeedsStatusBarAppearanceUpdate()
             setNeedsUpdateOfHomeIndicatorAutoHidden()
         }
@@ -1537,8 +1564,8 @@ final class MainViewController: UIViewController {
     }
 
     @objc private func dismissConnectionIssueBanner() {
-        if let current = ConnectionIssueStore.shared.currentIssues().first {
-            dismissedIssueEpochMs = current.raisedAtEpochMs
+        if let latest = ConnectionIssueStore.shared.currentIssues().max(by: { $0.raisedAtEpochMs < $1.raisedAtEpochMs }) {
+            dismissedIssueEpochMs = latest.raisedAtEpochMs
         } else {
             dismissedIssueEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         }
@@ -1550,8 +1577,13 @@ final class MainViewController: UIViewController {
             guard let self = self else { return }
             let snapshot = NetworkReachabilityMonitor.shared.currentSnapshot
             let ipText = snapshot.stationIpv4 ?? "No Wi-Fi"
-            if self.connectionManager.state == .disconnected {
-                self.statusLabel.text = "iPad IP: \(ipText) • Ready"
+            if self.connectionManager.state == .disconnected && !self.connectionManager.isAutoReconnectScheduled {
+                let detail = self.connectionManager.statusDetail
+                if detail.contains("No device found") || detail.contains("Search failed") || detail.contains("Failed after 3 retries") {
+                    // Keep failure advice
+                } else {
+                    self.statusLabel.text = "iPad IP: \(ipText) • Ready"
+                }
             }
             if let gw = snapshot.gatewayIpv4, !gw.isEmpty {
                 let current = self.directIpTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

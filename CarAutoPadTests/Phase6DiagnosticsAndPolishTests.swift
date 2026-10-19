@@ -110,6 +110,15 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
             XCTAssertFalse(issue.title.isEmpty, "Every issue must have a non-empty title")
             XCTAssertFalse(issue.resolutionAdvice.isEmpty, "Every issue must provide actionable advice")
         }
+
+        XCTAssertEqual(ConnectionIssue.noDeviceDiscovered.title, "No Device Found on Network")
+        XCTAssertTrue(ConnectionIssue.noDeviceDiscovered.resolutionAdvice.contains("port 5277"))
+
+        XCTAssertEqual(ConnectionIssue.headunitServerStuckAfterRetries.title, "Connection Failed After 3 Retries (Server May Be Stuck)")
+        XCTAssertTrue(ConnectionIssue.headunitServerStuckAfterRetries.resolutionAdvice.contains("Stop head unit server, then Start head unit server"))
+
+        XCTAssertEqual(ConnectionIssue.wifiRadioOff.title, "Search Failed: No Wi-Fi / Hotspot")
+        XCTAssertTrue(ConnectionIssue.wifiRadioOff.resolutionAdvice.contains("personal hotspot"))
     }
 
     func testConnectionIssueStorePersistenceAndClear() {
@@ -168,6 +177,15 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
             dismissedAtEpochMs: 2000
         )
         XCTAssertEqual(bannerNew?.issue, .wifiRadioOff)
+
+        let issue4 = StandingIssue(issue: .noDeviceDiscovered, raisedAtEpochMs: 3000)
+        let issue5 = StandingIssue(issue: .headunitServerStuckAfterRetries, raisedAtEpochMs: 4000)
+        let bannerStuck = ConnectionIssueBannerPolicy.bannerFor(
+            standing: [issue1, issue2, issue3, issue4, issue5],
+            sessionConnected: false,
+            dismissedAtEpochMs: nil
+        )
+        XCTAssertEqual(bannerStuck?.issue, .headunitServerStuckAfterRetries)
     }
 
     func testAppLogInMemBufferAndClear() {
