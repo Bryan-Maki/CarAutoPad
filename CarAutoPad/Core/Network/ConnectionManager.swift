@@ -139,7 +139,7 @@ class ConnectionManager {
         guard let stationIp = snapshot.stationIpv4, !stationIp.isEmpty else { return }
         if state == .disconnected && ProjectionSettings.autoReconnect && !isUserInitiatedDisconnect {
             AppLog.i("Network reconnected with valid IP \(stationIp), triggering auto-discovery", tag: "ConnectionManager")
-            startDiscovery()
+            startDiscovery(userInitiated: false)
         }
     }
 
@@ -153,11 +153,14 @@ class ConnectionManager {
         locationCapture.requestPermissionIfNeeded()
     }
 
-    func startDiscovery() {
-        AppLog.i("ConnectionManager: startDiscovery called", tag: "ConnectionManager")
+    func startDiscovery(userInitiated: Bool = true) {
+        AppLog.i("ConnectionManager: startDiscovery called (userInitiated: \(userInitiated))", tag: "ConnectionManager")
         hasPerformedSilentIcebreakRetry = false
-        reconnectAttempt = 0
-        autoReconnect.resetAttempts()
+        if userInitiated {
+            reconnectAttempt = 0
+            autoReconnect.resetAttempts()
+        }
+        autoReconnect.cancel()
         isUserInitiatedDisconnect = false
 
         guard NetworkAddresses.stationIpv4() != nil else {
@@ -199,7 +202,6 @@ class ConnectionManager {
     func stopDiscovery(cancelPrepared: Bool = true) {
         AppLog.i("ConnectionManager: stopDiscovery called", tag: "ConnectionManager")
         autoReconnect.cancel()
-        reconnectAttempt = 0
         discovery.stopScan(cancelPrepared: cancelPrepared)
         if state == .discovering || state == .waitingForWirelessHelper {
             state = .disconnected
@@ -272,7 +274,6 @@ class ConnectionManager {
     func disconnect() {
         AppLog.i("ConnectionManager: disconnect called", tag: "ConnectionManager")
         isUserInitiatedDisconnect = true
-        reconnectAttempt = 0
         autoReconnect.cancel()
 
         if let transport = aapTransport {
@@ -431,31 +432,28 @@ class ConnectionManager {
 
 extension ConnectionManager: DiscoveryDelegate {
     func discoveryDidFindDevice(_ device: DiscoveredDevice) {
-        AppLog.i("ConnectionManager: Discovered device \(device.displayName)", tag: "ConnectionManager")
+        guard state == .discovering else { return }
+        AppLog.i("ConnectionManager: Discovered device \(device.displayName), connecting immediately", tag: "ConnectionManager")
         if !discoveredDevices.contains(where: { $0.ip == device.ip && $0.port == device.port }) {
             discoveredDevices.append(device)
         }
         discovery.stopScan(cancelPrepared: false)
-        if state == .discovering {
-            state = .disconnected
-        }
+        ConnectionIssueStore.shared.clear(issue: .noDeviceDiscovered)
+        ConnectionIssueStore.shared.clear(issue: .wifiRadioOff)
         delegate?.connectionManager(self, didDiscoverDevice: device)
+        connect(to: device, userInitiated: false)
     }
 
     func discoveryDidFinish() {
         AppLog.i("ConnectionManager: discovery finished, found \(discoveredDevices.count) devices", tag: "ConnectionManager")
-        if state == .discovering {
-            if !discoveredDevices.isEmpty {
-                return
-            }
-            state = .disconnected
-            if NetworkAddresses.stationIpv4() == nil {
-                ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
-                updateStatus("Search failed: No Wi-Fi / Hotspot connection")
-            } else {
-                ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
-                updateStatus("No device found on network (Check Headunit Server on phone)")
-            }
+        guard state == .discovering, discoveredDevices.isEmpty, connectedDevice == nil else { return }
+        state = .disconnected
+        if NetworkAddresses.stationIpv4() == nil {
+            ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
+            updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+        } else {
+            ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
+            updateStatus("No device found on network (Check Headunit Server on phone)")
         }
     }
 

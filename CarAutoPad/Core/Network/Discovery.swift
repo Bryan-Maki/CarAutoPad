@@ -51,6 +51,7 @@ public final class Discovery {
     public weak var delegate: DiscoveryDelegate?
 
     private let queue = DispatchQueue(label: "com.carautopad.discovery", qos: .userInitiated)
+    private let probeQueue = DispatchQueue(label: "com.carautopad.discovery.probe", qos: .userInitiated, attributes: .concurrent)
     private var browseWorkItem: DispatchWorkItem?
     private(set) public var isScanning = false
     private var activeProbeConnections: [UUID: NWConnection] = [:]
@@ -240,6 +241,7 @@ public final class Discovery {
     }
 
     private func reportFoundService(ip: String, port: UInt16) {
+        guard isScanning else { return }
         let ep = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
         probeLock.lock()
         if reportedEndpoints.contains(ep) {
@@ -256,6 +258,7 @@ public final class Discovery {
     }
 
     private func finishScan() {
+        guard isScanning else { return }
         isScanning = false
         AppLog.i("Discovery: Scan finished", tag: "Discovery")
         DispatchQueue.main.async { [weak self] in
@@ -310,7 +313,7 @@ public final class Discovery {
             }
         }
 
-        queue.asyncAfter(deadline: .now() + timeout, execute: timeoutWorkItem)
+        probeQueue.asyncAfter(deadline: .now() + timeout, execute: timeoutWorkItem)
 
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             guard let self = self, let conn = connection else { return }
@@ -322,6 +325,13 @@ public final class Discovery {
 
             switch state {
             case .ready:
+                guard self.isScanning else {
+                    lock.unlock()
+                    conn.cancel()
+                    self.removeActiveProbe(probeId)
+                    completion(false, nil)
+                    return
+                }
                 hasCompleted = true
                 lock.unlock()
                 timeoutWorkItem.cancel()
@@ -344,7 +354,7 @@ public final class Discovery {
             }
         }
 
-        connection.start(queue: queue)
+        connection.start(queue: probeQueue)
     }
 
     private func removeActiveProbe(_ id: UUID) {

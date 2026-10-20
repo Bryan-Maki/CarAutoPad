@@ -68,9 +68,41 @@ final class Phase2WirelessAndWatchdogTests: XCTestCase {
         XCTAssertEqual(reconnect.attemptCount, 1)
         XCTAssertTrue(reconnect.isScheduled)
 
+        // cancel() cancels pending task but preserves attemptCount
+        reconnect.cancel()
+        XCTAssertFalse(reconnect.isScheduled)
+        XCTAssertEqual(reconnect.attemptCount, 1, "cancel() must NOT reset attemptCount")
+
+        // Schedule again for attempt 2
+        reconnect.schedule(endedSession: dummySession, delayMs: 50) {}
+        XCTAssertEqual(reconnect.attemptCount, 2)
+        XCTAssertTrue(reconnect.isScheduled)
+
         reconnect.resetAttempts()
         XCTAssertEqual(reconnect.attemptCount, 0)
         XCTAssertFalse(reconnect.isScheduled)
+    }
+
+    func testConnectionManagerReconnectAttemptPreservedAcrossAutomaticRetries() {
+        let cm = ConnectionManager.shared
+        XCTAssertEqual(cm.maxReconnectAttempts, 3)
+
+        // User initiated connect resets attempts to 0
+        let device = DiscoveredDevice(ip: "127.0.0.1", port: 5277, name: "TestDevice")
+        cm.connect(to: device, userInitiated: true)
+        XCTAssertEqual(cm.reconnectAttempt, 0)
+
+        // Non-user-initiated connect (e.g. from retry or immediate auto-connect on discovery) must preserve reconnectAttempt
+        cm.connect(to: device, userInitiated: false)
+        XCTAssertEqual(cm.reconnectAttempt, 0)
+
+        // stopDiscovery must NOT reset reconnectAttempt
+        cm.stopDiscovery(cancelPrepared: true)
+        XCTAssertEqual(cm.reconnectAttempt, 0)
+
+        // disconnect must NOT reset reconnectAttempt
+        cm.disconnect()
+        XCTAssertEqual(cm.reconnectAttempt, 0)
     }
 
     func testVideoStarvationPolicyStreakAndAdvisory() {

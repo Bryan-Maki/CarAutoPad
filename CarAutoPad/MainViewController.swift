@@ -1682,17 +1682,8 @@ extension MainViewController: ConnectionManagerDelegate {
     func connectionManager(_ manager: ConnectionManager, didDiscoverDevice device: DiscoveredDevice) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.statusLabel.text = "Found: \(device.displayName)"
-            let alert = UIAlertController(
-                title: "Device Found",
-                message: "Found \(device.displayName). Connect now?",
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "Connect", style: .default) { [weak self] _ in
-                self?.connectionManager.connect(to: device, userInitiated: true)
-            })
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
-            self.present(alert, animated: true)
+            self.statusLabel.text = "Found \(device.displayName), connecting..."
+            self.updateConnectionIssueBanner()
         }
     }
 

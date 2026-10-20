@@ -288,4 +288,65 @@ The overall port is considered complete only when all of the following criteria 
   - Clearly alerts the user that the phone's Headunit Server may be frozen and provides actionable instructions to restart it in Android Auto developer settings (⋮ -> Stop head unit server, then Start head unit server).
 * **UI Feedback & Banner Dismiss Fix**:
   - Dashboard dynamically surfaces retry countdown progress (`Retrying in 3s (X/3)...`), orange status pill, active loading indicator, and accessible disconnect button during reconnection.
-  - Banner dismiss accurately dismisses the most recently raised standing issue (`max(by: raisedAtEpochMs)`).
+  - Banner dismiss accurately dismisses the most recently raised standing issue (`max(by: raisedAtEpochMs)`).
+
+
+---
+
+## 11. Phase 11: Apple CarPlay (`DiPlay`) 双引擎融合架构规划 (Roadmap)
+
+参考工作区 `reference/DiPlay`（Android 端 Apple CarPlay 开源接收端实现）的完整架构，在保持 `CarAutoPad` 现有成熟免越狱硬解、混音与自适应全屏管线的前提下，将项目演进为**支持 Android Auto 与 Apple CarPlay 的免越狱无线双引擎车机接收端**。
+
+### 11.1 Phase 11.1 — 加密原语、TLV8/Bplist 与配对层 (`CarAutoPad/Core/CarPlay/Crypto/` & `Pairing/`)
+* **密码学原语绑定**：
+  - 基于 iPadOS 原生 `CryptoKit` 实现 `ChaChaPoly` (RFC 7539 / 8439, 12-byte IV + 16-byte tag)、`Curve25519.KeyAgreement` (X25519) 与 `HKDF<SHA512>`。
+  - 基于项目中已有的 `OpenSSL-Universal` 封装 `Srp6a`（SRP-6a 协议，RFC 5054，3072-bit 质数群），默认 PIN 码为 `"3939"`。
+* **数据序列化**：
+  - 移植 `Tlv8Codec`：处理 AirPlay 配对过程中的 TLV8（Type-Length-Value，支持超 255 字节的分片重组）。
+  - 使用 Foundation `PropertyListSerialization` 处理二进制 bplist (`.binary`) 编解码。
+* **配对握手状态机**：
+  - `PairSetup`：完成 SRP-6a 协商、`M1/M2`、`M3/M4` 与 `M5/M6` 阶段，生成长期对端 Ed25519 公钥并保存到钥匙串/沙盒。
+  - `PairVerify`：基于 Curve25519 进行临时密钥交换与两阶段验证（`M1/M2`、`M3/M4`），推导出本次 RTSP 会话的对称控制加密密钥 (`ControlCipher`)。
+
+### 11.2 Phase 11.2 — MFi SAP 认证层 (`CarAutoPad/Core/CarPlay/MFi/`)
+* **MFi 认证抽象架构**：
+  - 定义 `MfiAuthProvider` 协议：包含 `getCertificate() async throws -> Data` 与 `sign(digest: Data) async throws -> Data`。
+  - `LocalMfiAuthProvider`：加载本地沙盒内置证书 `certificate.p7b` 与私钥 `identity.pk8`，调用 OpenSSL / Security.framework 执行 P-256 ECDSA SHA-256 签名。
+  - `RemoteMfiAuthProvider`：支持通过本地/局域网 HTTP 服务器代理远程获取 MFi 证书 (`GET /mfi/certificate`) 与签名 (`POST /mfi/sign`)。
+* **SAP 协商会话**：
+  - 实现 `CarPlayMfiSapAuthSetup`，处理 RTSP `/auth-setup` 的两步 SAP 交换（AES-128-CTR 认证挑战协商）。
+
+### 11.3 Phase 11.3 — AirPlay RTSP 会话与 HID 触控回传 (`CarAutoPad/Core/CarPlay/AirPlay/`)
+* **RTSP 消息编解码 (`CarPlayRtspMessage`)**：
+  - 实现标准的 RTSP 请求与响应解析器（解析 CSeq、Content-Type `image/x-bplist` 或 `text/x-apple-plist+xml`、DACP-ID、Active-Remote）。
+* **AirPlay 会话状态机 (`CarPlayAirPlaySession`)**：
+  - 支持 `/info` 阶段：组装并回复车机端 `CarPlayInfoPlist`（分辨率、DPI、物理尺寸、音频格式能力集、HID 描述符、支持的流格式等）。
+  - 支持双阶段 `SETUP`：
+    - Setup 1：建立控制流与时间同步流 (`CarPlayNtpClock`，UDP 7010)。
+    - Setup 2：建立数据流通道（视频 Type 110、主音频 Type 100/101、备用音频 Type 102/103、麦克风 Type 111 等）。
+  - 支持 `RECORD` 与 `TEARDOWN`。
+* **HID 触控与按键回传 (`CarPlayHid`)**：
+  - 构造标准的 Apple CarPlay Multi-touch HID 报告描述符。
+  - 在建立加密的 `eventPort`（TCP，ChaChaPoly 报文加密）后，将 iPad 屏幕手势与多点触控实时打包为 HID 报告并发送至 iPhone。
+
+### 11.4 Phase 11.4 — 音视频流解包与现有硬解管线复用 (`CarAutoPad/Core/CarPlay/Media/`)
+* **视频流解包与硬解复用 (`CarPlayScreenStream`)**：
+  - 监听 TCP 数据端口，读取 Type 110 视频报文头，使用会话协商的 ChaChaPoly 密钥解密 payload。
+  - 解析 AVCC/HVCC NAL 格式，转为 Annex-B 裸流，直接喂入现有 `H264VideoRendererView`，完全复用 iPadOS 硬件 `VideoToolbox` 解码器与 Metal/AVSampleBufferDisplayLayer 渲染流水线。
+* **音频流解密与混音复用 (`CarPlayAudioStream` & `CarPlayBufferedAudioStream`)**：
+  - 监听 Type 100（AAC-ELD / PCM 主音频）、Type 101（导航/警示伴音）、Type 102/103（电话/Siri 语音）。
+  - 解密音频包，直接投递给现有的 `PCMAudioPlayer` 与 `AacAudioDecoder`，复用三声道独立混合、导航平滑压音（`MixerDuckingEnvelope`）与 30% Ducking 策略。
+* **麦克风输入适配 (`CarPlayMicPacketizer`)**：
+  - 将现有 `MicrophoneCapture` 采集到的 16kHz / 24kHz PCM 音频数据封装为 CarPlay 规定的 Type 111 音频包，发送至 iPhone。
+
+### 11.5 Phase 11.5 — iAP2 隧道、Bonjour 唤醒与双模 UI 整合 (`CarAutoPad/Core/CarPlay/iAP2/` & `Discovery/`)
+* **iAP2 通信协议栈**：
+  - 监听 Type 130 隧道通道，解析 iAP2 链接层与会话层帧（Link Synchronization、Control Session、NowPlaying / Media Information）。
+  - 将曲目、艺术家、封面元数据无缝桥接到现有的 `NowPlayingCoordinator`，保持 iPad 锁屏 Now Playing 一致体验。
+  - 将车载 GPS 坐标（`LocationCapture`）通过 iAP2 Location Information 消息透传至 iPhone。
+* **无线发现与热点自动唤醒 (`CarPlayBonjourService`)**：
+  - 在局域网发布 `_airplay._tcp` 与 `_raop._tcp` 广播服务（TXT 记录宣告 features、model、pk、srcvers、pi 等）。
+  - 监听来自 iPhone 的 `_carplay-ctrl._tcp` 唤醒请求，或主动向 iPhone 发起 `GET /ctrl-int/1/connect` 触发无线反向连接。
+* **主控双模 UI 整合**：
+  - 在 `MainViewController` 顶部 Header 或 Connection Hub 增加模式选择胶囊：`[ Android Auto | Apple CarPlay ]`。
+  - 根据选中的模式分别启动 AAP 5277 发现引擎或 CarPlay AirPlay Bonjour 引擎，实现单 App 兼顾不同车主设备的极致体验。
