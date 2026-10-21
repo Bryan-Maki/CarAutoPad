@@ -162,7 +162,7 @@ class AapTransport {
 
         var versionTimeout: TimeInterval {
             switch self {
-            case .network: return 10.0
+            case .network: return 5.0
             }
         }
 
@@ -383,22 +383,6 @@ class AapTransport {
         }
 
         versionRequestAttempts += 1
-
-        if versionRequestAttempts == 2 {
-            triggerLauncherPokeIfNeeded()
-            handshakeQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                guard let self = self, self.state == .waitingForVersion else { return }
-                let hasRxPacket: Bool = {
-                    self.aapTraceLock.lock()
-                    defer { self.aapTraceLock.unlock() }
-                    return self.lastAapTrace.contains { $0.direction == "RX" }
-                }()
-                if !hasRxPacket {
-                    AppLog.w("No VERSION_RESPONSE or RX packets after 3.0s, notifying delegate for fresh redial", tag: "AapTransport")
-                    self.delegate?.aapTransportDidDetectSilentPeerOnInitialHandshake(self)
-                }
-            }
-        }
 
         AppLog.i("VERSION_REQUEST attempt \(versionRequestAttempts)/\(maxVersionRequestAttempts)", tag: "AapTransport")
         sendVersionRequest()

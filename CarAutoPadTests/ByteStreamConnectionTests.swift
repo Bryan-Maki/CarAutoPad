@@ -90,6 +90,63 @@ final class ByteStreamConnectionTests: XCTestCase {
         acceptedConnection?.cancel()
         listener.cancel()
     }
+
+    func testTcpHandlerAdoptConnectionSuppressesDuplicateReadyAndDisconnectCleansHandlers() throws {
+        let queue = DispatchQueue(label: "com.carautopad.tests.adopt-conn")
+        let listener = try NWListener(using: .tcp, on: .any)
+        let readyExp = expectation(description: "Listener ready")
+        var serverConn: NWConnection?
+
+        listener.newConnectionHandler = { conn in
+            serverConn = conn
+            conn.start(queue: queue)
+        }
+        listener.stateUpdateHandler = { state in
+            if case .ready = state {
+                readyExp.fulfill()
+            }
+        }
+        listener.start(queue: queue)
+        wait(for: [readyExp], timeout: 5)
+        let port = listener.port!.rawValue
+
+        let clientEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
+        let clientConn = NWConnection(to: clientEndpoint, using: .tcp)
+        let clientReadyExp = expectation(description: "Client ready")
+        clientConn.stateUpdateHandler = { state in
+            if case .ready = state {
+                clientReadyExp.fulfill()
+            }
+        }
+        clientConn.start(queue: queue)
+        wait(for: [clientReadyExp], timeout: 5)
+
+        // Clear handler before handing over, matching Discovery behavior
+        clientConn.stateUpdateHandler = nil
+
+        let handler = TcpHandler()
+        let delegate = RecordingByteStreamDelegate()
+        handler.delegate = delegate
+
+        let connectExp = expectation(description: "Adopted connection didConnect called once")
+        delegate.onConnect = {
+            connectExp.fulfill()
+        }
+
+        handler.adoptConnection(clientConn, host: "127.0.0.1", port: port)
+        wait(for: [connectExp], timeout: 3)
+
+        XCTAssertTrue(handler.isConnected)
+        let connectCount = delegate.events.filter { $0 == .connected }.count
+        XCTAssertEqual(connectCount, 1, "byteStreamConnectionDidConnect must be called exactly once")
+
+        // Disconnect handler and verify clean state
+        handler.disconnect()
+        XCTAssertFalse(handler.isConnected)
+
+        serverConn?.cancel()
+        listener.cancel()
+    }
 }
 
 private final class RecordingByteStreamConnection: ByteStreamConnection {

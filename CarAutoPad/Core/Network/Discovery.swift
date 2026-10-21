@@ -51,7 +51,6 @@ public final class Discovery {
     public weak var delegate: DiscoveryDelegate?
 
     private let queue = DispatchQueue(label: "com.carautopad.discovery", qos: .userInitiated)
-    private let probeQueue = DispatchQueue(label: "com.carautopad.discovery.probe", qos: .userInitiated, attributes: .concurrent)
     private var browseWorkItem: DispatchWorkItem?
     private(set) public var isScanning = false
     private var activeProbeConnections: [UUID: NWConnection] = [:]
@@ -292,6 +291,7 @@ public final class Discovery {
 
         let connection = NWConnection(to: endpoint, using: parameters)
         let probeId = UUID()
+        let connQueue = DispatchQueue(label: "com.carautopad.tcp.conn.\(probeId.uuidString.prefix(8))", qos: .userInitiated)
 
         probeLock.lock()
         activeProbeConnections[probeId] = connection
@@ -305,6 +305,7 @@ public final class Discovery {
             if !hasCompleted {
                 hasCompleted = true
                 lock.unlock()
+                connection?.stateUpdateHandler = nil
                 connection?.cancel()
                 self?.removeActiveProbe(probeId)
                 completion(false, nil)
@@ -313,7 +314,7 @@ public final class Discovery {
             }
         }
 
-        probeQueue.asyncAfter(deadline: .now() + timeout, execute: timeoutWorkItem)
+        connQueue.asyncAfter(deadline: .now() + timeout, execute: timeoutWorkItem)
 
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             guard let self = self, let conn = connection else { return }
@@ -325,19 +326,29 @@ public final class Discovery {
 
             switch state {
             case .ready:
-                guard self.isScanning else {
-                    lock.unlock()
-                    conn.cancel()
-                    self.removeActiveProbe(probeId)
-                    completion(false, nil)
-                    return
-                }
-                hasCompleted = true
                 lock.unlock()
                 timeoutWorkItem.cancel()
                 conn.stateUpdateHandler = nil
-                self.storePreparedConnection(conn, ip: ip, port: port)
+
+                let key = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
+                self.probeLock.lock()
+                guard self.isScanning, self.preparedConnections[key] == nil else {
+                    self.probeLock.unlock()
+                    conn.cancel()
+                    self.removeActiveProbe(probeId)
+                    lock.lock()
+                    hasCompleted = true
+                    lock.unlock()
+                    completion(false, nil)
+                    return
+                }
+                self.preparedConnections[key] = conn
+                self.probeLock.unlock()
+
                 self.removeActiveProbe(probeId)
+                lock.lock()
+                hasCompleted = true
+                lock.unlock()
                 AppLog.i("Probe ready & stored prepared connection for \(ip):\(port)", tag: "Discovery")
                 completion(true, conn)
 
@@ -345,6 +356,7 @@ public final class Discovery {
                 hasCompleted = true
                 lock.unlock()
                 timeoutWorkItem.cancel()
+                conn.stateUpdateHandler = nil
                 conn.cancel()
                 self.removeActiveProbe(probeId)
                 completion(false, nil)
@@ -354,22 +366,12 @@ public final class Discovery {
             }
         }
 
-        connection.start(queue: probeQueue)
+        connection.start(queue: connQueue)
     }
 
     private func removeActiveProbe(_ id: UUID) {
         probeLock.lock()
         activeProbeConnections.removeValue(forKey: id)
-        probeLock.unlock()
-    }
-
-    private func storePreparedConnection(_ connection: NWConnection, ip: String, port: UInt16) {
-        let key = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
-        probeLock.lock()
-        if let old = preparedConnections[key] {
-            old.cancel()
-        }
-        preparedConnections[key] = connection
         probeLock.unlock()
     }
 }

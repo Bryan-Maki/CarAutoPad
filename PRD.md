@@ -290,6 +290,20 @@ The overall port is considered complete only when all of the following criteria 
   - Dashboard dynamically surfaces retry countdown progress (`Retrying in 3s (X/3)...`), orange status pill, active loading indicator, and accessible disconnect button during reconnection.
   - Banner dismiss accurately dismisses the most recently raised standing issue (`max(by: raisedAtEpochMs)`).
 
+### 10.7 Zero-Drop Direct Handshake & Per-Connection Serial Queue TLS Ordering (100% Completed)
+* **Elimination of Duplicate Ready & Handshake Collisions on Adopted Connection (`TcpHandler`)**:
+  - Resolved duplicate `.ready` state callback when adopting an already-ready `NWConnection` in `adoptConnection()`, preventing double `byteStreamConnectionDidConnect` and dual `startReceiving()` loops from corrupting the TLS byte stream.
+  - Guarded `setupStateHandler` against stale callbacks with connection identity check (`self.connection === targetConn`) and `hasReportedReady` single-execution guard.
+  - In `disconnect()`, stripped `oldConnection?.stateUpdateHandler = nil` before calling `cancel()`, completely eliminating delayed asynchronous `.cancelled` state deliveries from killing freshly adopted connections.
+  - Guarded `startReceiving()` with `isReceivingLoopActive` and bound chunk receiving to `receiveNextChunk(on: targetConnection)` with active socket identity verification.
+* **Per-Connection Independent Serial Queues for Discovery Probes (`Discovery`)**:
+  - Replaced the shared `.concurrent` `probeQueue` with an independent serial queue (`com.carautopad.tcp.conn.<uuid>`) created per probe attempt.
+  - Ensures 100% parallel probing across different IP candidates without thread starvation, while guaranteeing 100% strictly ordered TCP/TLS packet delivery on the adopted socket.
+  - Atomically validated `preparedConnections["\(ip):\(port)"]` under `probeLock` in `probePort` `.ready` before saving, clearing `stateUpdateHandler` to guarantee clean handover.
+* **Safe Handshake Timeout & Removal of Premature 3.0s Severance (`AapTransport`)**:
+  - Removed premature 3.0s `aapTransportDidDetectSilentPeerOnInitialHandshake` redial code that severed sockets during normal handshake negotiation.
+  - Adjusted `versionHandshakeTimeout` to 5.0 seconds with standard 3.0s cool-down between retries, protecting the phone's Headunit Server from handshake collision lockups.
+
 
 ---
 
