@@ -135,6 +135,12 @@ public class H264VideoRendererView: UIView {
         return diagnostics.concealedFrames
     }
 
+    public var currentDiagnostics: RendererDiagnostics {
+        diagnosticsLock.lock()
+        defer { diagnosticsLock.unlock() }
+        return diagnostics
+    }
+
     public var decodeLatency: (medianMs: Double, p95Ms: Double) {
         guard let rep = latencyMonitor.peekReport() else { return (0.0, 0.0) }
         return (Double(rep.medianUs) / 1000.0, Double(rep.p95Us) / 1000.0)
