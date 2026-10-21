@@ -247,7 +247,6 @@ class ConnectionManager {
         state = .connecting
         connectedDevice = device
         lastConnectedDevice = device
-        ProjectionSettings.lastConnectedIp = device.ip
 
         installAapTransport(connection: tcpHandler)
         aapTransport?.configurePeer(host: device.ip, port: device.port)
