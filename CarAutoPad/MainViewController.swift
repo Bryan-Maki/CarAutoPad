@@ -1665,25 +1665,39 @@ final class MainViewController: UIViewController {
 
 extension MainViewController: ConnectionManagerDelegate {
     func connectionManager(_ manager: ConnectionManager, didChangeState state: ConnectionState) {
-        DispatchQueue.main.async { [weak self] in
-            self?.updateUIForConnectionState(state)
+        if Thread.isMainThread {
+            self.updateUIForConnectionState(state)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateUIForConnectionState(state)
+            }
         }
     }
 
     func connectionManager(_ manager: ConnectionManager, didUpdateStatus status: String) {
-        DispatchQueue.main.async { [weak self] in
+        let update = { [weak self] in
             guard let self = self else { return }
             if self.connectionManager.state != .running {
                 self.statusLabel.text = status
             }
         }
+        if Thread.isMainThread {
+            update()
+        } else {
+            DispatchQueue.main.async(execute: update)
+        }
     }
 
     func connectionManager(_ manager: ConnectionManager, didDiscoverDevice device: DiscoveredDevice) {
-        DispatchQueue.main.async { [weak self] in
+        let update = { [weak self] in
             guard let self = self else { return }
             self.statusLabel.text = "Found \(device.displayName), connecting..."
             self.updateConnectionIssueBanner()
+        }
+        if Thread.isMainThread {
+            update()
+        } else {
+            DispatchQueue.main.async(execute: update)
         }
     }
 

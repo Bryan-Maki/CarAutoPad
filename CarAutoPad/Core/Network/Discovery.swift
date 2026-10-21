@@ -188,12 +188,10 @@ public final class Discovery {
 
         if foundPriority {
             AppLog.i("Discovery: Priority suspect responded, completing discovery immediately without scanning subnet.", tag: "Discovery")
-            finishScan()
             return
         }
 
         guard isScanning else {
-            finishScan()
             return
         }
 
@@ -232,11 +230,17 @@ public final class Discovery {
             _ = batchGroup.wait(timeout: .now() + 0.45)
             if batchFound {
                 AppLog.i("Discovery: Device found in batch, finishing scan", tag: "Discovery")
-                break
+                return
             }
         }
 
-        finishScan()
+        probeLock.lock()
+        let noDevicesFound = reportedEndpoints.isEmpty
+        probeLock.unlock()
+
+        if noDevicesFound && isScanning {
+            finishScan()
+        }
     }
 
     private func reportFoundService(ip: String, port: UInt16) {
@@ -340,7 +344,6 @@ public final class Discovery {
                 hasCompleted = true
                 lock.unlock()
                 timeoutWorkItem.cancel()
-                conn.stateUpdateHandler = nil
                 self.storePreparedConnection(conn, ip: ip, port: port)
                 self.removeActiveProbe(probeId)
                 AppLog.i("Probe ready & stored prepared connection for \(ip):\(port)", tag: "Discovery")

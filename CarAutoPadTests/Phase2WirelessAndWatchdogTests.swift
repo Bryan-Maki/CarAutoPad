@@ -161,12 +161,15 @@ final class Phase2WirelessAndWatchdogTests: XCTestCase {
         // State must transition directly to connecting without intermediate disconnected
         XCTAssertEqual(cm.state, .connecting)
         XCTAssertEqual(cm.connectedDevice?.ip, "192.168.1.123")
+        XCTAssertNotEqual(cm.statusDetail, "Ready to connect")
 
         // If discoveryDidFinish is received while connecting, it must be ignored
         cm.discoveryDidFinish()
         XCTAssertEqual(cm.state, .connecting)
+        XCTAssertNotEqual(cm.statusDetail, "Ready to connect")
 
-        cm.stopDiscovery(cancelPrepared: true)
+        cm.stopDiscovery(cancelPrepared: true, resetState: true)
+        XCTAssertEqual(cm.statusDetail, "Ready to connect")
     }
 
     func testDiscoveryPreparedConnectionLifecycle() {

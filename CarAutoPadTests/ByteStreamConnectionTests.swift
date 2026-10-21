@@ -121,9 +121,6 @@ final class ByteStreamConnectionTests: XCTestCase {
         clientConn.start(queue: queue)
         wait(for: [clientReadyExp], timeout: 5)
 
-        // Clear handler before handing over, matching Discovery behavior
-        clientConn.stateUpdateHandler = nil
-
         let handler = TcpHandler()
         let delegate = RecordingByteStreamDelegate()
         handler.delegate = delegate

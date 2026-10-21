@@ -313,6 +313,17 @@ The overall port is considered complete only when all of the following criteria 
   - Replaced `stopDiscovery(cancelPrepared: true)` in `connect(to:)` with direct `discovery.stopScan(cancelPrepared: true)` after extracting the prepared connection via `takePreparedConnection`.
   - Avoids resetting `state` to `.disconnected` ("Ready to connect") before transitioning to `.connecting`, preventing UI status label flicker and eliminating orphan socket leaks on port 5277.
 
+### 10.9 Clean Socket Adoption Handshake & Synchronous Main-Thread Status Dispatch (100% Completed)
+* **Restoration of Clean Socket Handshake in `TcpHandler`**:
+  - Restored clean single-guard connection adoption (`let wasAlreadyConnected = self.isConnected`) matching `bfe43ff` architecture, removing experimental guards that interfered with `adoptConnection` handshake triggering.
+  - Enforced strict connection identity check (`self.connection === targetConn`) across all callbacks and preserved handler detachment before cancellation in `disconnect()`.
+* **Zero-Suppression Discovery Flow (`Discovery`)**:
+  - Prohibited early invocation of `finishScan()` upon priority suspect response or subnet scan matches, preventing premature scan termination callbacks from conflicting with device connection.
+  - Kept prepared connection `stateUpdateHandler` intact on `.ready` for seamless handover to `TcpHandler.adoptConnection`.
+* **Prevention of Reconnect State Inversion (`ConnectionManager` & `MainViewController`)**:
+  - Enhanced `stopDiscovery(cancelPrepared:resetState:)` to allow selective cancellation without emitting `"Ready to connect"`.
+  - Refactored `MainViewController` connection callbacks to execute synchronously when already on the main thread, eliminating nested `DispatchQueue.main.async` reordering that caused `"Ready to connect"` to erroneously overwrite active connection progress.
+
 
 ---
 

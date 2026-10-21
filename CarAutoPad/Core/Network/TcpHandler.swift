@@ -20,8 +20,6 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
     private let connectionTimeout: TimeInterval = 15.0
 
     private(set) var isConnected = false
-    private var hasReportedReady = false
-    private var isReceivingLoopActive = false
 
     private var pendingData = Data()
     private let pendingDataLock = NSLock()
@@ -34,15 +32,13 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         disconnect()
         connection = existingConnection
         isConnected = true
-        hasReportedReady = true
-        isReceivingLoopActive = false
         setupStateHandler(host: host, port: port)
         startReceiving()
         if Thread.isMainThread {
             delegate?.byteStreamConnectionDidConnect(self)
         } else {
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+                guard let self = self, self.connection === existingConnection, self.isConnected else { return }
                 self.delegate?.byteStreamConnectionDidConnect(self)
             }
         }
@@ -52,8 +48,6 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         AppLog.i("TcpHandler: accepting inbound connection for host=\(host), port=\(port)", tag: "TcpHandler")
 
         disconnect()
-        hasReportedReady = false
-        isReceivingLoopActive = false
         connection = acceptedConnection
         setupStateHandler(host: host, port: port)
         connection?.start(queue: queue)
@@ -75,8 +69,6 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         AppLog.i("TcpHandler: accepting incoming connection from \(remoteHost):\(remotePort) with \(initialData.count) initial bytes", tag: "TcpHandler")
 
         disconnect()
-        hasReportedReady = false
-        isReceivingLoopActive = false
         connection = incomingConnection
 
         if !initialData.isEmpty {
@@ -91,7 +83,6 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         case .ready:
             connectionTimer?.cancel()
             isConnected = true
-            hasReportedReady = true
             delegate?.byteStreamConnectionDidConnect(self)
             if !initialData.isEmpty {
                 delegate?.byteStreamConnection(self, didReceive: initialData)
@@ -109,8 +100,6 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         AppLog.i("TcpHandler: connect called with host=\(host), port=\(port)", tag: "TcpHandler")
 
         disconnect()
-        hasReportedReady = false
-        isReceivingLoopActive = false
 
         let tcpOptions = NWProtocolTCP.Options()
         tcpOptions.enableKeepalive = true
@@ -149,23 +138,23 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
 
             case .ready:
                 self.connectionTimer?.cancel()
-                guard !self.hasReportedReady else {
-                    AppLog.d("TcpHandler: ignoring duplicate .ready on adopted connection", tag: "TcpHandler")
-                    return
-                }
-                AppLog.i("TcpHandler: state = ready, connected!", tag: "TcpHandler")
-                self.hasReportedReady = true
+                let wasAlreadyConnected = self.isConnected
                 self.isConnected = true
-                self.startReceiving()
-                DispatchQueue.main.async {
-                    self.delegate?.byteStreamConnectionDidConnect(self)
+                if !wasAlreadyConnected {
+                    AppLog.i("TcpHandler: state = ready, connected!", tag: "TcpHandler")
+                    self.startReceiving()
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self, self.connection === targetConn, self.isConnected else { return }
+                        self.delegate?.byteStreamConnectionDidConnect(self)
+                    }
                 }
 
             case .failed(let error):
                 AppLog.e("TcpHandler: state = failed, error=\(error)", tag: "TcpHandler")
                 self.connectionTimer?.cancel()
                 self.isConnected = false
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self, self.connection == nil || self.connection === targetConn else { return }
                     self.delegate?.byteStreamConnection(self, didDisconnect: error)
                 }
 
@@ -173,7 +162,8 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
                 AppLog.w("TcpHandler: state = cancelled", tag: "TcpHandler")
                 self.connectionTimer?.cancel()
                 self.isConnected = false
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self, self.connection == nil || self.connection === targetConn else { return }
                     self.delegate?.byteStreamConnection(self, didDisconnect: nil)
                 }
 
@@ -205,13 +195,11 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         AppLog.i("TcpHandler: disconnect called", tag: "TcpHandler")
         connectionTimer?.cancel()
         connectionTimer = nil
-        let oldConnection = connection
+        let oldConn = connection
         connection = nil
         isConnected = false
-        hasReportedReady = false
-        isReceivingLoopActive = false
-        oldConnection?.stateUpdateHandler = nil
-        oldConnection?.cancel()
+        oldConn?.stateUpdateHandler = nil
+        oldConn?.cancel()
     }
 
     func send(_ data: Data, completion: ((Error?) -> Void)?) {
@@ -230,43 +218,27 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
     }
 
     private func startReceiving() {
-        guard !isReceivingLoopActive, let currentConnection = connection else { return }
-        isReceivingLoopActive = true
-        receiveNextChunk(on: currentConnection)
-    }
-
-    private func receiveNextChunk(on targetConnection: NWConnection) {
-        guard self.connection === targetConnection, self.isConnected else {
-            isReceivingLoopActive = false
-            return
-        }
-
-        targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 262144) { [weak self, weak targetConnection] data, _, isComplete, error in
-            guard let self = self, let targetConn = targetConnection, self.connection === targetConn, self.isConnected else {
-                return
-            }
-
+        guard let targetConn = connection, isConnected else { return }
+        targetConn.receive(minimumIncompleteLength: 1, maximumLength: 262144) { [weak self, weak targetConn] data, _, isComplete, error in
+            guard let self = self, let conn = targetConn, self.connection === conn else { return }
             if let data = data, !data.isEmpty {
                 self.receiveQueue.async {
                     self.delegate?.byteStreamConnection(self, didReceive: data)
                 }
             }
-
             if let error = error {
                 AppLog.e("TcpHandler: receive error: \(error)", tag: "TcpHandler")
-                self.isReceivingLoopActive = false
                 self.disconnect()
                 return
             }
-
             if isComplete {
                 AppLog.i("TcpHandler: connection complete", tag: "TcpHandler")
-                self.isReceivingLoopActive = false
                 self.disconnect()
                 return
             }
-
-            self.receiveNextChunk(on: targetConn)
+            if self.isConnected {
+                self.startReceiving()
+            }
         }
     }
 }

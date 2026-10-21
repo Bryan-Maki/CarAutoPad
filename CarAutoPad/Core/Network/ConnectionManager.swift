@@ -199,11 +199,11 @@ class ConnectionManager {
         discovery.startScan(ports: [Discovery.headunitPort])
     }
 
-    func stopDiscovery(cancelPrepared: Bool = true) {
-        AppLog.i("ConnectionManager: stopDiscovery called", tag: "ConnectionManager")
+    func stopDiscovery(cancelPrepared: Bool = true, resetState: Bool = true) {
+        AppLog.i("ConnectionManager: stopDiscovery called (cancelPrepared=\(cancelPrepared), resetState=\(resetState))", tag: "ConnectionManager")
         autoReconnect.cancel()
         discovery.stopScan(cancelPrepared: cancelPrepared)
-        if state == .discovering || state == .waitingForWirelessHelper {
+        if resetState && (state == .discovering || state == .waitingForWirelessHelper) {
             state = .disconnected
             updateStatus("Ready to connect")
         }
@@ -239,20 +239,26 @@ class ConnectionManager {
         }
 
         lastTriedEndpoint = targetEndpoint
+        // 1. FIRST take the prepared socket BEFORE stopping scan / cancelling other prepared sockets!
         let prepared = discovery.takePreparedConnection(ip: device.ip, port: device.port)
+        // 2. Stop scan and clean up any OTHER prepared sockets without resetting state to .disconnected
         discovery.stopScan(cancelPrepared: true)
+
         state = .connecting
         connectedDevice = device
         lastConnectedDevice = device
-        updateStatus("Connecting to \(device.displayName)...")
+        ProjectionSettings.lastConnectedIp = device.ip
+
         installAapTransport(connection: tcpHandler)
         aapTransport?.configurePeer(host: device.ip, port: device.port)
 
         if let prepared = prepared {
-            AppLog.i("ConnectionManager: Using prepared connection from discovery for \(device.ip):\(device.port)", tag: "ConnectionManager")
+            AppLog.i("ConnectionManager: Adopting prepared discovery connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
+            updateStatus("Connecting to \(device.displayName)...")
             tcpHandler.adoptConnection(prepared, host: device.ip, port: device.port)
         } else {
-            AppLog.i("ConnectionManager: Calling tcpHandler.connect(host: \(device.ip), port: \(device.port))", tag: "ConnectionManager")
+            AppLog.i("ConnectionManager: Opening fresh TCP connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
+            updateStatus("Connecting to \(device.displayName)...")
             tcpHandler.connect(host: device.ip, port: device.port)
         }
     }
@@ -437,11 +443,12 @@ extension ConnectionManager: DiscoveryDelegate {
         if !discoveredDevices.contains(where: { $0.ip == device.ip && $0.port == device.port }) {
             discoveredDevices.append(device)
         }
+        // Stop further scanning WITHOUT cancelling the prepared connection and WITHOUT emitting "Ready to connect"
         discovery.stopScan(cancelPrepared: false)
         ConnectionIssueStore.shared.clear(issue: .noDeviceDiscovered)
         ConnectionIssueStore.shared.clear(issue: .wifiRadioOff)
         delegate?.connectionManager(self, didDiscoverDevice: device)
-        connect(to: device, userInitiated: false)
+        connect(to: device, userInitiated: true)
     }
 
     func discoveryDidFinish() {
