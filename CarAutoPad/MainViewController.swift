@@ -1221,7 +1221,7 @@ final class MainViewController: UIViewController {
         if !hasReceivedFirstVideoFrame {
             if (now - runningSinceTs) > 1.8 && (now - lastVideoRecoveryTs) > 2.0 {
                 lastVideoRecoveryTs = now
-                AppLog.shared.log("Watchdog: no first video frame after \(String(format: "%.1f", now - runningSinceTs))s - triggering video focus cycle", category: .video)
+                AppLog.w("Watchdog: no first video frame after \(String(format: "%.1f", now - runningSinceTs))s - triggering video focus cycle", tag: "MainViewController")
                 connectionManager.requestVideoFocusCycle(reason: "watchdog-no-first-frame")
             }
         } else if (now - lastVideoFrameTs) > 5.0 && (now - lastVideoRecoveryTs) > 3.0 {
