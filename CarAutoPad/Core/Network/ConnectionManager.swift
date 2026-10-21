@@ -240,7 +240,7 @@ class ConnectionManager {
 
         lastTriedEndpoint = targetEndpoint
         let prepared = discovery.takePreparedConnection(ip: device.ip, port: device.port)
-        stopDiscovery(cancelPrepared: true)
+        discovery.stopScan(cancelPrepared: true)
         state = .connecting
         connectedDevice = device
         lastConnectedDevice = device

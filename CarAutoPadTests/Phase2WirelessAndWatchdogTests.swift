@@ -146,4 +146,56 @@ final class Phase2WirelessAndWatchdogTests: XCTestCase {
         let secondConsume = snapshot.consume(now: 20_000)
         XCTAssertFalse(secondConsume.wasPlaying)
     }
+
+    func testConnectionManagerImmediateConnectOnDiscoveryDoesNotFlickerReady() {
+        let cm = ConnectionManager.shared
+        let device = DiscoveredDevice(ip: "192.168.1.123", port: 5277, name: "TestDevice")
+
+        // Simulate state is discovering
+        cm.startDiscovery(userInitiated: true)
+        XCTAssertEqual(cm.state, .discovering)
+
+        // Simulate discoveryDidFindDevice
+        cm.discoveryDidFindDevice(device)
+
+        // State must transition directly to connecting without intermediate disconnected
+        XCTAssertEqual(cm.state, .connecting)
+        XCTAssertEqual(cm.connectedDevice?.ip, "192.168.1.123")
+
+        // If discoveryDidFinish is received while connecting, it must be ignored
+        cm.discoveryDidFinish()
+        XCTAssertEqual(cm.state, .connecting)
+
+        cm.stopDiscovery(cancelPrepared: true)
+    }
+
+    func testDiscoveryPreparedConnectionLifecycle() {
+        let discovery = Discovery()
+        let delegate = MockDiscoveryDelegate()
+        discovery.delegate = delegate
+
+        XCTAssertFalse(discovery.isScanning)
+        XCTAssertNil(discovery.takePreparedConnection(ip: "127.0.0.1", port: 5277))
+
+        discovery.stopScan(cancelPrepared: false)
+        XCTAssertFalse(discovery.isScanning)
+    }
+}
+
+private final class MockDiscoveryDelegate: DiscoveryDelegate {
+    var foundDevices: [DiscoveredDevice] = []
+    var didFinishCalled = false
+    var didFailCalled = false
+
+    func discoveryDidFindDevice(_ device: DiscoveredDevice) {
+        foundDevices.append(device)
+    }
+
+    func discoveryDidFinish() {
+        didFinishCalled = true
+    }
+
+    func discoveryDidFail(_ error: Error) {
+        didFailCalled = true
+    }
 }

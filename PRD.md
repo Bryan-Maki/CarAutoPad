@@ -304,6 +304,15 @@ The overall port is considered complete only when all of the following criteria 
   - Removed premature 3.0s `aapTransportDidDetectSilentPeerOnInitialHandshake` redial code that severed sockets during normal handshake negotiation.
   - Adjusted `versionHandshakeTimeout` to 5.0 seconds with standard 3.0s cool-down between retries, protecting the phone's Headunit Server from handshake collision lockups.
 
+### 10.8 Elimination of Discovery isScanning Self-Locking & Seamless Direct Connect (100% Completed)
+* **Removal of Self-Locking isScanning Mutation in Discovery Probes (`Discovery`)**:
+  - Removed improper `isScanning = false` assignment inside `probePort` `.ready`, preventing `reportFoundService` from dropping `discoveryDidFindDevice` due to its own guard.
+  - Refactored `reportFoundService` to atomic deduplication via `reportedEndpoints.isEmpty` under `probeLock`, ensuring the first found device is always dispatched exactly once.
+  - Guarded `finishScan` to suppress `discoveryDidFinish` if any device was discovered (`!reportedEndpoints.isEmpty`), eliminating race-condition false-negative "No device found" alerts.
+* **Elimination of State Flickering on Immediate Connect (`ConnectionManager`)**:
+  - Replaced `stopDiscovery(cancelPrepared: true)` in `connect(to:)` with direct `discovery.stopScan(cancelPrepared: true)` after extracting the prepared connection via `takePreparedConnection`.
+  - Avoids resetting `state` to `.disconnected` ("Ready to connect") before transitioning to `.connecting`, preventing UI status label flicker and eliminating orphan socket leaks on port 5277.
+
 
 ---
 

@@ -230,10 +230,9 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
     }
 
     private func startReceiving() {
-        guard !isReceivingLoopActive else { return }
+        guard !isReceivingLoopActive, let currentConnection = connection else { return }
         isReceivingLoopActive = true
-        guard let conn = connection else { return }
-        receiveNextChunk(on: conn)
+        receiveNextChunk(on: currentConnection)
     }
 
     private func receiveNextChunk(on targetConnection: NWConnection) {

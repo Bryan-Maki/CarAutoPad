@@ -240,13 +240,12 @@ public final class Discovery {
     }
 
     private func reportFoundService(ip: String, port: UInt16) {
-        guard isScanning else { return }
-        let ep = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
         probeLock.lock()
-        if reportedEndpoints.contains(ep) {
+        guard reportedEndpoints.isEmpty else {
             probeLock.unlock()
             return
         }
+        let ep = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
         reportedEndpoints.insert(ep)
         probeLock.unlock()
 
@@ -257,9 +256,12 @@ public final class Discovery {
     }
 
     private func finishScan() {
-        guard isScanning else { return }
+        probeLock.lock()
+        let alreadyFound = !reportedEndpoints.isEmpty
+        probeLock.unlock()
+        guard !alreadyFound, isScanning else { return }
         isScanning = false
-        AppLog.i("Discovery: Scan finished", tag: "Discovery")
+        AppLog.i("Discovery: Scan finished without finding device", tag: "Discovery")
         DispatchQueue.main.async { [weak self] in
             self?.delegate?.discoveryDidFinish()
         }
@@ -326,29 +328,21 @@ public final class Discovery {
 
             switch state {
             case .ready:
-                lock.unlock()
-                timeoutWorkItem.cancel()
-                conn.stateUpdateHandler = nil
-
-                let key = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
-                self.probeLock.lock()
-                guard self.isScanning, self.preparedConnections[key] == nil else {
-                    self.probeLock.unlock()
+                guard self.isScanning else {
+                    lock.unlock()
+                    timeoutWorkItem.cancel()
+                    conn.stateUpdateHandler = nil
                     conn.cancel()
                     self.removeActiveProbe(probeId)
-                    lock.lock()
-                    hasCompleted = true
-                    lock.unlock()
                     completion(false, nil)
                     return
                 }
-                self.preparedConnections[key] = conn
-                self.probeLock.unlock()
-
-                self.removeActiveProbe(probeId)
-                lock.lock()
                 hasCompleted = true
                 lock.unlock()
+                timeoutWorkItem.cancel()
+                conn.stateUpdateHandler = nil
+                self.storePreparedConnection(conn, ip: ip, port: port)
+                self.removeActiveProbe(probeId)
                 AppLog.i("Probe ready & stored prepared connection for \(ip):\(port)", tag: "Discovery")
                 completion(true, conn)
 
@@ -372,6 +366,16 @@ public final class Discovery {
     private func removeActiveProbe(_ id: UUID) {
         probeLock.lock()
         activeProbeConnections.removeValue(forKey: id)
+        probeLock.unlock()
+    }
+
+    private func storePreparedConnection(_ connection: NWConnection, ip: String, port: UInt16) {
+        let key = SameEndpointConnectPolicy.endpoint(host: ip, port: Int(port))
+        probeLock.lock()
+        if let old = preparedConnections[key] {
+            old.cancel()
+        }
+        preparedConnections[key] = connection
         probeLock.unlock()
     }
 }
