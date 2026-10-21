@@ -410,9 +410,20 @@ final class MainViewController: UIViewController {
         homeScrollView.addGestureRecognizer(tap)
 
         videoRenderer.onFrameDisplayed = { [weak self] in
-            guard let self else { return }
-            self.hasReceivedFirstVideoFrame = true
-            self.lastVideoFrameTs = Date().timeIntervalSince1970
+            guard let self = self else { return }
+            let now = Date().timeIntervalSince1970
+            if Thread.isMainThread {
+                self.hasReceivedFirstVideoFrame = true
+                self.lastVideoFrameTs = now
+            } else {
+                DispatchQueue.main.async {
+                    self.hasReceivedFirstVideoFrame = true
+                    self.lastVideoFrameTs = now
+                }
+            }
+        }
+        videoRenderer.onKeyframeRequested = { [weak self] in
+            self?.connectionManager.requestVideoRecovery()
         }
         videoRenderer.onVideoSizeResolved = { [weak self] size in
             guard let self = self else { return }
@@ -1116,6 +1127,8 @@ final class MainViewController: UIViewController {
             view.bringSubviewToFront(videoContainerView)
             activityIndicator.stopAnimating()
             disconnectButton.isHidden = true
+            view.layoutIfNeeded()
+            videoContainerView.layoutIfNeeded()
             syncVideoAndTouchGeometry()
             videoRenderer.applyGeometry()
             setNeedsStatusBarAppearanceUpdate()
@@ -1191,7 +1204,7 @@ final class MainViewController: UIViewController {
         runningSinceTs = Date().timeIntervalSince1970
         lastVideoFrameTs = runningSinceTs
         hasReceivedFirstVideoFrame = false
-        videoWatchdogTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        videoWatchdogTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in
             self?.checkVideoWatchdog()
         }
     }
@@ -1206,9 +1219,10 @@ final class MainViewController: UIViewController {
         guard connectionManager.state == .running else { return }
         let now = Date().timeIntervalSince1970
         if !hasReceivedFirstVideoFrame {
-            if (now - runningSinceTs) > 6.0 && (now - lastVideoRecoveryTs) > 3.0 {
+            if (now - runningSinceTs) > 1.8 && (now - lastVideoRecoveryTs) > 2.0 {
                 lastVideoRecoveryTs = now
-                connectionManager.requestVideoRecovery()
+                AppLog.shared.log("Watchdog: no first video frame after \(String(format: "%.1f", now - runningSinceTs))s - triggering video focus cycle", category: .video)
+                connectionManager.requestVideoFocusCycle(reason: "watchdog-no-first-frame")
             }
         } else if (now - lastVideoFrameTs) > 5.0 && (now - lastVideoRecoveryTs) > 3.0 {
             lastVideoRecoveryTs = now
@@ -1702,7 +1716,6 @@ extension MainViewController: ConnectionManagerDelegate {
     }
 
     func connectionManager(_ manager: ConnectionManager, didReceiveVideoData data: Data) {
-        lastVideoFrameTs = Date().timeIntervalSince1970
         videoRenderer.enqueueAnnexBFrame(data)
     }
 

@@ -185,7 +185,7 @@ class AapTransport {
     private func setupReassembler() {
         reassembler.onDroppedVideoPayload = { [weak self] in
             AppLog.w("Reassembler dropped video fragment, requesting video recovery", tag: "AapTransport")
-            self?.requestVideoRecoveryIfNeeded(reason: "reassembler-dropped-video", ignoreRecentVideoGuard: false)
+            self?.requestVideoRecoveryIfNeeded(reason: "reassembler-dropped-video", ignoreRecentVideoGuard: false, isWireCorruption: true)
         }
         reassembler.onDroppedMediaData = { channel in
             AppLog.w("Reassembler dropped media data on channel \(channel)", tag: "AapTransport")
@@ -921,7 +921,7 @@ class AapTransport {
             ) {
                 AppLog.i("Fragmented message audit: \(audit)", tag: "AapTransport")
                 if AuditRecoveryPolicy.shouldRequestKeyframe(outcome: audit.outcome, channel: audit.channel) {
-                    requestVideoRecoveryIfNeeded(reason: "audit-\(audit.outcome)", ignoreRecentVideoGuard: true)
+                    requestVideoRecoveryIfNeeded(reason: "audit-\(audit.outcome)", ignoreRecentVideoGuard: true, isWireCorruption: true)
                 }
             }
 
@@ -1480,8 +1480,6 @@ class AapTransport {
 
         if channel == Channel.ID_SEN {
             sendDrivingStatusUnrestricted(on: channel)
-        } else if channel == Channel.ID_VID {
-            sendVideoFocusNotification(on: channel, reason: "channel-open")
         }
     }
 
@@ -1563,11 +1561,17 @@ class AapTransport {
         AppLog.i("Initiating VideoFocus release/regain cycle (reason: \(reason), cycle #\(focusCyclesUsedThisSession))", tag: "AapTransport")
         sendVideoFocusNotification(on: Channel.ID_VID, gain: false, reason: "cycle-release-\(reason)")
 
-        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(Int(WarmRelaunchKeyframePolicy.focusCycleGapMs))) { [weak self] in
+        processingQueue.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
             guard let self = self else { return }
             self.sendVideoFocusNotification(on: Channel.ID_VID, gain: true, reason: "cycle-regain-\(reason)")
             self.focusCycleLever.release()
             AppLog.i("Completed VideoFocus release/regain cycle", tag: "AapTransport")
+        }
+    }
+
+    public func requestVideoFocusCycle(reason: String = "watchdog-no-first-frame") {
+        processingQueue.async { [weak self] in
+            self?.performVideoFocusCycle(reason: reason)
         }
     }
 
@@ -1831,6 +1835,19 @@ enum ProtoWire {
             sendVideoFocusNotification(on: message.channelUInt8, reason: "video-start")
             sendNightModeEvent(isNight: ProjectionSettings.effectiveIsNightMode(), force: false)
 
+            processingQueue.asyncAfter(deadline: .now() + .milliseconds(1200)) { [weak self] in
+                guard let self = self, self.state == .running, self.isVideoChannelStarted else { return }
+                let packetCount: Int = {
+                    self.videoDiagnosticsLock.lock()
+                    defer { self.videoDiagnosticsLock.unlock() }
+                    return self.videoPacketCount
+                }()
+                if packetCount == 0 {
+                    AppLog.w("Cold-start watchdog: 0 video packets received 1.2s after video-start. Cycling video focus.", tag: "AapTransport")
+                    self.performVideoFocusCycle(reason: "cold-start-no-stream")
+                }
+            }
+
         case 0x8002:
             isVideoChannelStarted = false
             break
@@ -1878,7 +1895,7 @@ enum ProtoWire {
             videoAssemblyBuffer.removeAll(keepingCapacity: true)
             videoAssemblyMessageType = 0
             videoFirstFragmentAtMs = 0
-            requestVideoRecoveryIfNeeded(reason: "assembly-timeout", ignoreRecentVideoGuard: false)
+            requestVideoRecoveryIfNeeded(reason: "assembly-timeout", ignoreRecentVideoGuard: false, isWireCorruption: true)
         }
 
         switch flags {
@@ -1903,7 +1920,7 @@ enum ProtoWire {
         case 0x08:
             if videoFirstFragmentAtMs == 0 {
                 AppLog.i("Orphan middle video fragment received", tag: "AapTransport")
-                requestVideoRecoveryIfNeeded(reason: "orphan-middle-fragment", ignoreRecentVideoGuard: false)
+                requestVideoRecoveryIfNeeded(reason: "orphan-middle-fragment", ignoreRecentVideoGuard: false, isWireCorruption: true)
                 return
             }
             if videoAssemblyBuffer.count + payload.count > maxVideoAssemblyBytes {
@@ -1911,7 +1928,7 @@ enum ProtoWire {
                 videoAssemblyBuffer.removeAll(keepingCapacity: true)
                 videoAssemblyMessageType = 0
                 videoFirstFragmentAtMs = 0
-                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-middle", ignoreRecentVideoGuard: false)
+                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-middle", ignoreRecentVideoGuard: false, isWireCorruption: true)
                 return
             }
             videoAssemblyBuffer.append(payload)
@@ -1922,7 +1939,7 @@ enum ProtoWire {
                 videoAssemblyBuffer.removeAll(keepingCapacity: true)
                 videoAssemblyMessageType = 0
                 videoFirstFragmentAtMs = 0
-                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-final", ignoreRecentVideoGuard: false)
+                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-final", ignoreRecentVideoGuard: false, isWireCorruption: true)
                 return
             }
             videoFirstFragmentAtMs = 0
@@ -2168,7 +2185,7 @@ enum ProtoWire {
         self.sendOnProcessingQueue(message: message)
     }
 
-    private func requestVideoRecoveryIfNeeded(reason: String, ignoreRecentVideoGuard: Bool) {
+    private func requestVideoRecoveryIfNeeded(reason: String, ignoreRecentVideoGuard: Bool, isWireCorruption: Bool = false) {
         guard state == .running || state == .binding || state == .authenticatingComplete else {
             return
         }
@@ -2196,7 +2213,9 @@ enum ProtoWire {
         if unrepairedSinceAtMs == 0 {
             unrepairedSinceAtMs = nowInt64
         }
-        lastWireCorruptionAtMs = nowInt64
+        if isWireCorruption {
+            lastWireCorruptionAtMs = nowInt64
+        }
 
         let action = KeyframeCycleEscalationPolicy.decide(
             nowMs: nowInt64,

@@ -297,14 +297,14 @@ public class H264VideoRendererView: UIView {
 
         keyframeRepairTracker.reset()
         latencyMonitor.reset()
-        concealmentState = .armed
-        concealmentWindowOpenedMs = 0
-        sessionHasRendered = false
-        consecutiveDecodeFailures = 0
-        hasTriggeredFallbackThisSession = false
 
         processQueue.async { [weak self] in
             guard let self = self else { return }
+            self.concealmentState = .armed
+            self.concealmentWindowOpenedMs = 0
+            self.sessionHasRendered = false
+            self.consecutiveDecodeFailures = 0
+            self.hasTriggeredFallbackThisSession = false
             self.frameIndex = 0
             self.framePacer.reset()
             self.decodedFrameCount = 0
@@ -317,10 +317,15 @@ public class H264VideoRendererView: UIView {
             self.lastNotifiedVideoSize = .zero
         }
 
-        DispatchQueue.main.async { [weak self] in
+        let flushBlock = { [weak self] in
             guard let self = self else { return }
             self.notReadyStreak = 0
             self.displayLayer.flushAndRemoveImage()
+        }
+        if Thread.isMainThread {
+            flushBlock()
+        } else {
+            DispatchQueue.main.async(execute: flushBlock)
         }
     }
 
@@ -563,6 +568,7 @@ public class H264VideoRendererView: UIView {
 
         guard let formatDesc = formatDescription else {
             updateDiagnostics { $0.missingConfigDrops += 1 }
+            onKeyframeRequested?()
             return
         }
 
@@ -573,9 +579,9 @@ public class H264VideoRendererView: UIView {
         if !hasDecodedKeyframe {
             guard isKeyframe else {
                 updateDiagnostics { $0.awaitingIDRDrops += 1 }
+                onKeyframeRequested?()
                 return
             }
-            hasDecodedKeyframe = true
         }
 
         if isKeyframe {
@@ -659,6 +665,7 @@ public class H264VideoRendererView: UIView {
             return
         }
 
+        hasDecodedKeyframe = true
         notReadyStreak = 0
         consecutiveDecodeFailures = 0
         displayLayer.enqueue(sampleBuffer)

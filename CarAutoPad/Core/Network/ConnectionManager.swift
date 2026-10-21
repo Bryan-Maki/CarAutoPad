@@ -333,6 +333,11 @@ class ConnectionManager {
         aapTransport?.requestVideoRecovery()
     }
 
+    func requestVideoFocusCycle(reason: String = "watchdog-no-first-frame") {
+        guard state == .running else { return }
+        aapTransport?.requestVideoFocusCycle(reason: reason)
+    }
+
     func sendRemoteMediaCommand(_ command: RemoteMediaCommand) {
         guard state == .running else { return }
         let keyCode: Int

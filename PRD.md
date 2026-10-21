@@ -324,6 +324,24 @@ The overall port is considered complete only when all of the following criteria 
   - Enhanced `stopDiscovery(cancelPrepared:resetState:)` to allow selective cancellation without emitting `"Ready to connect"`.
   - Refactored `MainViewController` connection callbacks to execute synchronously when already on the main thread, eliminating nested `DispatchQueue.main.async` reordering that caused `"Ready to connect"` to erroneously overwrite active connection progress.
 
+### 10.10 First-Frame Keyframe Discipline, Focus Cycle Escalation & 1.8s Cold-Start Video Watchdog (100% Completed)
+* **Prevention of Premature `hasDecodedKeyframe` on Dropped Initial IDR (`H264VideoRendererView`)**:
+  - Removed premature `hasDecodedKeyframe = true` assignment prior to `makeSampleBuffer` and `displayLayer.isReadyForMoreMediaData` verification.
+  - Bound `hasDecodedKeyframe = true` strictly to the point immediately prior to `displayLayer.enqueue(sampleBuffer)`.
+  - Added immediate `onKeyframeRequested?()` triggers when dropping frames due to missing SPS/PPS configuration or awaiting IDR slices.
+  - Thread-safe state cleanup in `reset()` dispatched to `processQueue.async`, with synchronous main-thread `displayLayer.flushAndRemoveImage()`.
+* **Resolution of Wire-Corruption Deadlock & Focus Cycle Escalation (`AapTransport` & `ConnectionManager`)**:
+  - Removed premature `sendVideoFocusNotification` on `Channel.ID_VID` inside `sendChannelOpenResponse(on:)`, ensuring video focus is only negotiated upon formal `0x8000` (Setup) and `0x8001` (Start) control messages.
+  - Added `isWireCorruption: Bool = false` parameter to `requestVideoRecoveryIfNeeded`, updating `lastWireCorruptionAtMs` solely upon physical wire corruption (reassembler drops, audit corruption, assembly timeouts). This resolves the deadlock where `wireQuiet` was perpetually `false`, enabling timely escalation to `performVideoFocusCycle`.
+  - Added 1.2s cold-start timer upon receiving `0x8001 MEDIA_MESSAGE_START` to cycle video focus if 0 video packets are received.
+  - Standardized video focus release/regain gap to 150ms on `processingQueue.asyncAfter`.
+  - Exposed `requestVideoFocusCycle(reason:)` on `AapTransport` and bridged through `ConnectionManager`.
+* **Responsive 1.8s Cold-Start Video Watchdog & Verified Frame Accounting (`MainViewController`)**:
+  - Bound `videoRenderer.onKeyframeRequested` to `connectionManager.requestVideoRecovery()`.
+  - Removed speculative `lastVideoFrameTs` updates in `didReceiveVideoData`; frame timestamps are updated solely when frames are actually displayed via `videoRenderer.onFrameDisplayed`.
+  - Forced synchronous `view.layoutIfNeeded()` and `videoContainerView.layoutIfNeeded()` on transition to `.running` before geometry synchronization.
+  - Tightened video watchdog check interval to 0.6s; when no video frame is displayed within 1.8s after connection (`now - runningSinceTs > 1.8` and 2.0s recovery cooldown), automatically triggers `connectionManager.requestVideoFocusCycle(reason: "watchdog-no-first-frame")`.
+
 
 ---
 

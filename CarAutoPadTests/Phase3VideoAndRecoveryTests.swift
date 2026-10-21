@@ -260,4 +260,53 @@ final class Phase3VideoAndRecoveryTests: XCTestCase {
         let pts3 = pacer.nextPts(nowSeconds: 100.200, frameInterval: frameInterval)
         XCTAssertEqual(pts3, 100.200, accuracy: 0.0001, "Should catch up to current time when backlog exceeds 2.5 frames")
     }
+
+    func testRendererDropsPFrameWithoutIDRAndRequestsKeyframe() {
+        let renderer = H264VideoRendererView()
+        let expKeyframe = expectation(description: "Keyframe requested")
+        var frameDisplayedCount = 0
+
+        renderer.onKeyframeRequested = {
+            expKeyframe.fulfill()
+        }
+        renderer.onFrameDisplayed = {
+            frameDisplayedCount += 1
+        }
+
+        // Annex-B P-frame slice NAL (0x41) without SPS/PPS configuration
+        let pSlice = Data([0x00, 0x00, 0x00, 0x01, 0x41, 0x9A, 0x00, 0x01])
+        renderer.enqueueAnnexBFrame(pSlice)
+
+        wait(for: [expKeyframe], timeout: 2.0)
+        XCTAssertEqual(frameDisplayedCount, 0, "P-frame without IDR must never trigger onFrameDisplayed")
+        XCTAssertGreaterThan(renderer.currentDiagnostics.missingConfigDrops + renderer.currentDiagnostics.awaitingIDRDrops, 0)
+    }
+
+    func testEscalationPolicyAllowsFocusCycleWhenWireIsQuiet() {
+        let quietAction = KeyframeCycleEscalationPolicy.decide(
+            nowMs: 5000,
+            unrepairedSinceMs: 1000,
+            cyclesUsedThisSession: 0,
+            lastCycleMs: 0,
+            lastWireCorruptionMs: 0
+        )
+        XCTAssertEqual(quietAction, .cycleFocus, "Quiet wire must allow escalation to .cycleFocus after unrepaired window")
+
+        let corruptAction = KeyframeCycleEscalationPolicy.decide(
+            nowMs: 5000,
+            unrepairedSinceMs: 1000,
+            cyclesUsedThisSession: 0,
+            lastCycleMs: 0,
+            lastWireCorruptionMs: 4500
+        )
+        XCTAssertEqual(corruptAction, .waitForQuiet, "Active wire corruption must wait for quiet")
+    }
+
+    func testRendererResetClearsStateCleanly() {
+        let renderer = H264VideoRendererView()
+        let pSlice = Data([0x00, 0x00, 0x00, 0x01, 0x41, 0x9A, 0x00, 0x01])
+        renderer.enqueueAnnexBFrame(pSlice)
+        renderer.reset()
+        XCTAssertEqual(renderer.currentDiagnostics.inputFrames, 0)
+    }
 }
