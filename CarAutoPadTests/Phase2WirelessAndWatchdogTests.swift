@@ -168,7 +168,8 @@ final class Phase2WirelessAndWatchdogTests: XCTestCase {
         XCTAssertEqual(cm.state, .connecting)
         XCTAssertNotEqual(cm.statusDetail, "Ready to connect")
 
-        cm.stopDiscovery(cancelPrepared: true, resetState: true)
+        cm.disconnect()
+        XCTAssertEqual(cm.state, .disconnected)
         XCTAssertEqual(cm.statusDetail, "Ready to connect")
     }
 
