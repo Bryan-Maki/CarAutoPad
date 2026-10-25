@@ -361,16 +361,17 @@ public class H264VideoRendererView: UIView {
             self.lastNotifiedVideoSize = .zero
         }
 
-        let flushBlock = { [weak self] in
-            guard let self = self else { return }
-            self.notReadyStreak = 0
-            self.displayLayer.flushAndRemoveImage()
-            self.setupOrSyncControlTimebase()
-        }
         if Thread.isMainThread {
-            flushBlock()
+            notReadyStreak = 0
+            displayLayer.flushAndRemoveImage()
+            setupOrSyncControlTimebase()
         } else {
-            DispatchQueue.main.async(execute: flushBlock)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.notReadyStreak = 0
+                self.displayLayer.flushAndRemoveImage()
+                self.setupOrSyncControlTimebase()
+            }
         }
     }
 
@@ -388,13 +389,12 @@ public class H264VideoRendererView: UIView {
             self.framePacer.reset()
         }
 
-        let flushBlock = { [weak self] in
-            self?.displayLayer.flushAndRemoveImage()
-        }
         if Thread.isMainThread {
-            flushBlock()
+            displayLayer.flushAndRemoveImage()
         } else {
-            DispatchQueue.main.async(execute: flushBlock)
+            DispatchQueue.main.async { [weak self] in
+                self?.displayLayer.flushAndRemoveImage()
+            }
         }
     }
 
@@ -410,15 +410,15 @@ public class H264VideoRendererView: UIView {
             self.lastTelemetryUptime = 0
         }
 
-        let syncBlock = { [weak self] in
-            guard let self = self else { return }
-            self.displayLayer.flushAndRemoveImage()
-            self.setupOrSyncControlTimebase()
-        }
         if Thread.isMainThread {
-            syncBlock()
+            displayLayer.flushAndRemoveImage()
+            setupOrSyncControlTimebase()
         } else {
-            DispatchQueue.main.async(execute: syncBlock)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.displayLayer.flushAndRemoveImage()
+                self.setupOrSyncControlTimebase()
+            }
         }
     }
 
