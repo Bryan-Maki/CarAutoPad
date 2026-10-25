@@ -43,6 +43,8 @@ protocol ConnectionManagerDelegate: AnyObject {
     func connectionManager(_ manager: ConnectionManager, didReceiveAudioData data: Data, on channel: UInt8)
     func connectionManager(_ manager: ConnectionManager, didReceiveAudioData data: Data, on channel: UInt8, isAac: Bool)
     func connectionManager(_ manager: ConnectionManager, didReceiveAudioCodecConfig data: Data, on channel: UInt8)
+    func connectionManagerDidEnterBackground(_ manager: ConnectionManager)
+    func connectionManagerWillEnterForeground(_ manager: ConnectionManager)
 }
 
 extension ConnectionManagerDelegate {
@@ -50,6 +52,8 @@ extension ConnectionManagerDelegate {
         connectionManager(manager, didReceiveAudioData: data, on: channel)
     }
     func connectionManager(_ manager: ConnectionManager, didReceiveAudioCodecConfig data: Data, on channel: UInt8) {}
+    func connectionManagerDidEnterBackground(_ manager: ConnectionManager) {}
+    func connectionManagerWillEnterForeground(_ manager: ConnectionManager) {}
 }
 
 class ConnectionManager {
@@ -75,6 +79,8 @@ class ConnectionManager {
     private var consecutiveStarvedSessions: Int = 0
     private var consecutiveSilentFailures: Int = 0
     private var lastTriedEndpoint: String?
+    private var backgroundEnteredUptime: TimeInterval = 0
+    private var foregroundWatchdogWorkItem: DispatchWorkItem?
 
     public private(set) var reconnectAttempt: Int = 0
     public let maxReconnectAttempts: Int = 3
@@ -252,10 +258,12 @@ class ConnectionManager {
         aapTransport?.configurePeer(host: device.ip, port: device.port)
 
         if let prepared = prepared {
+            AppLog.category(.connectionHandshake, "[CONN] Adopting prepared discovery socket to \(device.ip):\(device.port)", tag: "ConnectionManager")
             AppLog.i("ConnectionManager: Adopting prepared discovery connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
             updateStatus("Connecting to \(device.displayName)...")
             tcpHandler.adoptConnection(prepared, host: device.ip, port: device.port)
         } else {
+            AppLog.category(.connectionHandshake, "[CONN] Opening fresh TCP socket to \(device.ip):\(device.port)", tag: "ConnectionManager")
             AppLog.i("ConnectionManager: Opening fresh TCP connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
             updateStatus("Connecting to \(device.displayName)...")
             tcpHandler.connect(host: device.ip, port: device.port)
@@ -280,6 +288,8 @@ class ConnectionManager {
         AppLog.i("ConnectionManager: disconnect called", tag: "ConnectionManager")
         isUserInitiatedDisconnect = true
         autoReconnect.cancel()
+        foregroundWatchdogWorkItem?.cancel()
+        foregroundWatchdogWorkItem = nil
 
         if let transport = aapTransport {
             lastSessionDiagnosticLines = transport.videoDiagnosticLines() + transport.teardownDiagnosticLines()
@@ -324,8 +334,62 @@ class ConnectionManager {
         aapTransport?.sendNightModeEvent(isNight: isNight, force: force)
     }
 
-    func sendTouchEvent(pointers: [(id: Int, x: Int, y: Int)], action: TouchAction, actionIndex: Int) {
-        aapTransport?.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex)
+    public func handleDidEnterBackground() {
+        backgroundEnteredUptime = ProcessInfo.processInfo.systemUptime
+        foregroundWatchdogWorkItem?.cancel()
+        foregroundWatchdogWorkItem = nil
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.connectionManagerDidEnterBackground(self)
+        }
+        aapTransport?.handleDidEnterBackground()
+        AppLog.category(.connectionHandshake, "[CONN] App entered background (activeConnection: \(state.description))", tag: "ConnectionManager")
+    }
+
+    public func handleWillEnterForeground() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.connectionManagerWillEnterForeground(self)
+        }
+        guard state == .running else { return }
+        let baselineRxUptime = aapTransport?.lastInboundPacketUptime ?? 0
+        aapTransport?.handleWillEnterForeground()
+        AppLog.category(.connectionHandshake, "[CONN] App will enter foreground, baselineRxUptime=\(String(format: "%.3f", baselineRxUptime))", tag: "ConnectionManager")
+
+        foregroundWatchdogWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self, self.state == .running else { return }
+            let currentRxUptime = self.aapTransport?.lastInboundPacketUptime ?? 0
+            if currentRxUptime <= baselineRxUptime {
+                AppLog.category(
+                    .connectionHandshake,
+                    "[CONN] Foreground watchdog detected dead link (0 inbound packets in 2.5s), tearing down & reconnecting",
+                    tag: "ConnectionManager",
+                    level: .warn
+                )
+                self.aapTransport?.stop()
+                self.tcpHandler.disconnect()
+                self.state = .disconnected
+                self.hasHandledDisconnectForCurrentAttempt = false
+                self.scheduleReconnectIfNeeded(reason: "Foreground resume link lost")
+            } else {
+                AppLog.category(
+                    .connectionHandshake,
+                    "[CONN] Foreground watchdog link check passed (traffic active, currentRx=\(String(format: "%.3f", currentRxUptime)))",
+                    tag: "ConnectionManager"
+                )
+            }
+        }
+        foregroundWatchdogWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: item)
+    }
+
+    func takeVideo1sNetStats() -> (fps: Int, bytes: Int, maxGapMs: Double) {
+        return aapTransport?.takeVideo1sNetStats() ?? (0, 0, 0.0)
+    }
+
+    func sendTouchEvent(pointers: [(id: Int, x: Int, y: Int)], action: TouchAction, actionIndex: Int, touchTimestamp: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        aapTransport?.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex, touchTimestamp: touchTimestamp)
     }
 
     func requestVideoRecovery() {
@@ -443,6 +507,7 @@ class ConnectionManager {
 extension ConnectionManager: DiscoveryDelegate {
     func discoveryDidFindDevice(_ device: DiscoveredDevice) {
         guard state == .discovering else { return }
+        AppLog.category(.connectionHandshake, "[CONN] Discovered headunit server \(device.displayName) (\(device.ip):\(device.port)), connecting immediately", tag: "ConnectionManager")
         AppLog.i("ConnectionManager: Discovered device \(device.displayName), connecting immediately", tag: "ConnectionManager")
         if !discoveredDevices.contains(where: { $0.ip == device.ip && $0.port == device.port }) {
             discoveredDevices.append(device)

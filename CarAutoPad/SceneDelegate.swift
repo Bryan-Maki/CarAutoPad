@@ -25,8 +25,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
+        ConnectionManager.shared.handleWillEnterForeground()
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {
+        ConnectionManager.shared.handleDidEnterBackground()
     }
 }

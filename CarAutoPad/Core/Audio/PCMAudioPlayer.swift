@@ -136,6 +136,7 @@ final class PCMAudioPlayer {
             self.sessionConfigured = false
             self.aacDecoders.values.forEach { $0.reset() }
             self.duckingEnvelope.reset()
+            AppLog.category(.audioMic, "[AUDIO] Stopped and cleared all audio streams", tag: "PCMAudioPlayer")
         }
 
         if DispatchQueue.getSpecific(key: Self.audioQueueKey) != nil {
@@ -347,6 +348,7 @@ final class PCMAudioPlayer {
         if let mediaStream = streams[mediaChannel] {
             let targetVolume: Float = isSpeechActive ? duckingEnvelope.duckedGain : 1.0
             mediaStream.player.volume = targetVolume
+            AppLog.category(.audioMic, "[AUDIO] Media stream ducking volume=\(targetVolume) (speechActive=\(isSpeechActive))", tag: "PCMAudioPlayer")
         }
     }
 

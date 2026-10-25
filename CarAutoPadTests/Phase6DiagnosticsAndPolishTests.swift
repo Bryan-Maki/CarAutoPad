@@ -305,4 +305,59 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         XCTAssertEqual(transport.versionRetryInterval, 2.0, accuracy: 0.001, "versionRetryInterval must be 2.0s")
         XCTAssertEqual(transport.currentRxMbps, 0.0, "Initial Rx throughput must be 0.0 Mbps")
     }
+
+    func testDebugLogCategoryCasesAndDefaults() {
+        XCTAssertEqual(DebugLogCategory.allCases.count, 5)
+        XCTAssertEqual(DebugLogCategory.connectionHandshake.rawValue, "CONN")
+        XCTAssertEqual(DebugLogCategory.videoTelemetry.rawValue, "VIDEO")
+        XCTAssertEqual(DebugLogCategory.touchLatency.rawValue, "TOUCH")
+        XCTAssertEqual(DebugLogCategory.protocolControl.rawValue, "PROTO")
+        XCTAssertEqual(DebugLogCategory.audioMic.rawValue, "AUDIO")
+
+        XCTAssertTrue(DebugLogCategory.connectionHandshake.defaultEnabled)
+        XCTAssertTrue(DebugLogCategory.videoTelemetry.defaultEnabled)
+        XCTAssertTrue(DebugLogCategory.touchLatency.defaultEnabled)
+        XCTAssertTrue(DebugLogCategory.protocolControl.defaultEnabled)
+        XCTAssertFalse(DebugLogCategory.audioMic.defaultEnabled)
+    }
+
+    func testDebugLogCategoryPersistenceAndFiltering() {
+        AppLog.shared.clear()
+
+        ProjectionSettings.setDebugCategory(.audioMic, enabled: false)
+        XCTAssertFalse(ProjectionSettings.isDebugCategoryEnabled(.audioMic))
+
+        AppLog.category(.audioMic, "Hidden audio message")
+        XCTAssertFalse(AppLog.shared.allLogText().contains("Hidden audio message"))
+
+        ProjectionSettings.setDebugCategory(.audioMic, enabled: true)
+        XCTAssertTrue(ProjectionSettings.isDebugCategoryEnabled(.audioMic))
+
+        AppLog.category(.audioMic, "Visible audio message")
+        XCTAssertTrue(AppLog.shared.allLogText().contains("Visible audio message"))
+
+        ProjectionSettings.enableAllDebugCategories()
+        for cat in DebugLogCategory.allCases {
+            XCTAssertTrue(ProjectionSettings.isDebugCategoryEnabled(cat))
+        }
+
+        AppLog.shared.clear()
+        XCTAssertEqual(AppLog.shared.recentLogs().count, 0)
+    }
+
+    func testVideoRendererBackgroundForegroundLifecycle() {
+        let renderer = H264VideoRendererView()
+        XCTAssertFalse(renderer.isInBackground)
+
+        renderer.enterBackground()
+        XCTAssertTrue(renderer.isInBackground)
+
+        let dummyFrame = Data([0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1f])
+        renderer.enqueueAnnexBFrame(dummyFrame)
+        XCTAssertEqual(renderer.currentDiagnostics.inputFrames, 0)
+
+        renderer.enterForeground()
+        XCTAssertFalse(renderer.isInBackground)
+        XCTAssertNotNil(renderer.displayLayer.controlTimebase)
+    }
 }

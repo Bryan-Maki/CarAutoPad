@@ -1,5 +1,42 @@
 import Foundation
 
+public enum DebugLogCategory: String, CaseIterable, Codable, Sendable {
+    case connectionHandshake = "CONN"
+    case videoTelemetry      = "VIDEO"
+    case touchLatency        = "TOUCH"
+    case protocolControl     = "PROTO"
+    case audioMic            = "AUDIO"
+
+    public var title: String {
+        switch self {
+        case .connectionHandshake: return "Connection, Handshake & Lifecycle"
+        case .videoTelemetry:      return "Video 60FPS Telemetry & Hitch Catcher"
+        case .touchLatency:        return "Touch Input End-to-End Latency"
+        case .protocolControl:     return "AAP Protocol, Focus & Keyframe Recovery"
+        case .audioMic:            return "Audio Streams, Ducking & Microphone"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .connectionHandshake: return "Scan, TLS timing, SDR config, background/foreground & watchdog"
+        case .videoTelemetry:      return "1s summary [VIDEO-1S] + instant hitch capture [VIDEO-HITCH]"
+        case .touchLatency:        return "UI -> QueueWait -> TLS Encrypt/Send -> Next Frame [TOUCH]"
+        case .protocolControl:     return "VideoFocus, Margin 0x8009, Ping RTT & FocusCycle"
+        case .audioMic:            return "Audio sink start/stop, ducking gain & mic 0x8005"
+        }
+    }
+
+    public var defaultEnabled: Bool {
+        switch self {
+        case .connectionHandshake, .videoTelemetry, .touchLatency, .protocolControl:
+            return true
+        case .audioMic:
+            return false
+        }
+    }
+}
+
 public final class AppLog: @unchecked Sendable {
     public static let shared = AppLog()
 
@@ -79,10 +116,9 @@ public final class AppLog: @unchecked Sendable {
     }
 
     public func log(level: Level, tag: String = "CarAutoPad", message: String) {
+        lock.lock()
         let timestamp = dateFormatter.string(from: Date())
         let line = "[\(timestamp)] [\(level.rawValue)] [\(tag)] \(message)"
-
-        lock.lock()
         memoryBuffer.append(line)
         if memoryBuffer.count > Self.maxMemoryLines {
             memoryBuffer.removeFirst(memoryBuffer.count - Self.maxMemoryLines)
@@ -104,6 +140,22 @@ public final class AppLog: @unchecked Sendable {
                 self.openNewLogFile(in: dir)
             }
         }
+    }
+
+    @inline(__always) public static func isCategoryEnabled(_ category: DebugLogCategory) -> Bool {
+        return ProjectionSettings.isDebugCategoryEnabled(category)
+    }
+
+    public static func category(
+        _ category: DebugLogCategory,
+        _ message: @autoclosure () -> String,
+        tag: String? = nil,
+        level: Level = .info
+    ) {
+        guard isCategoryEnabled(category) else { return }
+        let msg = message()
+        let effectiveTag = tag ?? category.rawValue
+        shared.log(level: level, tag: effectiveTag, message: msg)
     }
 
     public static func v(_ message: String, tag: String = "CarAutoPad") {
@@ -144,5 +196,18 @@ public final class AppLog: @unchecked Sendable {
         lock.lock()
         memoryBuffer.removeAll()
         lock.unlock()
+
+        AudioDiagnostics.shared.clear()
+
+        writeQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.currentFileHandle?.closeFile()
+            self.currentFileHandle = nil
+            if let url = self.currentFileURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+            let dir = self.logsDirectory()
+            self.openNewLogFile(in: dir)
+        }
     }
 }

@@ -135,6 +135,7 @@ public enum ProjectionSettings {
     private static let showPerformanceOverlayKey = "projection-show-performance-overlay"
     private static let lastKnownLatitudeKey = "projection-last-known-latitude"
     private static let lastKnownLongitudeKey = "projection-last-known-longitude"
+    private static let debugCategoriesKey = "projection-debug-log-categories"
 
     public static let defaultDpi = 160
     public static let minDpi = 100
@@ -480,6 +481,27 @@ public enum ProjectionSettings {
     public static func resetDpiToDefault() {
         isAutoDpi = true
         dpi = defaultDpi
+    }
+
+    public static func isDebugCategoryEnabled(_ category: DebugLogCategory) -> Bool {
+        guard let saved = defaults.dictionary(forKey: debugCategoriesKey) as? [String: Bool] else {
+            return category.defaultEnabled
+        }
+        return saved[category.rawValue] ?? category.defaultEnabled
+    }
+
+    public static func setDebugCategory(_ category: DebugLogCategory, enabled: Bool) {
+        var current = (defaults.dictionary(forKey: debugCategoriesKey) as? [String: Bool]) ?? [:]
+        current[category.rawValue] = enabled
+        defaults.set(current, forKey: debugCategoriesKey)
+    }
+
+    public static func enableAllDebugCategories() {
+        var current: [String: Bool] = [:]
+        for cat in DebugLogCategory.allCases {
+            current[cat.rawValue] = true
+        }
+        defaults.set(current, forKey: debugCategoriesKey)
     }
 
     public static func availableResolutions(for orientation: ProjectionOrientation) -> [ResolutionPreset] {

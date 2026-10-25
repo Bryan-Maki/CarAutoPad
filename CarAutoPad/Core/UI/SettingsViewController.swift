@@ -111,7 +111,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .connectionAutomation:
             return 2
         case .diagnosticsBackup:
-            return 5
+            return 7
         }
     }
 
@@ -471,24 +471,39 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             return cell
 
         case 1:
-            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Live Diagnostics Report"
+            let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
+            cell.textLabel?.text = "Debug Log Categories..."
+            let enabledCount = DebugLogCategory.allCases.filter { ProjectionSettings.isDebugCategoryEnabled($0) }.count
+            cell.detailTextLabel?.text = "\(enabledCount) of \(DebugLogCategory.allCases.count) enabled"
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Export / Share Session Logs"
+            cell.textLabel?.text = "Live Diagnostics Report"
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Backup / Restore Settings (JSON)"
+            cell.textLabel?.text = "Export / Share Session Logs"
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 4:
+            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+            cell.textLabel?.text = "Clear All Diagnostic Logs"
+            cell.textLabel?.textColor = .systemOrange
+            cell.textLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+            return cell
+
+        case 5:
+            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+            cell.textLabel?.text = "Backup / Restore Settings (JSON)"
+            cell.accessoryType = .disclosureIndicator
+            return cell
+
+        case 6:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Reset All Settings to Defaults"
             cell.textLabel?.textColor = .systemRed
@@ -526,12 +541,16 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .diagnosticsBackup:
             switch indexPath.row {
             case 1:
-                presentLiveDiagnostics()
+                presentDebugLogCategories()
             case 2:
-                presentLogExportMenu(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
+                presentLiveDiagnostics()
             case 3:
-                presentBackupRestoreMenu(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
+                presentLogExportMenu(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
             case 4:
+                clearDiagnosticLogs(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
+            case 5:
+                presentBackupRestoreMenu(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
+            case 6:
                 presentResetDefaultsAlert()
             default:
                 break
@@ -697,6 +716,24 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             self?.onSettingsChanged?(.uiOnly)
         })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func presentDebugLogCategories() {
+        let vc = DebugLogCategoriesViewController()
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
+    private func clearDiagnosticLogs(sourceView: UIView) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        AppLog.shared.clear()
+        let alert = UIAlertController(
+            title: "Diagnostic Logs Cleared",
+            message: "Memory buffer and disk logs have been emptied (0 entries).",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
     }
 }
@@ -880,5 +917,61 @@ final class DpiPreviewCell: UITableViewCell {
         let prefix = ProjectionSettings.isAutoDpi ? "Auto " : "Custom "
         let splitText = previewView.isCoolwalkSplitScreen ? "Coolwalk Split" : "Single Fullscreen"
         dpiValueLabel.text = "\(prefix)(\(previewView.dpi) DPI) • \(previewView.virtualWidthDp)×\(previewView.virtualHeightDp) dp (\(splitText))"
+    }
+}
+
+final class DebugLogCategoriesViewController: UITableViewController {
+    init() {
+        super.init(style: .insetGrouped)
+        title = "Debug Log Categories"
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Enable All",
+            style: .plain,
+            target: self,
+            action: #selector(enableAllTapped)
+        )
+    }
+
+    @objc private func enableAllTapped() {
+        ProjectionSettings.enableAllDebugCategories()
+        tableView.reloadData()
+    }
+
+    override func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return DebugLogCategory.allCases.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cat = DebugLogCategory.allCases[indexPath.row]
+        let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
+        cell.textLabel?.text = "[\(cat.rawValue)] \(cat.title)"
+        cell.textLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+        cell.detailTextLabel?.text = cat.subtitle
+        cell.detailTextLabel?.numberOfLines = 2
+        cell.detailTextLabel?.textColor = .secondaryLabel
+
+        let toggle = UISwitch()
+        toggle.isOn = ProjectionSettings.isDebugCategoryEnabled(cat)
+        toggle.addAction(UIAction { _ in
+            ProjectionSettings.setDebugCategory(cat, enabled: toggle.isOn)
+        }, for: .valueChanged)
+
+        cell.accessoryView = toggle
+        cell.selectionStyle = .none
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        return "Enabled categories emit structured telemetry to AppLog. Disabling unnecessary categories saves CPU overhead."
     }
 }

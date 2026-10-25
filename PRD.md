@@ -360,6 +360,22 @@ The overall port is considered complete only when all of the following criteria 
   - Removed touch move throttling (`minMoveInterval = 0.014s`) in `TouchInputView` while maintaining zero-sort single-touch mapping, ensuring 100% smooth gesture tracking.
   - Aligned `decoderAdditionalDepth: nil` in `ServiceDiscoveryResponse` with `open-headunit`.
 
+### 10.12 Background/Foreground Lifecycle Closure, CMTimebase 60FPS Pacing, High-Priority Touch Interleaving & Selectable Debug Telemetry (100% Completed)
+* **Background/Foreground Lifecycle Closure & 2.5s Dead-Link Watchdog (`SceneDelegate`, `H264VideoRendererView`, `AapTransport`, `ConnectionManager`)**:
+  - Bound `sceneDidEnterBackground` and `sceneWillEnterForeground` directly to `ConnectionManager`.
+  - Added `isInBackground` gating to `H264VideoRendererView`: rejects incoming frames during background to prevent iOS graphics sandbox violation, flushes and removes images on background entry, and flushes `.failed` states and re-synchronizes `CMTimebase` on foreground entry.
+  - On background entry, `AapTransport` flushes pending media ACKs and sends `sendVideoFocusNotification(gain: false)` to notify phone encoders to pause rendering and save battery.
+  - On foreground entry, `AapTransport` clears stale assembly buffers, sends a ping request to probe TCP link liveness, and triggers `performVideoFocusCycle` to force phone generation of SPS/PPS + IDR keyframes.
+  - Configured a 2.5s foreground watchdog in `ConnectionManager`: if 0 inbound packets arrive within 2.5s of entering foreground (indicating a dead TCP link during iOS suspension), immediately tears down transport, returns `MainViewController` to the dashboard, and initiates automated 3-attempt reconnect.
+* **CoreMedia `CMTimebase` Display Synchronization & Touch Priority Interleaving (`H264VideoRendererView`, `AapTransport`)**:
+  - Initialized and synchronized explicit `displayLayer.controlTimebase` linked to `CMClockGetHostTimeClock()`, establishing master clock timing for `AVSampleBufferDisplayLayer`.
+  - Clamped target PTS to `nowSeconds + frameInterval` if `targetSeconds - nowSeconds > frameInterval * 1.2`, ensuring the display layer hardware buffer pool never overflows.
+  - Implemented high-priority touch queue in `AapTransport` with fragment interleaving: between every decrypted packet in multi-fragment video frames, queued touch events are encrypted and transmitted immediately (< 0.5ms delay).
+* **5 Selectable `DebugLogCategory` & High-Precision Telemetry System (`AppLog`, `ProjectionSettings`, `SettingsViewController`)**:
+  - Implemented `DebugLogCategory` (`CONN`, `VIDEO`, `TOUCH`, `PROTO`, `AUDIO`) with `@autoclosure` zero-overhead filtering and thread-safe date formatting.
+  - Added 1-second concentrated telemetry (`[VIDEO-1S]`) and hitch detection (`[VIDEO-HITCH]`) in `H264VideoRendererView`.
+  - Added end-to-end touch latency tracking (`[TOUCH]`) capturing `uiToDispatch`, `queueWait`, and `tlsEncryptSend` durations.
+  - Added "Debug Log Categories..." configuration sub-controller and "Clear All Diagnostic Logs" one-tap action in `SettingsViewController`.
 
 ---
 

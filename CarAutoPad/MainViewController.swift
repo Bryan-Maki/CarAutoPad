@@ -427,6 +427,9 @@ final class MainViewController: UIViewController {
         videoRenderer.onKeyframeRequested = { [weak self] in
             self?.connectionManager.requestVideoRecovery()
         }
+        videoRenderer.onProvideNetStats = { [weak self] in
+            self?.connectionManager.takeVideo1sNetStats() ?? (0, 0, 0.0)
+        }
         videoRenderer.onVideoSizeResolved = { [weak self] size in
             guard let self = self else { return }
             let w = Int(size.width)
@@ -625,7 +628,10 @@ final class MainViewController: UIViewController {
         performanceOverlayView.translatesAutoresizingMaskIntoConstraints = false
 
         touchOverlayView.onTouch = { [weak self] pointers, action, actionIndex in
-            ConnectionManager.shared.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex)
+            self?.connectionManager.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex)
+        }
+        touchOverlayView.onTouchWithTimestamp = { [weak self] pointers, action, actionIndex, timestamp in
+            self?.connectionManager.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex, touchTimestamp: timestamp)
         }
 
         let appTitleStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
@@ -1730,6 +1736,14 @@ extension MainViewController: ConnectionManagerDelegate {
 
     func connectionManager(_ manager: ConnectionManager, didReceiveAudioCodecConfig data: Data, on channel: UInt8) {
         audioPlayer.configureCodec(channel: channel, csd: data)
+    }
+
+    func connectionManagerDidEnterBackground(_ manager: ConnectionManager) {
+        videoRenderer.enterBackground()
+    }
+
+    func connectionManagerWillEnterForeground(_ manager: ConnectionManager) {
+        videoRenderer.enterForeground()
     }
 }
 

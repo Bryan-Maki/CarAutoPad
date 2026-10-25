@@ -78,6 +78,24 @@ public class H264VideoRendererView: UIView {
         }
     }
 
+    public private(set) var isInBackground: Bool = false
+    public var onProvideNetStats: (() -> (fps: Int, bytes: Int, maxGapMs: Double))?
+
+    private var lastRenderUptime: TimeInterval = 0
+    private var lastTelemetryUptime: TimeInterval = 0
+    private var enqueuedFrames1s: Int = 0
+    private var parseDurationMsSum1s: Double = 0
+    private var maxParseMs1s: Double = 0
+    private var layerWaitCount1s: Int = 0
+    private var layerWaitDurationMsSum1s: Double = 0
+    private var ptsLeadMsSum1s: Double = 0
+    private var renderGapMaxMs1s: Double = 0
+    private var qMax1s: Int = 0
+    private var lastReportedQDrops: Int = 0
+    private var lastReportedNotReadyDrops: Int = 0
+    private var lastReportedAwaitingIdrDrops: Int = 0
+    private var lastCalculatedPtsLeadMs: Double = 0
+
     private var formatDescription: CMVideoFormatDescription?
     private var vps: Data?
     private var sps: Data?
@@ -176,6 +194,25 @@ public class H264VideoRendererView: UIView {
         commonInit()
     }
 
+    private func setupOrSyncControlTimebase() {
+        let now = CMClockGetTime(CMClockGetHostTimeClock())
+        if let existing = displayLayer.controlTimebase {
+            CMTimebaseSetTime(existing, time: now)
+            CMTimebaseSetRate(existing, rate: 1.0)
+        } else {
+            var timebase: CMTimebase?
+            if CMTimebaseCreateWithSourceClock(
+                allocator: kCFAllocatorDefault,
+                sourceClock: CMClockGetHostTimeClock(),
+                timebaseOut: &timebase
+            ) == noErr, let tb = timebase {
+                CMTimebaseSetTime(tb, time: now)
+                CMTimebaseSetRate(tb, rate: 1.0)
+                displayLayer.controlTimebase = tb
+            }
+        }
+    }
+
     private func commonInit() {
         backgroundColor = .black
         clipsToBounds = true
@@ -185,6 +222,7 @@ public class H264VideoRendererView: UIView {
         activeClipView.isUserInteractionEnabled = false
         addSubview(activeClipView)
         displayLayer.videoGravity = .resize
+        setupOrSyncControlTimebase()
         activeClipView.layer.addSublayer(displayLayer)
         applyGeometry()
     }
@@ -327,6 +365,7 @@ public class H264VideoRendererView: UIView {
             guard let self = self else { return }
             self.notReadyStreak = 0
             self.displayLayer.flushAndRemoveImage()
+            self.setupOrSyncControlTimebase()
         }
         if Thread.isMainThread {
             flushBlock()
@@ -335,8 +374,56 @@ public class H264VideoRendererView: UIView {
         }
     }
 
+    public func enterBackground() {
+        isInBackground = true
+        frameQueueLock.lock()
+        pendingFrames.removeAll()
+        isProcessingFrame = false
+        frameQueueLock.unlock()
+
+        processQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.hasDecodedKeyframe = false
+            self.notReadyStreak = 0
+            self.framePacer.reset()
+        }
+
+        let flushBlock = { [weak self] in
+            self?.displayLayer.flushAndRemoveImage()
+        }
+        if Thread.isMainThread {
+            flushBlock()
+        } else {
+            DispatchQueue.main.async(execute: flushBlock)
+        }
+    }
+
+    public func enterForeground() {
+        isInBackground = false
+
+        processQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.hasDecodedKeyframe = false
+            self.notReadyStreak = 0
+            self.framePacer.reset()
+            self.lastRenderUptime = 0
+            self.lastTelemetryUptime = 0
+        }
+
+        let syncBlock = { [weak self] in
+            guard let self = self else { return }
+            self.displayLayer.flushAndRemoveImage()
+            self.setupOrSyncControlTimebase()
+        }
+        if Thread.isMainThread {
+            syncBlock()
+        } else {
+            DispatchQueue.main.async(execute: syncBlock)
+        }
+    }
+
     public func enqueueAnnexBFrame(_ frame: Data) {
-        guard !frame.isEmpty else { return }
+        guard !isInBackground, !frame.isEmpty else { return }
         updateDiagnostics { $0.inputFrames += 1 }
         enqueueFrameForProcessing(frame)
     }
@@ -443,6 +530,7 @@ public class H264VideoRendererView: UIView {
 
     private func processSingleFrame(_ frame: Data) {
         let startTime = CFAbsoluteTimeGetCurrent()
+        let parseStartTime = ProcessInfo.processInfo.systemUptime
         let nalUnits = H264NALParser.nalUnits(from: frame)
         guard !nalUnits.isEmpty else { return }
 
@@ -636,6 +724,7 @@ public class H264VideoRendererView: UIView {
 
         let lengthSampleData = makeLengthPrefixedSample(from: accessUnitNALs)
         guard !lengthSampleData.isEmpty else { return }
+        let parseMs = (ProcessInfo.processInfo.systemUptime - parseStartTime) * 1000.0
 
         guard let sampleBuffer = makeSampleBuffer(data: lengthSampleData, formatDescription: formatDesc) else {
             updateDiagnostics { $0.sampleFailures += 1 }
@@ -662,12 +751,15 @@ public class H264VideoRendererView: UIView {
             return
         }
 
+        var waitCount = 0
+        var waitDurationMs = 0.0
         if !displayLayer.isReadyForMoreMediaData {
-            var waitCount = 0
+            let waitStart = ProcessInfo.processInfo.systemUptime
             while !displayLayer.isReadyForMoreMediaData && waitCount < 8 {
                 Thread.sleep(forTimeInterval: 0.002)
                 waitCount += 1
             }
+            waitDurationMs = (ProcessInfo.processInfo.systemUptime - waitStart) * 1000.0
         }
 
         guard displayLayer.isReadyForMoreMediaData else {
@@ -698,6 +790,79 @@ public class H264VideoRendererView: UIView {
         notReadyStreak = 0
         consecutiveDecodeFailures = 0
         displayLayer.enqueue(sampleBuffer)
+
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        let renderGapMs = lastRenderUptime > 0 ? (nowUptime - lastRenderUptime) * 1000.0 : 0
+        lastRenderUptime = nowUptime
+
+        frameQueueLock.lock()
+        let pendingQ = pendingFrames.count
+        frameQueueLock.unlock()
+
+        let ptsLeadMs = lastCalculatedPtsLeadMs
+
+        if sessionHasRendered {
+            if (renderGapMs > 45.0 && renderGapMs < 2000.0) || (parseMs + waitDurationMs > 12.0) {
+                AppLog.category(
+                    .videoTelemetry,
+                    "[VIDEO-HITCH] frame=#\(decodedFrameCount) renderGap=\(String(format: "%.1f", renderGapMs))ms netGap=\(String(format: "%.1f", renderGapMs))ms bytes=\(frame.count) isIDR=\(isKeyframe) parseMs=\(String(format: "%.2f", parseMs))ms layerWaitMs=\(String(format: "%.2f", waitDurationMs))ms pendingQ=\(pendingQ) ptsLead=\(String(format: "%.1f", ptsLeadMs))ms",
+                    tag: "VideoRenderer"
+                )
+            }
+        }
+
+        enqueuedFrames1s += 1
+        parseDurationMsSum1s += parseMs
+        if parseMs > maxParseMs1s { maxParseMs1s = parseMs }
+        if waitCount > 0 {
+            layerWaitCount1s += 1
+            layerWaitDurationMsSum1s += waitDurationMs
+        }
+        ptsLeadMsSum1s += ptsLeadMs
+        if renderGapMs > renderGapMaxMs1s { renderGapMaxMs1s = renderGapMs }
+        if pendingQ > qMax1s { qMax1s = pendingQ }
+
+        if lastTelemetryUptime == 0 {
+            lastTelemetryUptime = nowUptime
+        } else if nowUptime - lastTelemetryUptime >= 1.0 {
+            let elapsed = nowUptime - lastTelemetryUptime
+            let enqFps = Int((Double(enqueuedFrames1s) / elapsed).rounded())
+            let avgParse = enqueuedFrames1s > 0 ? String(format: "%.2f", parseDurationMsSum1s / Double(enqueuedFrames1s)) : "0.00"
+            let maxParse = String(format: "%.2f", maxParseMs1s)
+            let avgWaitMs = layerWaitCount1s > 0 ? String(format: "%.1f", layerWaitDurationMsSum1s) : "0.0"
+            let avgPtsLead = enqueuedFrames1s > 0 ? String(format: "%.1f", ptsLeadMsSum1s / Double(enqueuedFrames1s)) : "0.0"
+            let renderGapMax = String(format: "%.1f", renderGapMaxMs1s)
+
+            let netStats = onProvideNetStats?() ?? (fps: 0, bytes: 0, maxGapMs: 0.0)
+            let netFps = netStats.fps
+            let mbps = String(format: "%.2f", Double(netStats.bytes * 8) / (elapsed * 1_000_000.0))
+            let netGap = String(format: "%.1f", netStats.maxGapMs)
+
+            let currentDiag = currentDiagnostics
+            let qDrop = currentDiag.queueDrops - lastReportedQDrops
+            let nrDrop = currentDiag.notReadyDrops - lastReportedNotReadyDrops
+            let idrDrop = currentDiag.awaitingIDRDrops - lastReportedAwaitingIdrDrops
+            lastReportedQDrops = currentDiag.queueDrops
+            lastReportedNotReadyDrops = currentDiag.notReadyDrops
+            lastReportedAwaitingIdrDrops = currentDiag.awaitingIDRDrops
+
+            AppLog.category(
+                .videoTelemetry,
+                "[VIDEO-1S] netRx=\(netFps)fps(\(mbps)Mbps) enq=\(enqFps)fps | netGapMax=\(netGap)ms renderGapMax=\(renderGapMax)ms | parseAvg=\(avgParse)ms(max=\(maxParse)ms) | layerWait=\(layerWaitCount1s)(\(avgWaitMs)ms) | ptsLead=\(avgPtsLead)ms | qMax=\(qMax1s) drops(q=\(qDrop),notReady=\(nrDrop),awaitIDR=\(idrDrop))",
+                tag: "VideoRenderer"
+            )
+
+            enqueuedFrames1s = 0
+            parseDurationMsSum1s = 0
+            maxParseMs1s = 0
+            layerWaitCount1s = 0
+            layerWaitDurationMsSum1s = 0
+            ptsLeadMsSum1s = 0
+            renderGapMaxMs1s = 0
+            qMax1s = pendingQ
+            lastTelemetryUptime = nowUptime
+        }
+
         let nowTime = CACurrentMediaTime()
         fpsFrameCount += 1
         if lastFpsTimestamp == 0 {
@@ -855,7 +1020,12 @@ public class H264VideoRendererView: UIView {
         let is30Fps = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
         let frameInterval: Double = is30Fps ? (1.0 / 30.0) : (1.0 / 60.0)
         let targetSeconds = framePacer.nextPts(nowSeconds: nowSeconds, frameInterval: frameInterval)
-        let pts = CMTimeMakeWithSeconds(targetSeconds, preferredTimescale: 1_000_000_000)
+        var effectivePtsSeconds = targetSeconds
+        if effectivePtsSeconds - nowSeconds > frameInterval * 1.2 {
+            effectivePtsSeconds = nowSeconds + frameInterval
+        }
+        lastCalculatedPtsLeadMs = max(0, (effectivePtsSeconds - nowSeconds) * 1000.0)
+        let pts = CMTimeMakeWithSeconds(effectivePtsSeconds, preferredTimescale: 1_000_000_000)
         let duration = CMTimeMakeWithSeconds(frameInterval, preferredTimescale: 1_000_000_000)
         var timing = CMSampleTimingInfo(duration: duration, presentationTimeStamp: pts, decodeTimeStamp: .invalid)
         frameIndex += 1

@@ -154,6 +154,30 @@ class AapTransport {
     private let byebyeResponseTimeout: TimeInterval = 1.5
     private var peerDisconnectDiagnostic = "None"
 
+    public private(set) var lastInboundPacketUptime: TimeInterval = 0
+    private var lastPingSentUptime: TimeInterval = 0
+    private var tlsHandshakeStartUptime: TimeInterval = 0
+
+    private let touchQueueLock = NSLock()
+    private var pendingTouchEvents: [(message: AapMessage, touchTimestamp: TimeInterval, enqueueUptime: TimeInterval, action: TouchAction, point: (x: Int, y: Int))] = []
+    private var lastMoveTouchLogUptime: TimeInterval = 0
+
+    private let videoNetStatsLock = NSLock()
+    private var netRxVideoFrames1s: Int = 0
+    private var netRxVideoBytes1s: Int = 0
+    private var maxNetInterFrameGapMs1s: Double = 0
+    private var lastVideoFrameRxUptime: TimeInterval = 0
+
+    public func takeVideo1sNetStats() -> (fps: Int, bytes: Int, maxGapMs: Double) {
+        videoNetStatsLock.lock()
+        defer { videoNetStatsLock.unlock() }
+        let stats = (fps: netRxVideoFrames1s, bytes: netRxVideoBytes1s, maxGapMs: maxNetInterFrameGapMs1s)
+        netRxVideoFrames1s = 0
+        netRxVideoBytes1s = 0
+        maxNetInterFrameGapMs1s = 0
+        return stats
+    }
+
     private var receiveBuffer = Data()
     private var encryptedReceiveBuffer = Data()
     private let bufferLock = NSLock()
@@ -667,15 +691,56 @@ class AapTransport {
         }
     }
 
+    private func flushPendingTouchEventsOnProcessingQueue() {
+        touchQueueLock.lock()
+        guard !pendingTouchEvents.isEmpty else {
+            touchQueueLock.unlock()
+            return
+        }
+        let events = pendingTouchEvents
+        pendingTouchEvents.removeAll(keepingCapacity: true)
+        touchQueueLock.unlock()
+
+        let now = ProcessInfo.processInfo.systemUptime
+        for item in events {
+            let uiToDispatchMs = max(0, (item.enqueueUptime - item.touchTimestamp) * 1000.0)
+            let queueWaitMs = max(0, (now - item.enqueueUptime) * 1000.0)
+            let encStart = ProcessInfo.processInfo.systemUptime
+            sendEncryptedMessage(item.message)
+            let encEnd = ProcessInfo.processInfo.systemUptime
+            let encMs = max(0, (encEnd - encStart) * 1000.0)
+            let totalTxMs = max(0, (encEnd - item.touchTimestamp) * 1000.0)
+
+            var shouldLog = false
+            if item.action == .DOWN || item.action == .UP || item.action == .POINTER_DOWN || item.action == .POINTER_UP {
+                shouldLog = true
+            } else if item.action == .MOVE {
+                if now - lastMoveTouchLogUptime >= 0.200 {
+                    lastMoveTouchLogUptime = now
+                    shouldLog = true
+                }
+            }
+
+            if shouldLog {
+                AppLog.category(
+                    .touchLatency,
+                    "[TOUCH] action=\(item.action) pt=(\(item.point.x),\(item.point.y)) | uiToDispatch=\(String(format: "%.2f", uiToDispatchMs))ms | queueWait=\(String(format: "%.2f", queueWaitMs))ms | tlsEncryptSend=\(String(format: "%.2f", encMs))ms | totalTx=\(String(format: "%.2f", totalTxMs))ms",
+                    tag: "AapTransport"
+                )
+            }
+        }
+    }
+
     func sendTouchEvent(x: Int, y: Int, action: TouchAction, pointerId: Int = 0) {
         sendTouchEvent(
             pointers: [(id: pointerId, x: x, y: y)],
             action: action,
-            actionIndex: 0
+            actionIndex: 0,
+            touchTimestamp: ProcessInfo.processInfo.systemUptime
         )
     }
 
-    func sendTouchEvent(pointers: [(id: Int, x: Int, y: Int)], action: TouchAction, actionIndex: Int) {
+    func sendTouchEvent(pointers: [(id: Int, x: Int, y: Int)], action: TouchAction, actionIndex: Int, touchTimestamp: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         guard !pointers.isEmpty else { return }
 
         let protoAction: ProtoTouchEvent.PointerAction
@@ -695,7 +760,16 @@ class AapTransport {
             pointers: pointers
         )
 
-        send(message: message)
+        let firstPt = (x: pointers[0].x, y: pointers[0].y)
+        let enqueueUptime = ProcessInfo.processInfo.systemUptime
+
+        touchQueueLock.lock()
+        pendingTouchEvents.append((message: message, touchTimestamp: touchTimestamp, enqueueUptime: enqueueUptime, action: action, point: firstPt))
+        touchQueueLock.unlock()
+
+        processingQueue.async { [weak self] in
+            self?.flushPendingTouchEventsOnProcessingQueue()
+        }
     }
 
     func sendMediaKeyEvent(keyCode: Int) {
@@ -917,6 +991,7 @@ class AapTransport {
                 continue
             }
             consecutiveTlsDecryptFailures = 0
+            lastInboundPacketUptime = ProcessInfo.processInfo.systemUptime
 
             if let audit = fragmentAudit.onMessage(
                 channel: Int(packet.channel),
@@ -962,7 +1037,9 @@ class AapTransport {
             } catch {
                 AppLog.w("Reassembly error: \(error)", tag: "AapTransport")
             }
+            flushPendingTouchEventsOnProcessingQueue()
         }
+        flushPendingTouchEventsOnProcessingQueue()
     }
 
     private func registerTlsDecryptFailure(context: String) {
@@ -1087,6 +1164,8 @@ class AapTransport {
         }
 
         do {
+            tlsHandshakeStartUptime = ProcessInfo.processInfo.systemUptime
+            AppLog.category(.connectionHandshake, "[CONN] Starting TLS handshake with headunit server", tag: "AapTransport")
             let step = try tlsHandler.startHandshakeSession()
             processTlsHandshakeStep(step)
             startHandshakeTimeout(for: .tlsHandshaking)
@@ -1122,6 +1201,8 @@ class AapTransport {
         }
 
         if step.isComplete {
+            let durationMs = tlsHandshakeStartUptime > 0 ? (ProcessInfo.processInfo.systemUptime - tlsHandshakeStartUptime) * 1000.0 : 0
+            AppLog.category(.connectionHandshake, "[CONN] TLS handshake completed in \(String(format: "%.1f", durationMs))ms", tag: "AapTransport")
             AppLog.i("TLS handshake completed", tag: "AapTransport")
             tlsHandler.postHandshakeReset()
             setState(.authenticating)
@@ -1391,6 +1472,11 @@ class AapTransport {
         case AapMessageType.PING_REQUEST.rawValue:
             sendPingResponse(for: message, on: chan)
 
+        case AapMessageType.PING_RESPONSE.rawValue:
+            let rttMs = self.lastPingSentUptime > 0 ? (ProcessInfo.processInfo.systemUptime - self.lastPingSentUptime) * 1000.0 : 0
+            AppLog.category(.connectionHandshake, "[CONN] Received PING_RESPONSE from phone, RTT=\(String(format: "%.1f", rttMs))ms", tag: "AapTransport")
+            AppLog.category(.protocolControl, "[PROTO] Received PING_RESPONSE, RTT=\(String(format: "%.1f", rttMs))ms", tag: "AapTransport")
+
         case AapMessageType.NAV_FOCUS_REQUEST.rawValue:
             sendNavFocusNotification(on: chan)
 
@@ -1475,6 +1561,11 @@ class AapTransport {
             enableAudioSink: ProjectionSettings.isAudioSinkEnabled
         )
         send(message: message)
+        AppLog.category(
+            .connectionHandshake,
+            "[CONN] Sent ServiceDiscoveryResponse (\(message.size) bytes, res=\(HeadUnitScreenConfig.shared.negotiatedWidth)x\(HeadUnitScreenConfig.shared.negotiatedHeight), dpi=\(ProjectionSettings.effectiveDpi), useMic=\(ProjectionSettings.effectiveUseIpadMic), audioSink=\(ProjectionSettings.isAudioSinkEnabled))",
+            tag: "AapTransport"
+        )
         AppLog.i("Sent typed ServiceDiscoveryResponse (\(message.size) bytes, useMic=\(ProjectionSettings.effectiveUseIpadMic))", tag: "AapTransport")
     }
 
@@ -1569,6 +1660,7 @@ class AapTransport {
         }
         focusCyclesUsedThisSession += 1
         lastFocusCycleAtMs = Int64(uptimeMs())
+        AppLog.category(.protocolControl, "[PROTO] Initiating VideoFocus cycle (reason: \(reason), cycle #\(focusCyclesUsedThisSession))", tag: "AapTransport")
         AppLog.i("Initiating VideoFocus release/regain cycle (reason: \(reason), cycle #\(focusCyclesUsedThisSession))", tag: "AapTransport")
         sendVideoFocusNotification(on: Channel.ID_VID, gain: false, reason: "cycle-release-\(reason)")
 
@@ -1586,11 +1678,49 @@ class AapTransport {
         }
     }
 
+    public func sendPingRequest() {
+        processingQueue.async { [weak self] in
+            guard let self = self, self.state == .running else { return }
+            self.lastPingSentUptime = ProcessInfo.processInfo.systemUptime
+            let payload = ProtoWire.fieldVarint(1, value: UInt64(self.uptimeMs()))
+            let message = AapMessage(
+                channel: Channel.ID_CTR,
+                flags: AapFlags.CONTROL_MESSAGE,
+                type: AapMessageType.PING_REQUEST.rawValue,
+                payload: payload
+            )
+            self.send(message: message)
+            AppLog.category(.connectionHandshake, "[CONN] Sent PING_REQUEST to headunit server", tag: "AapTransport")
+            AppLog.category(.protocolControl, "[PROTO] Sent PING_REQUEST (uptimeMs=\(self.uptimeMs()))", tag: "AapTransport")
+        }
+    }
+
+    public func handleDidEnterBackground() {
+        processingQueue.async { [weak self] in
+            guard let self = self, self.state == .running else { return }
+            self.sendMediaAck(on: Channel.ID_VID, forceFlush: true)
+            self.sendVideoFocusNotification(on: Channel.ID_VID, gain: false, unsolicited: true, reason: "app-entered-background")
+            AppLog.category(.connectionHandshake, "[CONN] Paused video focus due to enter background", tag: "AapTransport")
+        }
+    }
+
+    public func handleWillEnterForeground() {
+        processingQueue.async { [weak self] in
+            guard let self = self, self.state == .running else { return }
+            self.videoAssemblyBuffer.removeAll(keepingCapacity: true)
+            self.videoFirstFragmentAtMs = 0
+            self.sendPingRequest()
+            self.performVideoFocusCycle(reason: "app-will-enter-foreground")
+            AppLog.category(.connectionHandshake, "[CONN] Resumed video focus & cycle, sent ping on enter foreground", tag: "AapTransport")
+        }
+    }
+
     func sendUpdateUiConfigRequest(left: Int, top: Int, right: Int, bottom: Int, uiTheme: Int32? = nil) {
         processingQueue.async { [weak self] in
             guard let self = self, self.state == .running, self.isVideoChannelStarted else { return }
             let message = UpdateUiConfigRequest.make(left: left, top: top, right: right, bottom: bottom, uiTheme: uiTheme)
             self.send(message: message)
+            AppLog.category(.protocolControl, "[PROTO] Sent UpdateUiConfigRequest (0x8009) left=\(left) top=\(top) right=\(right) bottom=\(bottom) uiTheme=\(String(describing: uiTheme))", tag: "AapTransport")
             AppLog.i("Sent UpdateUiConfigRequest left=\(left) top=\(top) right=\(right) bottom=\(bottom)", tag: "AapTransport")
             self.sendVideoFocusNotification(on: Channel.ID_VID, gain: true, unsolicited: true, reason: "update-ui-config")
         }
@@ -1987,6 +2117,19 @@ enum ProtoWire {
 
     private func deliverVideoFrame(_ frame: Data) {
         let nowMs = uptimeMs()
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        videoNetStatsLock.lock()
+        netRxVideoFrames1s += 1
+        netRxVideoBytes1s += frame.count
+        if lastVideoFrameRxUptime > 0 {
+            let gapMs = (nowUptime - lastVideoFrameRxUptime) * 1000.0
+            if gapMs > maxNetInterFrameGapMs1s {
+                maxNetInterFrameGapMs1s = gapMs
+            }
+        }
+        lastVideoFrameRxUptime = nowUptime
+        videoNetStatsLock.unlock()
+
         if unrepairedSinceAtMs > 0 && (nowMs > lastVideoRecoveryRequestAtMs) && (nowMs - lastVideoRecoveryRequestAtMs > 500) {
             unrepairedSinceAtMs = 0
         }

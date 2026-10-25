@@ -2,8 +2,10 @@ import UIKit
 
 public final class TouchInputView: UIView {
     public typealias TouchCallback = ([(id: Int, x: Int, y: Int)], TouchAction, Int) -> Void
+    public typealias TimestampedTouchCallback = ([(id: Int, x: Int, y: Int)], TouchAction, Int, TimeInterval) -> Void
 
     public var onTouch: TouchCallback?
+    public var onTouchWithTimestamp: TimestampedTouchCallback?
     public var onTouchEvent: TouchCallback? {
         get { return onTouch }
         set { onTouch = newValue }
@@ -75,9 +77,10 @@ public final class TouchInputView: UIView {
             }
     }
 
-    private func sendTouches(action: TouchAction, actionIndex: Int) {
+    private func sendTouches(action: TouchAction, actionIndex: Int, timestamp: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         let pointers = sortedMappedPointers()
         onTouch?(pointers, action, actionIndex)
+        onTouchWithTimestamp?(pointers, action, actionIndex, timestamp)
     }
 
     override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -101,20 +104,22 @@ public final class TouchInputView: UIView {
                 let sorted = activePoints.keys.sorted()
                 actionIndex = sorted.firstIndex(of: assignedId) ?? 0
             }
-            sendTouches(action: action, actionIndex: actionIndex)
+            sendTouches(action: action, actionIndex: actionIndex, timestamp: touch.timestamp)
         }
     }
 
     override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         var changed = false
+        var latestTs: TimeInterval = ProcessInfo.processInfo.systemUptime
         for touch in touches {
             let key = ObjectIdentifier(touch)
             guard let id = touchIdMap[key] else { continue }
             activePoints[id] = touch.location(in: self)
+            latestTs = touch.timestamp
             changed = true
         }
         if changed {
-            sendTouches(action: .MOVE, actionIndex: 0)
+            sendTouches(action: .MOVE, actionIndex: 0, timestamp: latestTs)
         }
     }
 
@@ -131,7 +136,7 @@ public final class TouchInputView: UIView {
                 let sorted = activePoints.keys.sorted()
                 actionIndex = sorted.firstIndex(of: id) ?? 0
             }
-            sendTouches(action: action, actionIndex: actionIndex)
+            sendTouches(action: action, actionIndex: actionIndex, timestamp: touch.timestamp)
             activePoints.removeValue(forKey: id)
             touchIdMap.removeValue(forKey: key)
         }
@@ -142,14 +147,16 @@ public final class TouchInputView: UIView {
     }
 
     override public func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        var latestTs: TimeInterval = ProcessInfo.processInfo.systemUptime
         for touch in touches {
             let key = ObjectIdentifier(touch)
             if let id = touchIdMap[key] {
                 activePoints[id] = touch.location(in: self)
+                latestTs = touch.timestamp
             }
         }
         if !activePoints.isEmpty {
-            sendTouches(action: .CANCEL, actionIndex: 0)
+            sendTouches(action: .CANCEL, actionIndex: 0, timestamp: latestTs)
         }
         activePoints.removeAll()
         touchIdMap.removeAll()

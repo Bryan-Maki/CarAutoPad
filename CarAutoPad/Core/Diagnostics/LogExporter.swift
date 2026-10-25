@@ -27,6 +27,8 @@ public enum LogExporter {
         lines.append("Audio Codec: \(ProjectionSettings.audioCodecPreference.title)")
         lines.append("Audio Target: \(ProjectionSettings.audioOutputTarget.title)")
         lines.append("Auto Reconnect: \(ProjectionSettings.autoReconnect)")
+        let enabledCats = DebugLogCategory.allCases.filter { ProjectionSettings.isDebugCategoryEnabled($0) }.map { $0.rawValue }.joined(separator: ", ")
+        lines.append("Enabled Debug Categories: \(enabledCats.isEmpty ? "None" : enabledCats)")
         lines.append("===========================================")
         return lines.joined(separator: "\n")
     }
