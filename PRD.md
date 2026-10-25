@@ -342,6 +342,23 @@ The overall port is considered complete only when all of the following criteria 
   - Forced synchronous `view.layoutIfNeeded()` and `videoContainerView.layoutIfNeeded()` on transition to `.running` before geometry synchronization.
   - Tightened video watchdog check interval to 0.6s; when no video frame is displayed within 1.8s after connection (`now - runningSinceTs > 1.8` and 2.0s recovery cooldown), automatically triggers `connectionManager.requestVideoFocusCycle(reason: "watchdog-no-first-frame")`.
 
+### 10.11 Zero-Latency DisplayImmediately, Watchdog Nudge Elimination, Media ACK Batching & Thermal Caps (100% Completed)
+* **All-Frame `DisplayImmediately` & Strict PTS Monotonicity (`H264VideoRendererView`)**:
+  - Removed `if decodedFrameCount == 0` gating, unconditionally setting `kCMSampleAttachmentKey_DisplayImmediately = kCFBooleanTrue` across all video frames for hardware-decoded zero-buffering screen presentation.
+  - Eliminated backward PTS regressions in `FrameReleasePacer.nextPts` by ensuring `targetSeconds = max(nowSeconds, nextScheduledPtsSeconds)`, keeping timestamps strictly monotonic even during burst arrivals.
+  - Damped keyframe request storming: on `!displayLayer.isReadyForMoreMediaData`, reset `hasDecodedKeyframe = false` and invoke `onKeyframeRequested` only on streak counts 15 and >= 90; for missing config and awaiting IDR drops, throttle requests to the 1st drop and multiples of 30.
+* **Watchdog First-Frame De-escalation & Main Thread Offloading (`MainViewController`)**:
+  - In `videoRenderer.onFrameDisplayed`, only dispatch to main thread on the very first frame (`!hasReceivedFirstVideoFrame`) to update state and stop the watchdog timer `stopVideoWatchdog()`, eliminating 60Hz redundant main-thread dispatching during steady rendering.
+  - Restricted `checkVideoWatchdog()` exclusively to cold-start initial frame rescue; once `hasReceivedFirstVideoFrame == true`, watchdog timer terminates immediately, eliminating false-positive 5.0s video recovery nudges on still screens.
+* **Batch Media ACK & Processing Queue Serialization (`AapTransport`)**:
+  - Removed unused `mediaAckQueue`. Added safe batching for upstream `MediaAck`: coalescing 4 video frames on `Channel.ID_VID` and 6 audio packets on audio channels (with instant flush on `forceFlush` / `0x8002 Stop`), reducing uplink encrypted TCP transmission and phone Wi-Fi baseband wakeups by >75%.
+  - Reset `unrepairedSinceAtMs = 0` upon successful full frame assembly in `deliverVideoFrame` (when >500ms since last recovery request), preventing benign recovery requests from erroneously escalating to focus cycles.
+  - Guaranteed `requestVideoRecoveryIfNeeded` executes serially on `processingQueue` via `processingQueueKey` check, eliminating cross-thread races.
+* **Latency & Thermal Safeguards (`ServiceDiscoveryResponse`, `NegotiatedResolutionPolicy`, `TouchInputView`)**:
+  - Reduced `decoderAdditionalDepth` from `8` to `1` in `ServiceDiscoveryResponse`, eliminating multi-frame reference buffering latency on the phone encoder.
+  - Capped auto-negotiated resolution (`.auto`) in `NegotiatedResolutionPolicy.autoLadder` strictly to `1080p` (`1920x1080` / `1080x1920`), preventing automatic HEVC elevation to 2K (1440p) from overheating mobile hardware while leaving manual 2K/4K selections intact.
+  - Introduced 60-70Hz move throttling (`minMoveInterval = 0.014s`) in `TouchInputView.touchesMoved` to protect wireless buffers from ProMotion 120Hz high-frequency packet floods, while keeping `touchesBegan` and `touchesEnded` 100% immediate with zero-sorting overhead for single touches.
+
 
 ---
 

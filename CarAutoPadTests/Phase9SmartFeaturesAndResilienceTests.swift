@@ -248,4 +248,21 @@ final class Phase9SmartFeaturesAndResilienceTests: XCTestCase {
             XCTAssertNil(snapshot.gatewayIpv4)
         }
     }
+
+    func testAutoResolutionLadderCapsAt1080p() {
+        let preset4K = NegotiatedResolutionPolicy.autoLadder(panelW: 3840, panelH: 2160, fitMode: .fillMargin, hevcSupported: true, canHevcHighRes: true)
+        XCTAssertEqual(preset4K, .r1920x1080, "Auto ladder for 4K display must cap at 1080p")
+
+        let preset2K = NegotiatedResolutionPolicy.autoLadder(panelW: 2560, panelH: 1600, fitMode: .fillMargin, hevcSupported: true, canHevcHighRes: true)
+        XCTAssertEqual(preset2K, .r1920x1080, "Auto ladder for 2K display must cap at 1080p")
+
+        let preset1080p = NegotiatedResolutionPolicy.autoLadder(panelW: 1920, panelH: 1080, fitMode: .fillMargin, hevcSupported: false, canHevcHighRes: false)
+        XCTAssertEqual(preset1080p, .r1920x1080)
+
+        let preset720p = NegotiatedResolutionPolicy.autoLadder(panelW: 1280, panelH: 720, fitMode: .fillMargin, hevcSupported: false, canHevcHighRes: false)
+        XCTAssertEqual(preset720p, .r1280x720)
+
+        let presetSmall = NegotiatedResolutionPolicy.autoLadder(panelW: 800, panelH: 480, fitMode: .fillMargin, hevcSupported: false, canHevcHighRes: false)
+        XCTAssertEqual(presetSmall, .r800x480)
+    }
 }

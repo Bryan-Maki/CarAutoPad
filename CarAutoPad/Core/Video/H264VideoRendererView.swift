@@ -65,10 +65,7 @@ public class H264VideoRendererView: UIView {
         }
 
         public mutating func nextPts(nowSeconds: Double, frameInterval: Double = 1.0 / 60.0) -> Double {
-            var targetSeconds = max(nowSeconds, nextScheduledPtsSeconds)
-            if targetSeconds - nowSeconds > frameInterval * 2.5 {
-                targetSeconds = nowSeconds
-            }
+            let targetSeconds = max(nowSeconds, nextScheduledPtsSeconds)
             nextScheduledPtsSeconds = targetSeconds + frameInterval
             return targetSeconds
         }
@@ -573,8 +570,14 @@ public class H264VideoRendererView: UIView {
         }
 
         guard let formatDesc = formatDescription else {
-            updateDiagnostics { $0.missingConfigDrops += 1 }
-            onKeyframeRequested?()
+            var drops = 0
+            updateDiagnostics {
+                $0.missingConfigDrops += 1
+                drops = $0.missingConfigDrops
+            }
+            if drops == 1 || drops % 30 == 0 {
+                onKeyframeRequested?()
+            }
             return
         }
 
@@ -584,8 +587,14 @@ public class H264VideoRendererView: UIView {
 
         if !hasDecodedKeyframe {
             guard isKeyframe else {
-                updateDiagnostics { $0.awaitingIDRDrops += 1 }
-                onKeyframeRequested?()
+                var drops = 0
+                updateDiagnostics {
+                    $0.awaitingIDRDrops += 1
+                    drops = $0.awaitingIDRDrops
+                }
+                if drops == 1 || drops % 30 == 0 {
+                    onKeyframeRequested?()
+                }
                 return
             }
         }
@@ -653,7 +662,11 @@ public class H264VideoRendererView: UIView {
         guard displayLayer.isReadyForMoreMediaData else {
             updateDiagnostics { $0.notReadyDrops += 1 }
             notReadyStreak += 1
-            onKeyframeRequested?()
+            hasDecodedKeyframe = false
+
+            if notReadyStreak == 15 || notReadyStreak >= 90 {
+                onKeyframeRequested?()
+            }
 
             if notReadyStreak == 30 {
                 DispatchQueue.main.async { [weak self] in
@@ -856,19 +869,11 @@ public class H264VideoRendererView: UIView {
                 CFArrayGetValueAtIndex(attachments, 0),
                 to: CFMutableDictionary.self
             )
-            if decodedFrameCount == 0 {
-                CFDictionarySetValue(
-                    dictionary,
-                    Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
-                    Unmanaged.passUnretained(kCFBooleanTrue).toOpaque()
-                )
-            } else {
-                CFDictionarySetValue(
-                    dictionary,
-                    Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
-                    Unmanaged.passUnretained(kCFBooleanFalse).toOpaque()
-                )
-            }
+            CFDictionarySetValue(
+                dictionary,
+                Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+                Unmanaged.passUnretained(kCFBooleanTrue).toOpaque()
+            )
         }
         decodedFrameCount += 1
         return sampleBuffer

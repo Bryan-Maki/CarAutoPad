@@ -411,15 +411,17 @@ final class MainViewController: UIViewController {
 
         videoRenderer.onFrameDisplayed = { [weak self] in
             guard let self = self else { return }
-            let now = Date().timeIntervalSince1970
-            if Thread.isMainThread {
+            guard !self.hasReceivedFirstVideoFrame else { return }
+            let block = {
+                guard !self.hasReceivedFirstVideoFrame else { return }
                 self.hasReceivedFirstVideoFrame = true
-                self.lastVideoFrameTs = now
+                self.lastVideoFrameTs = Date().timeIntervalSince1970
+                self.stopVideoWatchdog()
+            }
+            if Thread.isMainThread {
+                block()
             } else {
-                DispatchQueue.main.async {
-                    self.hasReceivedFirstVideoFrame = true
-                    self.lastVideoFrameTs = now
-                }
+                DispatchQueue.main.async(execute: block)
             }
         }
         videoRenderer.onKeyframeRequested = { [weak self] in
@@ -1017,6 +1019,7 @@ final class MainViewController: UIViewController {
         switch state {
         case .disconnected:
             stopVideoWatchdog()
+            hasReceivedFirstVideoFrame = false
             videoContainerView.isHidden = true
             homeScrollView.isHidden = false
             view.bringSubviewToFront(homeScrollView)
@@ -1212,7 +1215,6 @@ final class MainViewController: UIViewController {
     private func stopVideoWatchdog() {
         videoWatchdogTimer?.invalidate()
         videoWatchdogTimer = nil
-        hasReceivedFirstVideoFrame = false
     }
 
     private func checkVideoWatchdog() {
@@ -1224,9 +1226,8 @@ final class MainViewController: UIViewController {
                 AppLog.w("Watchdog: no first video frame after \(String(format: "%.1f", now - runningSinceTs))s - triggering video focus cycle", tag: "MainViewController")
                 connectionManager.requestVideoFocusCycle(reason: "watchdog-no-first-frame")
             }
-        } else if (now - lastVideoFrameTs) > 5.0 && (now - lastVideoRecoveryTs) > 3.0 {
-            lastVideoRecoveryTs = now
-            connectionManager.requestVideoRecovery()
+        } else {
+            stopVideoWatchdog()
         }
     }
 

@@ -116,10 +116,6 @@ public enum NegotiatedResolutionPolicy {
 
         if longSide <= 800 && shortSide <= 480 {
             return .r800x480
-        } else if (shortSide >= 2160 || wide >= 3840) && hevcSupported {
-            return .r3840x2160
-        } else if (shortSide >= 1440 || wide >= 2560) && canHevcHighRes {
-            return .r2560x1440
         } else if shortSide > 720 || wide > 1280 {
             return .r1920x1080
         } else {

@@ -20,6 +20,8 @@ public final class TouchInputView: UIView {
     private var touchIdMap: [ObjectIdentifier: Int] = [:]
     private var activePoints: [Int: CGPoint] = [:]
     private var nextTouchId: Int = 0
+    private var lastMovedSentTimestamp: TimeInterval = 0
+    private let minMoveInterval: TimeInterval = 0.014
 
     override public init(frame: CGRect) {
         super.init(frame: frame)
@@ -61,6 +63,11 @@ public final class TouchInputView: UIView {
     }
 
     private func sortedMappedPointers() -> [(id: Int, x: Int, y: Int)] {
+        if activePoints.isEmpty { return [] }
+        if activePoints.count == 1, let first = activePoints.first {
+            let mapped = mapTouchToActiveContent(first.value)
+            return [(id: first.key, x: mapped.x, y: mapped.y)]
+        }
         return activePoints
             .map { (id: $0.key, point: $0.value) }
             .sorted { $0.id < $1.id }
@@ -88,9 +95,14 @@ public final class TouchInputView: UIView {
             }
 
             activePoints[assignedId] = touch.location(in: self)
-            let sorted = activePoints.keys.sorted()
             let action: TouchAction = activePoints.count == 1 ? .DOWN : .POINTER_DOWN
-            let actionIndex = sorted.firstIndex(of: assignedId) ?? 0
+            let actionIndex: Int
+            if activePoints.count == 1 {
+                actionIndex = 0
+            } else {
+                let sorted = activePoints.keys.sorted()
+                actionIndex = sorted.firstIndex(of: assignedId) ?? 0
+            }
             sendTouches(action: action, actionIndex: actionIndex)
         }
     }
@@ -103,9 +115,14 @@ public final class TouchInputView: UIView {
             activePoints[id] = touch.location(in: self)
             changed = true
         }
-        if changed {
-            sendTouches(action: .MOVE, actionIndex: 0)
+        guard changed else { return }
+
+        let currentTimestamp = event?.timestamp ?? ProcessInfo.processInfo.systemUptime
+        if currentTimestamp - lastMovedSentTimestamp < minMoveInterval {
+            return
         }
+        lastMovedSentTimestamp = currentTimestamp
+        sendTouches(action: .MOVE, actionIndex: 0)
     }
 
     override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -113,9 +130,14 @@ public final class TouchInputView: UIView {
             let key = ObjectIdentifier(touch)
             guard let id = touchIdMap[key] else { continue }
             activePoints[id] = touch.location(in: self)
-            let sorted = activePoints.keys.sorted()
             let action: TouchAction = activePoints.count <= 1 ? .UP : .POINTER_UP
-            let actionIndex = sorted.firstIndex(of: id) ?? 0
+            let actionIndex: Int
+            if activePoints.count <= 1 {
+                actionIndex = 0
+            } else {
+                let sorted = activePoints.keys.sorted()
+                actionIndex = sorted.firstIndex(of: id) ?? 0
+            }
             sendTouches(action: action, actionIndex: actionIndex)
             activePoints.removeValue(forKey: id)
             touchIdMap.removeValue(forKey: key)

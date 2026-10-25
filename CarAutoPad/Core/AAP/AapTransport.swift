@@ -70,7 +70,8 @@ class AapTransport {
     private let tlsHandler = OpenSslTlsHandler()
     private let handshakeQueue = DispatchQueue(label: "com.carautopad.aap.handshake", qos: .userInitiated)
     private let processingQueue = DispatchQueue(label: "com.carautopad.aap.processing", qos: .userInitiated)
-    private let mediaAckQueue = DispatchQueue(label: "com.carautopad.aap.media-ack", qos: .utility)
+    private let processingQueueKey = DispatchSpecificKey<Void>()
+    private var pendingMediaAcks: [UInt8: UInt32] = [:]
     private(set) var state: AapTransportState = .idle
     private var handshakeTimer: DispatchWorkItem?
     private let versionHandshakeTimeout: TimeInterval
@@ -178,6 +179,7 @@ class AapTransport {
         self.versionHandshakeTimeout = handshakeProfile.versionTimeout
         self.maxVersionRequestAttempts = handshakeProfile.versionAttempts
         self.connection.delegate = self
+        self.processingQueue.setSpecific(key: processingQueueKey, value: ())
         setupTls()
         setupReassembler()
     }
@@ -279,6 +281,7 @@ class AapTransport {
         ]
         sinkCodecs.removeAll()
         audioAssemblyBuffers.removeAll()
+        pendingMediaAcks.removeAll()
         focusCyclesUsedThisSession = 0
         lastFocusCycleAtMs = 0
         lastWireCorruptionAtMs = 0
@@ -1850,6 +1853,7 @@ enum ProtoWire {
 
         case 0x8002:
             isVideoChannelStarted = false
+            sendMediaAck(on: message.channelUInt8, forceFlush: true)
             break
 
         case 0x8007:
@@ -1975,6 +1979,10 @@ enum ProtoWire {
     }
 
     private func deliverVideoFrame(_ frame: Data) {
+        let nowMs = uptimeMs()
+        if unrepairedSinceAtMs > 0 && (nowMs > lastVideoRecoveryRequestAtMs) && (nowMs - lastVideoRecoveryRequestAtMs > 500) {
+            unrepairedSinceAtMs = 0
+        }
         videoDiagnosticsLock.lock()
         completedVideoFrameCount += 1
         lastCompletedVideoFrameBytes = frame.count
@@ -2026,6 +2034,7 @@ enum ProtoWire {
 
         case 0x8002:
             audioAssemblyBuffers.removeValue(forKey: message.channelUInt8)
+            sendMediaAck(on: message.channelUInt8, forceFlush: true)
             break
 
         case 0, 1:
@@ -2171,21 +2180,38 @@ enum ProtoWire {
         }
     }
 
-    private func sendMediaAck(on channel: UInt8) {
-        let sessionId = Int32(truncatingIfNeeded: mediaSessionIds[channel] ?? 0)
-        let ackProto = MediaAck(sessionId: sessionId, ack: 1)
-        let payload = ackProto.serializedData()
+    private func sendMediaAck(on channel: UInt8, forceFlush: Bool = false) {
+        if !forceFlush {
+            let count = (pendingMediaAcks[channel] ?? 0) + 1
+            pendingMediaAcks[channel] = count
+        }
+        guard let count = pendingMediaAcks[channel], count > 0 else { return }
 
-        let message = AapMessage(
-            channel: channel,
-            flags: AapFlags.NORMAL_MESSAGE,
-            type: 0x8004,
-            payload: payload
-        )
-        self.sendOnProcessingQueue(message: message)
+        let threshold: UInt32 = (channel == Channel.ID_VID) ? 4 : 6
+        if count >= threshold || forceFlush {
+            let sessionId = Int32(truncatingIfNeeded: mediaSessionIds[channel] ?? 0)
+            let ackProto = MediaAck(sessionId: sessionId, ack: count)
+            let payload = ackProto.serializedData()
+
+            let message = AapMessage(
+                channel: channel,
+                flags: AapFlags.NORMAL_MESSAGE,
+                type: 0x8004,
+                payload: payload
+            )
+            self.sendOnProcessingQueue(message: message)
+            pendingMediaAcks[channel] = 0
+        }
     }
 
     private func requestVideoRecoveryIfNeeded(reason: String, ignoreRecentVideoGuard: Bool, isWireCorruption: Bool = false) {
+        if DispatchQueue.getSpecific(key: processingQueueKey) == nil {
+            processingQueue.async { [weak self] in
+                self?.requestVideoRecoveryIfNeeded(reason: reason, ignoreRecentVideoGuard: ignoreRecentVideoGuard, isWireCorruption: isWireCorruption)
+            }
+            return
+        }
+
         guard state == .running || state == .binding || state == .authenticatingComplete else {
             return
         }

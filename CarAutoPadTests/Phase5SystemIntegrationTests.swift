@@ -82,7 +82,7 @@ final class Phase5SystemIntegrationTests: XCTestCase {
         let videoConfig = videoService?.mediaSinkService?.videoConfigs.first
         XCTAssertNotNil(videoConfig)
         XCTAssertEqual(videoConfig?.codecResolution, ._1920x1080)
-        XCTAssertEqual(videoConfig?.decoderAdditionalDepth, 8, "decoderAdditionalDepth should be 8 for pipelined rendering")
+        XCTAssertEqual(videoConfig?.decoderAdditionalDepth, 1, "decoderAdditionalDepth should be 1 for low-latency instant encoding")
         XCTAssertEqual(videoConfig?.frameRate, ._60)
 
         let inputService = proto.services.first(where: { $0.id == UInt32(Channel.ID_INP) })
