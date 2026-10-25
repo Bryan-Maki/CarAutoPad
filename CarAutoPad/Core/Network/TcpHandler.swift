@@ -14,8 +14,8 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
     weak var delegate: ByteStreamConnectionDelegate?
 
     private var connection: NWConnection?
-    private let queue = DispatchQueue(label: "com.carautopad.tcp", qos: .userInitiated)
-    private let receiveQueue = DispatchQueue(label: "com.carautopad.tcp.receive", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.carautopad.tcp", qos: .userInteractive)
+    private let receiveQueue = DispatchQueue(label: "com.carautopad.tcp.receive", qos: .userInteractive)
     private var connectionTimer: DispatchWorkItem?
     private let connectionTimeout: TimeInterval = 15.0
 
@@ -222,9 +222,7 @@ class TcpHandler: ByteStreamConnection, @unchecked Sendable {
         targetConn.receive(minimumIncompleteLength: 1, maximumLength: 262144) { [weak self, weak targetConn] data, _, isComplete, error in
             guard let self = self, let conn = targetConn, self.connection === conn else { return }
             if let data = data, !data.isEmpty {
-                self.receiveQueue.async {
-                    self.delegate?.byteStreamConnection(self, didReceive: data)
-                }
+                self.delegate?.byteStreamConnection(self, didReceive: data)
             }
             if let error = error {
                 AppLog.e("TcpHandler: receive error: \(error)", tag: "TcpHandler")

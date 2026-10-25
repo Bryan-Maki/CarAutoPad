@@ -65,7 +65,10 @@ public class H264VideoRendererView: UIView {
         }
 
         public mutating func nextPts(nowSeconds: Double, frameInterval: Double = 1.0 / 60.0) -> Double {
-            let targetSeconds = max(nowSeconds, nextScheduledPtsSeconds)
+            var targetSeconds = max(nowSeconds, nextScheduledPtsSeconds)
+            if targetSeconds - nowSeconds > frameInterval * 2.5 {
+                targetSeconds = nowSeconds
+            }
             nextScheduledPtsSeconds = targetSeconds + frameInterval
             return targetSeconds
         }
@@ -659,10 +662,17 @@ public class H264VideoRendererView: UIView {
             return
         }
 
+        if !displayLayer.isReadyForMoreMediaData {
+            var waitCount = 0
+            while !displayLayer.isReadyForMoreMediaData && waitCount < 8 {
+                Thread.sleep(forTimeInterval: 0.002)
+                waitCount += 1
+            }
+        }
+
         guard displayLayer.isReadyForMoreMediaData else {
             updateDiagnostics { $0.notReadyDrops += 1 }
             notReadyStreak += 1
-            hasDecodedKeyframe = false
 
             if notReadyStreak == 15 || notReadyStreak >= 90 {
                 onKeyframeRequested?()
@@ -726,7 +736,8 @@ public class H264VideoRendererView: UIView {
     }
 
     private func isEssentialFrame(_ frame: Data) -> Bool {
-        let nalUnits = H264NALParser.nalUnits(from: frame)
+        let prefix = frame.prefix(256)
+        let nalUnits = H264NALParser.nalUnits(from: prefix)
         let isHevc = (pinnedCodec == .hevc)
         for nal in nalUnits {
             guard let first = nal.first else { continue }
@@ -802,7 +813,9 @@ public class H264VideoRendererView: UIView {
     }
 
     private func makeLengthPrefixedSample(from nalUnits: [Data]) -> Data {
+        let totalBytes = nalUnits.reduce(0) { $0 + 4 + $1.count }
         var out = Data()
+        out.reserveCapacity(totalBytes)
         for nal in nalUnits {
             guard !nal.isEmpty else { continue }
             var len = UInt32(nal.count).bigEndian
@@ -861,10 +874,11 @@ public class H264VideoRendererView: UIView {
             sampleBufferOut: &sampleBuffer
         )
         guard sampleStatus == noErr, let sampleBuffer else { return nil }
-        if let attachments = CMSampleBufferGetSampleAttachmentsArray(
-            sampleBuffer,
-            createIfNecessary: true
-        ), CFArrayGetCount(attachments) > 0 {
+        if decodedFrameCount == 0,
+           let attachments = CMSampleBufferGetSampleAttachmentsArray(
+               sampleBuffer,
+               createIfNecessary: true
+           ), CFArrayGetCount(attachments) > 0 {
             let dictionary = unsafeBitCast(
                 CFArrayGetValueAtIndex(attachments, 0),
                 to: CFMutableDictionary.self

@@ -261,19 +261,6 @@ final class Phase3VideoAndRecoveryTests: XCTestCase {
         XCTAssertEqual(pts3, 100.200, accuracy: 0.0001, "Should catch up to current time when backlog exceeds 2.5 frames")
     }
 
-    func testFrameReleasePacerNeverRegressesPtsDuringRapidArrivals() {
-        var pacer = H264VideoRendererView.FrameReleasePacer()
-        let frameInterval: Double = 1.0 / 60.0
-
-        var previousPts: Double = -1.0
-        for i in 0..<10 {
-            let nowSeconds = 50.0 + Double(i) * 0.0005
-            let pts = pacer.nextPts(nowSeconds: nowSeconds, frameInterval: frameInterval)
-            XCTAssertGreaterThanOrEqual(pts, previousPts, "PTS must be strictly monotonic and never regress")
-            previousPts = pts
-        }
-    }
-
     func testRendererDropsPFrameWithoutIDRAndRequestsKeyframe() {
         let renderer = H264VideoRendererView()
         let expKeyframe = expectation(description: "Keyframe requested")

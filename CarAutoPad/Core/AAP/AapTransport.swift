@@ -69,7 +69,7 @@ class AapTransport {
     private let connection: ByteStreamConnection
     private let tlsHandler = OpenSslTlsHandler()
     private let handshakeQueue = DispatchQueue(label: "com.carautopad.aap.handshake", qos: .userInitiated)
-    private let processingQueue = DispatchQueue(label: "com.carautopad.aap.processing", qos: .userInitiated)
+    private let processingQueue = DispatchQueue(label: "com.carautopad.aap.processing", qos: .userInteractive)
     private let processingQueueKey = DispatchSpecificKey<Void>()
     private var pendingMediaAcks: [UInt8: UInt32] = [:]
     private(set) var state: AapTransportState = .idle
@@ -860,67 +860,69 @@ class AapTransport {
     }
 
     private func processEncryptedBuffer() {
-        while true {
-            var channel: UInt8 = 0
-            var flags: UInt8 = 0
-            var encryptedPayload = Data()
+        var packets: [(channel: UInt8, flags: UInt8, declaredTotal: Int, encryptedPayload: Data)] = []
 
-            bufferLock.lock()
-            if encryptedReceiveBuffer.count < 4 {
-                bufferLock.unlock()
-                return
-            }
+        bufferLock.lock()
+        var offset = 0
+        let totalCount = encryptedReceiveBuffer.count
 
-            channel = encryptedReceiveBuffer[0]
-            flags = encryptedReceiveBuffer[1]
-            let encLen = Int(UInt16(encryptedReceiveBuffer[2]) << 8 | UInt16(encryptedReceiveBuffer[3]))
+        while offset + 4 <= totalCount {
+            let channel = encryptedReceiveBuffer[offset]
+            let flags = encryptedReceiveBuffer[offset + 1]
+            let encLen = Int(UInt16(encryptedReceiveBuffer[offset + 2]) << 8 | UInt16(encryptedReceiveBuffer[offset + 3]))
 
             if encLen <= 0 || encLen > AapMessage.DEF_BUFFER_LENGTH {
-                let dropped = encryptedReceiveBuffer.removeFirst()
-                bufferLock.unlock()
-                AppLog.w("Resync encrypted parser, dropped byte 0x\(String(format: "%02x", dropped))", tag: "AapTransport")
+                AppLog.w("Resync encrypted parser, dropped byte 0x\(String(format: "%02x", encryptedReceiveBuffer[offset]))", tag: "AapTransport")
+                offset += 1
                 continue
             }
 
             let carriesTotal = AapMessageFraming.carriesTotalLength(flags)
             let headerExtra = carriesTotal ? 4 : 0
             let packetSize = 4 + headerExtra + encLen
-            if encryptedReceiveBuffer.count < packetSize {
-                bufferLock.unlock()
-                return
+            if offset + packetSize > totalCount {
+                break
             }
 
             var declaredTotal = 0
             if carriesTotal {
-                declaredTotal = Int(UInt32(encryptedReceiveBuffer[4]) << 24 |
-                                    UInt32(encryptedReceiveBuffer[5]) << 16 |
-                                    UInt32(encryptedReceiveBuffer[6]) << 8 |
-                                    UInt32(encryptedReceiveBuffer[7]))
+                let b4 = UInt32(encryptedReceiveBuffer[offset + 4])
+                let b5 = UInt32(encryptedReceiveBuffer[offset + 5])
+                let b6 = UInt32(encryptedReceiveBuffer[offset + 6])
+                let b7 = UInt32(encryptedReceiveBuffer[offset + 7])
+                declaredTotal = Int(b4 << 24 | b5 << 16 | b6 << 8 | b7)
             }
 
-            let payloadStart = 4 + headerExtra
+            let payloadStart = offset + 4 + headerExtra
             let payloadEnd = payloadStart + encLen
-            encryptedPayload = encryptedReceiveBuffer.subdata(in: payloadStart..<payloadEnd)
-            encryptedReceiveBuffer.removeSubrange(0..<packetSize)
-            bufferLock.unlock()
+            let encryptedPayload = encryptedReceiveBuffer.subdata(in: payloadStart..<payloadEnd)
+            packets.append((channel: channel, flags: flags, declaredTotal: declaredTotal, encryptedPayload: encryptedPayload))
+            offset += packetSize
+        }
 
-            if (flags & 0x08) != 0x08 {
-                AppLog.w("Invalid encrypted flags=0x\(String(format: "%02x", flags))", tag: "AapTransport")
+        if offset > 0 {
+            encryptedReceiveBuffer.removeSubrange(0..<offset)
+        }
+        bufferLock.unlock()
+
+        for packet in packets {
+            if (packet.flags & 0x08) != 0x08 {
+                AppLog.w("Invalid encrypted flags=0x\(String(format: "%02x", packet.flags))", tag: "AapTransport")
                 continue
             }
 
-            guard let decrypted = tlsHandler.decrypt(data: encryptedPayload) else {
-                AppLog.i("Decrypt returned nil for encrypted payload len=\(encryptedPayload.count)", tag: "AapTransport")
-                registerTlsDecryptFailure(context: "payload-len-\(encryptedPayload.count)")
+            guard let decrypted = tlsHandler.decrypt(data: packet.encryptedPayload) else {
+                AppLog.i("Decrypt returned nil for encrypted payload len=\(packet.encryptedPayload.count)", tag: "AapTransport")
+                registerTlsDecryptFailure(context: "payload-len-\(packet.encryptedPayload.count)")
                 continue
             }
             consecutiveTlsDecryptFailures = 0
 
             if let audit = fragmentAudit.onMessage(
-                channel: Int(channel),
-                flags: flags,
+                channel: Int(packet.channel),
+                flags: packet.flags,
                 plaintextLength: decrypted.count,
-                declaredTotal: declaredTotal
+                declaredTotal: packet.declaredTotal
             ) {
                 AppLog.i("Fragmented message audit: \(audit)", tag: "AapTransport")
                 if AuditRecoveryPolicy.shouldRequestKeyframe(outcome: audit.outcome, channel: audit.channel) {
@@ -928,7 +930,7 @@ class AapTransport {
                 }
             }
 
-            let carriesType = AapMessageFraming.carriesMessageType(flags)
+            let carriesType = AapMessageFraming.carriesMessageType(packet.flags)
             let msgType: Int
             if carriesType && decrypted.count >= 2 {
                 msgType = (Int(decrypted[0]) << 8) | Int(decrypted[1])
@@ -938,8 +940,8 @@ class AapTransport {
             let dataOffset = carriesType ? 2 : 0
 
             let fragment = AapMessage(
-                channel: Int(channel),
-                flags: flags,
+                channel: Int(packet.channel),
+                flags: packet.flags,
                 type: msgType,
                 dataOffset: dataOffset,
                 size: decrypted.count,
@@ -947,9 +949,13 @@ class AapTransport {
             )
 
             do {
-                if let message = try reassembler.accept(fragment: fragment, declaredTotal: declaredTotal) {
-                    if channel == Channel.ID_VID && (message.type == 0 || message.type == 1) {
-                        recordVideoMessageType(UInt16(message.type), payload: message.payload)
+                if let message = try reassembler.accept(fragment: fragment, declaredTotal: packet.declaredTotal) {
+                    if packet.channel == Channel.ID_VID {
+                        if message.type == 0 {
+                            recordVideoMessageType(0)
+                        } else if message.type == 1 {
+                            recordVideoMessageType(1, payload: message.payload)
+                        }
                     }
                     handleMessage(message)
                 }
@@ -1014,13 +1020,15 @@ class AapTransport {
         return payloadSize <= 512
     }
 
-    private func recordVideoMessageType(_ type: UInt16, payload: Data) {
+    private func recordVideoMessageType(_ type: UInt16, payload: Data? = nil) {
         videoDiagnosticsLock.lock()
         if type == 1 {
             videoCodecConfigMessageCount += 1
-            lastVideoCodecConfigPrefix = payload.prefix(24)
-                .map { String(format: "%02x", $0) }
-                .joined(separator: " ")
+            if let payload = payload {
+                lastVideoCodecConfigPrefix = payload.prefix(24)
+                    .map { String(format: "%02x", $0) }
+                    .joined(separator: " ")
+            }
         } else {
             videoDataMessageCount += 1
         }
@@ -1867,11 +1875,10 @@ enum ProtoWire {
             }
 
         case 0, 1:
-            let isFirst = (message.flags & AapMessageFraming.FLAG_BIT_FIRST) != 0 || message.flags == 0x09 || message.flags == 0x0b
-            if isFirst {
+            processVideoStreamPacket(message)
+            if message.type == 0 && AapMessageFraming.isLast(message.flags) {
                 sendMediaAck(on: message.channelUInt8)
             }
-            processVideoStreamPacket(message)
 
         case Int(AapMessageType.VIDEO_FRAME.rawValue):
             processVideoPayloadAsSingleFrame(message.payload, hasTimestamp: false)
@@ -2187,7 +2194,7 @@ enum ProtoWire {
         }
         guard let count = pendingMediaAcks[channel], count > 0 else { return }
 
-        let threshold: UInt32 = (channel == Channel.ID_VID) ? 4 : 6
+        let threshold: UInt32 = (channel == Channel.ID_VID) ? 1 : 2
         if count >= threshold || forceFlush {
             let sessionId = Int32(truncatingIfNeeded: mediaSessionIds[channel] ?? 0)
             let ackProto = MediaAck(sessionId: sessionId, ack: count)

@@ -20,8 +20,6 @@ public final class TouchInputView: UIView {
     private var touchIdMap: [ObjectIdentifier: Int] = [:]
     private var activePoints: [Int: CGPoint] = [:]
     private var nextTouchId: Int = 0
-    private var lastMovedSentTimestamp: TimeInterval = 0
-    private let minMoveInterval: TimeInterval = 0.014
 
     override public init(frame: CGRect) {
         super.init(frame: frame)
@@ -115,14 +113,9 @@ public final class TouchInputView: UIView {
             activePoints[id] = touch.location(in: self)
             changed = true
         }
-        guard changed else { return }
-
-        let currentTimestamp = event?.timestamp ?? ProcessInfo.processInfo.systemUptime
-        if currentTimestamp - lastMovedSentTimestamp < minMoveInterval {
-            return
+        if changed {
+            sendTouches(action: .MOVE, actionIndex: 0)
         }
-        lastMovedSentTimestamp = currentTimestamp
-        sendTouches(action: .MOVE, actionIndex: 0)
     }
 
     override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {

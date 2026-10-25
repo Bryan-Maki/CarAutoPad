@@ -8,6 +8,14 @@ enum H264NALParser {
             guard let ptr = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return [] }
             let count = data.count
 
+            if (count >= 4 && ptr[0] == 0 && ptr[1] == 0 && (ptr[2] == 1 || (ptr[2] == 0 && ptr[3] == 1))) ||
+               (count >= 3 && ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 1) {
+                let annexB = parseAnnexB(data: data, ptr: ptr, count: count)
+                if !annexB.isEmpty {
+                    return annexB
+                }
+            }
+
             for offset in candidateOffsets(for: count) {
                 if isAVCDecoderConfigurationRecord(ptr: ptr, count: count, offset: offset) {
                     let bytes = [UInt8](data)
