@@ -1,7 +1,7 @@
 # CarAutoPad
 
 [![Release](https://img.shields.io/badge/version-v0.5.1--beta-orange.svg?style=flat-square)](https://github.com/Bryan-Maki/CarAutoPad/releases)
-[![Build Unsigned IPA](https://img.shields.io/github/actions/workflow/status/bryan-maki/headunitpad-auto/build-ipa.yml?branch=main&style=flat-square&label=Build%20IPA)](.github/workflows/build-ipa.yml)
+[![Build Unsigned IPA](https://img.shields.io/github/actions/workflow/status/bryan-maki/CarAutoPad/build-ipa.yml?branch=main&style=flat-square&label=Build%20IPA)](.github/workflows/build-ipa.yml)
 [![Platform](https://img.shields.io/badge/platform-iPadOS%2015.0%2B-blue.svg?style=flat-square)](https://developer.apple.com/ipados/)
 [![Swift](https://img.shields.io/badge/Swift-5.0-F05138.svg?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
 [![License](https://img.shields.io/badge/License-AGPL%20v3-brightgreen.svg?style=flat-square)](LICENSE.txt)
