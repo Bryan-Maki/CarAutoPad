@@ -270,6 +270,17 @@ class AapTransport {
         }
     }
 
+    public func stop() {
+        handshakeTimer?.cancel()
+        handshakeTimer = nil
+        versionRetryWorkItem?.cancel()
+        versionRetryWorkItem = nil
+        delayedVersionStartWorkItem?.cancel()
+        delayedVersionStartWorkItem = nil
+        cancelGracefulDisconnect()
+        setState(.idle)
+    }
+
     func startHandshake() {
         AppLog.i("Starting handshake", tag: "AapTransport")
         bufferLock.lock()
