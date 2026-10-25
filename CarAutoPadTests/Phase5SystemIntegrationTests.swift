@@ -478,9 +478,23 @@ final class Phase5SystemIntegrationTests: XCTestCase {
 
         var firstFragPayload = Data(repeating: 0x00, count: 8)
         firstFragPayload.append(Data(repeating: 0x12, count: 200))
-        let firstFragMsg = AapMessage(channel: Channel.ID_VID, flags: 0x09, type: 0x0000, payload: firstFragPayload)
 
-        transport.handleMessage(firstFragMsg)
+        // Send 1st to 3rd fragments: should be batched without sending early MediaAck
+        for _ in 1...3 {
+            let msg = AapMessage(channel: Channel.ID_VID, flags: 0x09, type: 0x0000, payload: firstFragPayload)
+            transport.handleMessage(msg)
+        }
+        let earlyAck = connection.sentPackets.first { packet in
+            guard packet.count >= 6 else { return false }
+            let chan = packet[0]
+            let type = (Int(packet[4]) << 8) | Int(packet[5])
+            return chan == Channel.ID_VID && type == 0x8004
+        }
+        XCTAssertNil(earlyAck, "MediaAck (0x8004) must be batched and not sent before reaching batch threshold 4")
+
+        // 4th fragment triggers the batched MediaAck(ack: 4)
+        let fourthMsg = AapMessage(channel: Channel.ID_VID, flags: 0x09, type: 0x0000, payload: firstFragPayload)
+        transport.handleMessage(fourthMsg)
 
         let ackPacket = connection.sentPackets.first { packet in
             guard packet.count >= 6 else { return false }
@@ -488,7 +502,12 @@ final class Phase5SystemIntegrationTests: XCTestCase {
             let type = (Int(packet[4]) << 8) | Int(packet[5])
             return chan == Channel.ID_VID && type == 0x8004
         }
-        XCTAssertNotNil(ackPacket, "MediaAck (0x8004) must be sent immediately upon first fragment (0x09)")
+        XCTAssertNotNil(ackPacket, "MediaAck (0x8004) must be sent on 4th frame")
+        if let ackPacket = ackPacket {
+            let payload = ackPacket.subdata(in: 6..<ackPacket.count)
+            let ackCount = AapTransport.ProtoWire.extractFirstVarint(from: payload, fieldNumber: 2) ?? 0
+            XCTAssertEqual(ackCount, 4, "Batched MediaAck should report ack count 4")
+        }
     }
 
     func testNightModeSensorStartRequestSendsImmediateNightEventAndLiveUpdate() {
