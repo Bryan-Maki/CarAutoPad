@@ -99,7 +99,9 @@ final class NowPlayingCoordinator {
             player.volume = 0.001
             keepAliveItem = item
             keepAlivePlayer = player
-            item.nowPlayingInfo = makeNowPlayingInfo(metadata: metadata, playbackState: playbackState)
+            if #available(iOS 16.0, *) {
+                item.nowPlayingInfo = makeNowPlayingInfo(metadata: metadata, playbackState: playbackState)
+            }
             keepAliveLooper = AVPlayerLooper(player: player, templateItem: item)
         }
 
@@ -292,8 +294,10 @@ final class NowPlayingCoordinator {
         if forceRepublish || lastPublishedIsPlaying != playbackState.isPlaying {
             activeInfoCenter.nowPlayingInfo = nil
         }
-        keepAliveItem?.nowPlayingInfo = info
-        keepAlivePlayer?.currentItem?.nowPlayingInfo = info
+        if #available(iOS 16.0, *) {
+            keepAliveItem?.nowPlayingInfo = info
+            keepAlivePlayer?.currentItem?.nowPlayingInfo = info
+        }
         activeInfoCenter.nowPlayingInfo = info
         lastPublishedIsPlaying = playbackState.isPlaying
     }
