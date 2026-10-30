@@ -18,10 +18,18 @@ protocol AapTransportDelegate: AnyObject {
 }
 
 extension AapTransportDelegate {
+    func aapTransport(_ transport: AapTransport, didReceiveVideoData data: Data) {}
+    func aapTransport(_ transport: AapTransport, didReceiveAudioData data: Data, on channel: UInt8) {}
     func aapTransport(_ transport: AapTransport, didReceiveAudioData data: Data, on channel: UInt8, isAac: Bool) {
         aapTransport(transport, didReceiveAudioData: data, on: channel)
     }
     func aapTransport(_ transport: AapTransport, didReceiveAudioCodecConfig data: Data, on channel: UInt8) {}
+    func aapTransport(_ transport: AapTransport, didReceiveMediaMetadata metadata: AapMediaMetadata) {}
+    func aapTransport(_ transport: AapTransport, didReceivePlaybackStatus status: AapPlaybackStatus) {}
+    func aapTransport(_ transport: AapTransport, didRequestMicrophoneCapture isOpen: Bool) {}
+    func aapTransport(_ transport: AapTransport, didRequestLocationUpdates isEnabled: Bool) {}
+    func aapTransport(_ transport: AapTransport, didChangeState state: AapTransportState) {}
+    func aapTransportDidDisconnect(_ transport: AapTransport) {}
     func aapTransportDidRequestExit(_ transport: AapTransport) {}
     func aapTransportDidDetectSilentPeerOnInitialHandshake(_ transport: AapTransport) {}
 }
