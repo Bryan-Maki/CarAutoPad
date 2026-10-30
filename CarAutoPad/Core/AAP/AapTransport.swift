@@ -530,8 +530,11 @@ class AapTransport {
                 }
                 self.sendEncryptedMessage(message, completion: completion)
             }
+        } else if state == .idle {
+            let data = message.toData()
+            connection.send(data, completion: completion)
         } else {
-            AppLog.w("Dropping unencrypted message in state \(state): channel=\(message.channelUInt8) type=\(message.typeUInt16)", tag: "AapTransport")
+            AppLog.w("Dropping unencrypted message in unauthenticated state \(state): channel=\(message.channelUInt8) type=\(message.typeUInt16)", tag: "AapTransport")
             completion?(AapTransportError.invalidState)
         }
     }
@@ -541,8 +544,11 @@ class AapTransport {
 
         if state == .authenticating || state == .authenticatingComplete || state == .binding || state == .running {
             sendEncryptedMessage(message, completion: completion)
+        } else if state == .idle {
+            let data = message.toData()
+            connection.send(data, completion: completion)
         } else {
-            AppLog.w("Dropping unencrypted message in state \(state): channel=\(message.channelUInt8) type=\(message.typeUInt16)", tag: "AapTransport")
+            AppLog.w("Dropping unencrypted message in unauthenticated state \(state): channel=\(message.channelUInt8) type=\(message.typeUInt16)", tag: "AapTransport")
             completion?(AapTransportError.invalidState)
         }
     }
