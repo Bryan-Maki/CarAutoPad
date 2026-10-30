@@ -17,7 +17,9 @@ enum OpenSslTlsError: Error {
 }
 
 class OpenSslTlsHandler {
-    private static let bioSetWriteBufSizeCmd: Int32 = 136
+    private static let sslCtrlSetMinProtoVersion: Int32 = 123
+    private static let sslCtrlSetMaxProtoVersion: Int32 = 124
+    private static let tls12Version: Int = 0x0303
 
     private var sslContext: OpaquePointer?
     private var ssl: OpaquePointer?
@@ -43,8 +45,8 @@ class OpenSslTlsHandler {
 
         SSL_CTX_set_verify(sslContext, SSL_VERIFY_NONE, nil)
         SSL_CTX_set_security_level(sslContext, 1)
-        SSL_CTX_set_min_proto_version(sslContext, Int32(TLS1_2_VERSION))
-        SSL_CTX_set_max_proto_version(sslContext, Int32(TLS1_2_VERSION))
+        _ = SSL_CTX_ctrl(sslContext, OpenSslTlsHandler.sslCtrlSetMinProtoVersion, OpenSslTlsHandler.tls12Version, nil)
+        _ = SSL_CTX_ctrl(sslContext, OpenSslTlsHandler.sslCtrlSetMaxProtoVersion, OpenSslTlsHandler.tls12Version, nil)
 
         AppLog.i("SSL context created", tag: "OpenSslTls")
         return true
