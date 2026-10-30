@@ -81,6 +81,7 @@ class ConnectionManager {
     private var lastTriedEndpoint: String?
     private var backgroundEnteredUptime: TimeInterval = 0
     private var foregroundWatchdogWorkItem: DispatchWorkItem?
+    private var delayedDisconnectWorkItem: DispatchWorkItem?
 
     public private(set) var reconnectAttempt: Int = 0
     public let maxReconnectAttempts: Int = 3
@@ -218,6 +219,8 @@ class ConnectionManager {
     func connect(to device: DiscoveredDevice, userInitiated: Bool = true) {
         foregroundWatchdogWorkItem?.cancel()
         foregroundWatchdogWorkItem = nil
+        delayedDisconnectWorkItem?.cancel()
+        delayedDisconnectWorkItem = nil
         backgroundEnteredUptime = 0
         AppLog.i("ConnectionManager: connect(to:) called with device: \(device.displayName), userInitiated: \(userInitiated)", tag: "ConnectionManager")
         hasHandledDisconnectForCurrentAttempt = false
@@ -303,6 +306,9 @@ class ConnectionManager {
         state = .disconnected
         updateStatus("Ready to connect")
 
+        delayedDisconnectWorkItem?.cancel()
+        delayedDisconnectWorkItem = nil
+
         var shouldDelayClose = false
         if let transport = aapTransport {
             lastSessionDiagnosticLines = transport.videoDiagnosticLines() + transport.teardownDiagnosticLines()
@@ -313,9 +319,12 @@ class ConnectionManager {
         }
 
         if shouldDelayClose {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            let item = DispatchWorkItem { [weak self] in
                 self?.activeConnection?.disconnect()
+                self?.delayedDisconnectWorkItem = nil
             }
+            delayedDisconnectWorkItem = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
         } else {
             activeConnection?.disconnect()
         }
@@ -374,7 +383,7 @@ class ConnectionManager {
                     level: .warn
                 )
                 self.aapTransport?.stop()
-                self.tcpHandler.disconnect()
+                (self.activeConnection ?? self.tcpHandler).disconnect()
                 self.state = .disconnected
                 self.hasHandledDisconnectForCurrentAttempt = false
                 self.scheduleReconnectIfNeeded(reason: "Foreground resume link lost")
@@ -744,6 +753,6 @@ extension ConnectionManager: AapTransportDelegate {
     func aapTransportDidDetectSilentPeerOnInitialHandshake(_ transport: AapTransport) {
         guard transport === aapTransport, let device = connectedDevice else { return }
         AppLog.w("No VERSION_RESPONSE after 3.0s on \(device.ip):\(device.port); disconnecting to trigger auto-reconnect", tag: "ConnectionManager")
-        tcpHandler.disconnect()
+        (activeConnection ?? tcpHandler).disconnect()
     }
 }

@@ -79,8 +79,11 @@ public final class TouchInputView: UIView {
 
     private func sendTouches(action: TouchAction, actionIndex: Int, timestamp: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         let pointers = sortedMappedPointers()
-        onTouch?(pointers, action, actionIndex)
-        onTouchWithTimestamp?(pointers, action, actionIndex, timestamp)
+        if let onTouchWithTimestamp = onTouchWithTimestamp {
+            onTouchWithTimestamp(pointers, action, actionIndex, timestamp)
+        } else {
+            onTouch?(pointers, action, actionIndex)
+        }
     }
 
     override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {

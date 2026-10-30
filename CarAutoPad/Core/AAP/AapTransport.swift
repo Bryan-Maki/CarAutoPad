@@ -121,6 +121,7 @@ class AapTransport {
     private let focusCycleLever = FocusCycleLever()
     private var focusCyclesUsedThisSession = 0
     private var lastFocusCycleAtMs: Int64 = 0
+    private var runningEnteredAtMs: Int64 = 0
     private var lastWireCorruptionAtMs: Int64 = 0
     private var unrepairedSinceAtMs: Int64 = 0
     private let videoAssemblyTimeoutMs: UInt64 = 1200
@@ -289,6 +290,7 @@ class AapTransport {
         touchQueueLock.lock()
         pendingTouchEvents.removeAll()
         touchQueueLock.unlock()
+        runningEnteredAtMs = 0
         setState(.idle)
     }
 
@@ -333,6 +335,7 @@ class AapTransport {
         pendingMediaAcks.removeAll()
         focusCyclesUsedThisSession = 0
         lastFocusCycleAtMs = 0
+        runningEnteredAtMs = 0
         lastWireCorruptionAtMs = 0
         unrepairedSinceAtMs = 0
         focusCycleLever.release()
@@ -400,6 +403,7 @@ class AapTransport {
         state = newState
         if newState == .running {
             didReachRunning = true
+            runningEnteredAtMs = Int64(uptimeMs())
             sendNightModeEvent(isNight: ProjectionSettings.effectiveIsNightMode())
         }
 
@@ -2030,10 +2034,11 @@ enum ProtoWire {
         case 0x8007:
             let requestedMode = ProtoWire.extractFirstVarint(from: message.payload, fieldNumber: 2) ?? 1
             let nowMs = Int64(uptimeMs())
-            let isWithinFocusCycle = (lastFocusCycleAtMs > 0 && (nowMs - lastFocusCycleAtMs) < 3000)
+            let isWithinFocusCycle = (lastFocusCycleAtMs > 0 && (nowMs - lastFocusCycleAtMs) < 3000) ||
+                                     (runningEnteredAtMs > 0 && (nowMs - runningEnteredAtMs) < 3000)
             if requestedMode == 2 || requestedMode == 3 {
                 if isWithinFocusCycle {
-                    AppLog.i("Ignoring VIDEO_FOCUS_REQUEST mode=\(requestedMode) during active focus cycle; reclaiming focus", tag: "AapTransport")
+                    AppLog.i("Ignoring VIDEO_FOCUS_REQUEST mode=\(requestedMode) during active focus cycle / running startup; reclaiming focus", tag: "AapTransport")
                     sendVideoFocusNotification(on: message.channelUInt8, gain: true, unsolicited: false, reason: "focus-cycle-reclaim")
                 } else {
                     AppLog.i("Native exit requested via VIDEO_FOCUS_REQUEST (mode=\(requestedMode))", tag: "AapTransport")

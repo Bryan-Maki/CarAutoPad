@@ -410,6 +410,36 @@ final class Phase5SystemIntegrationTests: XCTestCase {
         XCTAssertFalse(delegate.exitRequested, "0x8007 received within 3000ms focus cycle must not trigger exit")
     }
 
+    func testRunningStartupProtectsAgainst0x8007Exit() {
+        final class TestExitDelegate: AapTransportDelegate {
+            var exitRequested = false
+            func aapTransportDidRequestExit(_ transport: AapTransport) {
+                exitRequested = true
+            }
+        }
+
+        final class DummyConnection: ByteStreamConnection {
+            weak var delegate: ByteStreamConnectionDelegate?
+            var isConnected: Bool = true
+            func send(_ data: Data, completion: ((Error?) -> Void)?) { completion?(nil) }
+            func disconnect() { isConnected = false }
+        }
+
+        let connection = DummyConnection()
+        let transport = AapTransport(connection: connection, handshakeProfile: .network)
+        let delegate = TestExitDelegate()
+        transport.delegate = delegate
+
+        transport.setState(.running)
+
+        var payload = Data()
+        payload.append(contentsOf: [0x10, 0x02])
+        let msg = AapMessage(channel: Channel.ID_VID, flags: 0, type: 0x8007, payload: payload)
+
+        transport.handleMessage(msg)
+        XCTAssertFalse(delegate.exitRequested, "0x8007 received within 3000ms of entering running must not trigger exit")
+    }
+
     func testCustomDpiOverridesDefaultModelDpiInServiceDiscovery() {
         let config = HeadUnitScreenConfig.shared
         let prevOrientation = ProjectionSettings.orientation

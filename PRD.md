@@ -443,12 +443,12 @@ The overall port is considered complete only when all of the following criteria 
 
 ### 12.1 修复握手连环退出与 5277 挂死 Bug
 1. **控制通道 0x0018 误判退出修复**：`0x0018 (CALL_AVAILABILITY_STATUS)` 不再被误判为视频退出请求，不再触发断开连接。
-2. **0x8007 保护期焦点回收机制**：在执行 `performVideoFocusCycle` 期间（3000ms 保护窗口）内，收到手机端 `0x8007 (mode=2/3)` 不触发断开，而是主动发送视频焦点通知回收焦点。
+2. **0x8007 保护期焦点回收机制**：在执行 `performVideoFocusCycle` 或刚进入 `.running` 运行状态（3000ms 保护窗口）内，收到手机端 `0x8007 (mode=2/3)` 不触发断开，而是主动发送视频焦点通知回收焦点。
 3. **移除错误的 `controlTimebase`**：移除 `displayLayer.controlTimebase` 绑定，恢复所有帧的 `kCMSampleAttachmentKey_DisplayImmediately = kCFBooleanTrue` 立即上屏特性，防止渲染层进入 `failed` 状态触发连续降级退出。
-4. **平稳 BYEBYE 释放与前台防误触**：在主动 `disconnect()` 时先更新 UI 状态并异步发送 `BYEBYE_REQUEST`，保持 80ms 延迟让 TLS 加密帧顺利写入 TCP Socket 再关闭连接，避免手机端 5277 Server 挂死；`reconnectForSettingsChange()` 调整为 0.8s；`handleWillEnterForeground()` 仅在真正进入过后台时触发前台恢复看门狗。
+4. **平稳 BYEBYE 释放与前台防误触**：在主动 `disconnect()` 时先更新 UI 状态并异步发送 `BYEBYE_REQUEST`，通过可取消的 `delayedDisconnectWorkItem` 保持 80ms 延迟让 TLS 加密帧顺利写入 TCP Socket 再关闭连接，并在 `connect()` 时及时取消旧定时器避免断开新连接，避免手机端 5277 Server 挂死；`reconnectForSettingsChange()` 调整为 0.8s；`handleWillEnterForeground()` 仅在真正进入过后台时触发前台恢复看门狗。
 
 ### 12.2 触控重复发送修复
-1. `MainViewController` 仅保留 `touchOverlayView.onTouchWithTimestamp` 单次回调，移除重复的 `onTouch` 绑定。
+1. `MainViewController` 仅保留 `touchOverlayView.onTouchWithTimestamp` 单次回调，移除重复的 `onTouch` 绑定；`TouchInputView` 内部优先采用带时间戳回调并自动去重。
 2. `AapTransport` 在 `sendTouchEvent` 与队列排空增加 `state == .running && isVideoChannelStarted` 状态守卫，并在 `startHandshake` / `stop` 时清空待发触控队列。
 
 ### 12.3 GitHub Actions 额度节省与按需构建
