@@ -467,6 +467,7 @@ final class MainViewController: UIViewController {
             object: nil
         )
         updateUIForConnectionState(.disconnected)
+        videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
         syncVideoAndTouchGeometry()
         refreshQuickSpecTiles()
     }
@@ -994,7 +995,11 @@ final class MainViewController: UIViewController {
     func refreshQuickSpecTiles() {
         let res = ProjectionSettings.resolution.title
         let fps = ProjectionSettings.fpsLimit.title
-        displayTile?.value = "\(res) • \(fps)"
+        var displayValue = "\(res) • \(fps)"
+        if ProjectionSettings.motionBlurMode != .off {
+            displayValue += " • Blur: \(ProjectionSettings.motionBlurMode.shortTitle)"
+        }
+        displayTile?.value = displayValue
 
         let fit = ProjectionSettings.videoFitMode.title
         let dpi = ProjectionSettings.isAutoDpi ? "Auto (\(ProjectionSettings.effectiveDpi))" : "\(ProjectionSettings.dpi) DPI"
@@ -1269,6 +1274,9 @@ final class MainViewController: UIViewController {
                 self.applyOrientationLock()
                 self.syncVideoAndTouchGeometry()
                 self.videoRenderer.applyGeometry()
+            case .motionBlurChanged:
+                self.videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
+                self.refreshQuickSpecTiles()
             case .requiresReconnect:
                 if self.connectionManager.state == .running {
                     self.connectionManager.reconnectForSettingsChange()
@@ -1335,6 +1343,23 @@ final class MainViewController: UIViewController {
                 if self.connectionManager.state == .running {
                     self.connectionManager.reconnectForSettingsChange()
                 }
+            })
+        }
+
+        let blurOptions: [(title: String, mode: MotionBlurMode)] = [
+            ("Motion Blur: Off", .off),
+            ("Motion Blur: Subtle", .light),
+            ("Motion Blur: Balanced", .medium),
+            ("Motion Blur: Strong", .strong)
+        ]
+        for item in blurOptions {
+            let isCurrent = (ProjectionSettings.motionBlurMode == item.mode)
+            let prefix = isCurrent ? "✓ " : ""
+            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                ProjectionSettings.motionBlurMode = item.mode
+                self.videoRenderer.motionBlurMode = item.mode
+                self.refreshQuickSpecTiles()
             })
         }
 

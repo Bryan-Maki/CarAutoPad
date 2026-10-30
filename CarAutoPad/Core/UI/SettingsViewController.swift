@@ -7,6 +7,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case nightModeChanged
         case geometryChanged
         case requiresReconnect
+        case motionBlurChanged
     }
 
     enum SettingsSection: Int, CaseIterable {
@@ -103,7 +104,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .activeSession:
             return connectionManager.state == .running ? 2 : 0
         case .displayLayout:
-            return 6
+            return 7
         case .videoAudio:
             return 5
         case .smartSensors:
@@ -264,6 +265,23 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                     self?.onSettingsChanged?(.requiresReconnect)
                 } else {
                     self?.onSettingsChanged?(.uiOnly)
+                }
+            }, for: .valueChanged)
+            cell.accessoryView = seg
+            cell.selectionStyle = .none
+            return cell
+
+        case 6:
+            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+            cell.textLabel?.text = "Motion Blur"
+            let seg = UISegmentedControl(items: ["Off", "Subtle", "Balanced", "Strong"])
+            seg.selectedSegmentIndex = ProjectionSettings.motionBlurMode.rawValue
+            seg.addAction(UIAction { [weak self] _ in
+                let modes: [MotionBlurMode] = [.off, .light, .medium, .strong]
+                let idx = seg.selectedSegmentIndex
+                if idx >= 0 && idx < modes.count {
+                    ProjectionSettings.motionBlurMode = modes[idx]
+                    self?.onSettingsChanged?(.motionBlurChanged)
                 }
             }, for: .valueChanged)
             cell.accessoryView = seg

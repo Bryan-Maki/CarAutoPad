@@ -34,6 +34,7 @@ public struct SettingsPayload: Codable, Equatable {
     public var showPerformanceOverlay: Bool
     public var isAutoDpi: Bool?
     public var microphoneSource: Int?
+    public var motionBlurMode: Int?
 
     public init(
         resolution: Int,
@@ -51,7 +52,8 @@ public struct SettingsPayload: Codable, Equatable {
         nightMode: Int,
         showPerformanceOverlay: Bool,
         isAutoDpi: Bool? = nil,
-        microphoneSource: Int? = nil
+        microphoneSource: Int? = nil,
+        motionBlurMode: Int? = nil
     ) {
         self.resolution = resolution
         self.fpsLimit = fpsLimit
@@ -69,6 +71,7 @@ public struct SettingsPayload: Codable, Equatable {
         self.showPerformanceOverlay = showPerformanceOverlay
         self.isAutoDpi = isAutoDpi
         self.microphoneSource = microphoneSource
+        self.motionBlurMode = motionBlurMode
     }
 }
 
@@ -107,7 +110,8 @@ public enum SettingsBackupManager {
             nightMode: ProjectionSettings.nightMode.rawValue,
             showPerformanceOverlay: ProjectionSettings.showPerformanceOverlay,
             isAutoDpi: ProjectionSettings.isAutoDpi,
-            microphoneSource: ProjectionSettings.microphoneSource.rawValue
+            microphoneSource: ProjectionSettings.microphoneSource.rawValue,
+            motionBlurMode: ProjectionSettings.motionBlurMode.rawValue
         )
     }
 
@@ -190,6 +194,9 @@ public enum SettingsBackupManager {
         if let micRaw = s.microphoneSource, let micSource = MicrophoneSource(rawValue: micRaw) {
             ProjectionSettings.microphoneSource = micSource
         }
+        if let blurRaw = s.motionBlurMode, let blurMode = MotionBlurMode(rawValue: blurRaw) {
+            ProjectionSettings.motionBlurMode = blurMode
+        }
 
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: ProjectionSettings.resolution)
 
@@ -210,6 +217,7 @@ public enum SettingsBackupManager {
         ProjectionSettings.audioCodecPreference = .aac
         ProjectionSettings.audioOutputTarget = .ipad
         ProjectionSettings.microphoneSource = .followAudioOutput
+        ProjectionSettings.motionBlurMode = .off
         ProjectionSettings.isAutoDpi = true
         ProjectionSettings.nightMode = .system
         ProjectionSettings.showPerformanceOverlay = false

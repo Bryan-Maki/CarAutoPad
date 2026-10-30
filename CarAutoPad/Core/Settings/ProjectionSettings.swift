@@ -110,6 +110,40 @@ public enum MicrophoneSource: Int, CaseIterable {
     }
 }
 
+public enum MotionBlurMode: Int, CaseIterable {
+    case off = 0
+    case light = 1
+    case medium = 2
+    case strong = 3
+
+    public var title: String {
+        switch self {
+        case .off: return "Off"
+        case .light: return "Subtle (Light)"
+        case .medium: return "Balanced (Medium)"
+        case .strong: return "Strong"
+        }
+    }
+
+    public var shortTitle: String {
+        switch self {
+        case .off: return "Off"
+        case .light: return "Subtle"
+        case .medium: return "Balanced"
+        case .strong: return "Strong"
+        }
+    }
+
+    public var trailOpacity: Float {
+        switch self {
+        case .off: return 0.0
+        case .light: return 0.18
+        case .medium: return 0.32
+        case .strong: return 0.48
+        }
+    }
+}
+
 public typealias ProjectionVideoResolution = ResolutionPreset
 public typealias ProjectionResolution = ResolutionPreset
 
@@ -130,6 +164,7 @@ public enum ProjectionSettings {
     private static let audioOutputTargetKey = "projection-audio-output-target"
     private static let microphoneSourceKey = "projection-microphone-source"
     private static let nightModeKey = "projection-night-mode"
+    private static let motionBlurModeKey = "projection-motion-blur-mode"
 
     private static let autoDpiKey = "projection-auto-dpi"
     private static let showPerformanceOverlayKey = "projection-show-performance-overlay"
@@ -366,7 +401,21 @@ public enum ProjectionSettings {
         audioOutputTarget = .ipad
         microphoneSource = .followAudioOutput
         nightMode = .auto
+        motionBlurMode = .off
         resetDpiToDefault()
+    }
+
+    public static var motionBlurMode: MotionBlurMode {
+        get {
+            guard let raw = defaults.object(forKey: motionBlurModeKey) as? Int,
+                  let mode = MotionBlurMode(rawValue: raw) else {
+                return .off
+            }
+            return mode
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: motionBlurModeKey)
+        }
     }
 
     public static var audioOutputTarget: AudioOutputTarget {

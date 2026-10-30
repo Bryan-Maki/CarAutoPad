@@ -8,12 +8,12 @@ public final class AapServiceDiscoveryResponseMessage {
         useGps: Bool = true,
         useMic: Bool = true,
         requestedDpi: Int? = nil,
-        vehicleMake: String = "Apple",
-        vehicleModel: String = "iPad",
-        vehicleYear: String = "2024",
-        vehicleId: String = "iPad-CarAutoPad",
-        headUnitMake: String = "CarAutoPad",
-        headUnitModel: String = "CarAutoPad",
+        vehicleMake: String = "Google",
+        vehicleModel: String = "Desktop Head Unit",
+        vehicleYear: String = "2025",
+        vehicleId: String = "headlessunit-001",
+        headUnitMake: String = "Google",
+        headUnitModel: String = "Desktop Head Unit",
         enableAudioSink: Bool = ProjectionSettings.isAudioSinkEnabled
     ) -> AapMessage {
         var services: [ControlService] = []

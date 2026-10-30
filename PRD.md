@@ -454,3 +454,35 @@ The overall port is considered complete only when all of the following criteria 
 ### 12.3 GitHub Actions 额度节省与按需构建
 - `.github/workflows/build-ipa.yml` 移除 `push` 和 `pull_request` 自动触发器，仅保留 `workflow_dispatch` 手动触发，节省 CI 构建分钟数额度。
 
+---
+
+## 13. Android Auto 安全校验防御与 4 档动态模糊模式 (Security Checks & Motion Blur Engine)
+
+### 13.1 彻底根除并预防 Android Auto 安全校验警告 (Error 7/8/14 防御架构 S-01 ~ S-06)
+1. **Google DHU 官方认证主体对齐 (S-01)**：
+   - 内置证书 `CarAutoPad/Resources/Raw/cert` Subject 为 `O=Google-Android-Reference`。将 `ServiceDiscoveryResponse` 默认车辆与车机识别参数对齐 `open-headunit`，恢复为 Google 官方认证车机标识（`make: "Google"`, `model: "Desktop Head Unit"`, `year: "2025"`, `vehicleId: "headlessunit-001"`, `effectiveVehicleId: "headlessunit-001-moto"`），同时保持 `displayName: "CarAutoPad"` 确保 UI 与车机列表友好展示。
+2. **OpenSSL 锁定 TLS 1.2 与安全等级 (S-02 & S-03)**：
+   - 显式设置 `security_level = 1` 兼容历史 X.509 v1 证书；
+   - 锁定 `min_proto_version = TLS1_2_VERSION` 和 `max_proto_version = TLS1_2_VERSION`，彻底杜绝 TLS 1.3 1-RTT 提前返回 `isComplete = true` 导致过早抢发 `AUTH_COMPLETE` 以及丢弃 `NewSessionTicket` 引发 TLS 序列号失步。
+   - 移除 `startHandshakeSession()` 中对 `BIO_s_mem()` 内存 BIO 无效的 `setBioWriteBufferSize` 调用。
+3. **AAP 版本协商、线程竞态消除与状态守卫 (S-04 & S-05)**：
+   - `sendVersionRequest()` 使用强类型 `AapVersionNegotiation.announcedMajor` (1) 和 `announcedMinor` (2) 动态组装版本协商报文。
+   - 握手重试与延迟调度统一迁移至 `processingQueue.asyncAfter`，消除跨线程竞态。
+   - `VERSION_RESPONSE` 解析传入完整数据帧，并增加严格的状态守卫 `guard state == .waitingForVersion || state == .versionSent`，拦截迟到重发的版本响应，防止在 `.tlsHandshaking` 阶段二次重置 SSL 会话导致手机安全校验报错。
+4. **消除明文回退与粘包残留无缝迁移 (S-06)**：
+   - `send` 与 `sendOnProcessingQueue` 丢弃在未加密状态下触发的业务消息并报警，杜绝明文数据混入 TLS 握手流。
+   - `processBuffer()` 在处理消息导致状态迁入 `.authenticating / .authenticatingComplete / .binding / .running` 时，将 `receiveBuffer` 剩余的粘包字节原子迁移追加到 `encryptedReceiveBuffer` 并触发解密解析，防止首包加密帧误当明文被丢弃。
+
+### 13.2 4 档硬件动态模糊模式 (Motion Blur Mode M-01 ~ M-05)
+1. **4 档模式模型与持久化 (M-01 & M-05)**：
+   - 提供 `Off (0.0)`、`Subtle (Light, 0.18)`、`Balanced (Medium, 0.32)`、`Strong (0.48)` 4 档可选。
+   - `ProjectionSettings.motionBlurMode` 持久化与 `SettingsBackupManager` 完整 JSON 导入导出与重置。
+2. **双 `AVSampleBufferDisplayLayer` 硬件时间混合与 IDR 安全门控 (M-02)**：
+   - 在 `H264VideoRendererView` 内置硬件 `motionBlurTrailLayer`，叠加在 `displayLayer` 之上，同向同步几何与裁剪模式。
+   - 仅在接收到 IDR 关键帧建档后激活余晖图层（`trailLayerHasDecodedKeyframe`），非关键帧向余晖图层注入上一帧（Frame N-1）并呈现对应档位半透明余晖。
+   - **26ms 静止自动消隐防重影**：当画面停止滑动（1.6 倍帧间隔内无新帧到达），自动将最新帧送入副图层并将 `opacity` 平滑过渡归零，保证地图和静态文字 100% 清晰锐利。
+3. **UI 接入与实时热切换 (M-03 & M-04)**：
+   - Settings 面板 Display & Coolwalk Layout 分组新增 `Motion Blur` 原生分段控制器。
+   - 主页 Display 快捷磁贴实时展示档位（`Blur: Subtle/Balanced/Strong`），点击磁贴支持底部快捷热切换。
+   - 切换瞬时热生效，触发关键帧请求以秒级激活余晖，绝不触发断开与重连。
+

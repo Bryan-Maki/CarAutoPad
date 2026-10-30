@@ -56,8 +56,7 @@ final class Phase7NowPlayingAndMicSourceTests: XCTestCase {
 
     func testServiceDiscoveryResponseWithMicEnabled() throws {
         let message = AapServiceDiscoveryResponseMessage.make(
-            useMic: true,
-            vehicleId: "iPad-CarAutoPad"
+            useMic: true
         )
 
         var reader = ProtoReader(data: message.payload)
@@ -67,15 +66,17 @@ final class Phase7NowPlayingAndMicSourceTests: XCTestCase {
         XCTAssertNotNil(micService, "Service discovery response must include MIC service when useMic is true")
 
         XCTAssertEqual(proto.headunitInfo?.vehicleType, 3, "Vehicle type should be Unified Motorcycle Profile (3)")
-        XCTAssertEqual(proto.headunitInfo?.vehicleId, "iPad-CarAutoPad-moto")
-        XCTAssertEqual(proto.vehicleId, "iPad-CarAutoPad-moto")
+        XCTAssertEqual(proto.headunitInfo?.vehicleId, "headlessunit-001-moto")
+        XCTAssertEqual(proto.vehicleId, "headlessunit-001-moto")
+        XCTAssertEqual(proto.make, "Google")
+        XCTAssertEqual(proto.model, "Desktop Head Unit")
+        XCTAssertEqual(proto.displayName, "CarAutoPad")
         XCTAssertTrue(proto.vehicleId.hasSuffix("-moto"))
     }
 
     func testServiceDiscoveryResponseWithMicDisabledMaintainsSingleIdentity() throws {
         let message = AapServiceDiscoveryResponseMessage.make(
-            useMic: false,
-            vehicleId: "iPad-CarAutoPad"
+            useMic: false
         )
 
         var reader = ProtoReader(data: message.payload)
@@ -85,8 +86,11 @@ final class Phase7NowPlayingAndMicSourceTests: XCTestCase {
         XCTAssertNil(micService, "Service discovery response must omit MIC service when useMic is false")
 
         XCTAssertEqual(proto.headunitInfo?.vehicleType, 3, "Vehicle type must remain Unified Profile (3) even when mic is omitted")
-        XCTAssertEqual(proto.headunitInfo?.vehicleId, "iPad-CarAutoPad-moto")
-        XCTAssertEqual(proto.vehicleId, "iPad-CarAutoPad-moto")
+        XCTAssertEqual(proto.headunitInfo?.vehicleId, "headlessunit-001-moto")
+        XCTAssertEqual(proto.vehicleId, "headlessunit-001-moto")
+        XCTAssertEqual(proto.make, "Google")
+        XCTAssertEqual(proto.model, "Desktop Head Unit")
+        XCTAssertEqual(proto.displayName, "CarAutoPad")
         XCTAssertTrue(proto.vehicleId.hasSuffix("-moto"))
     }
 

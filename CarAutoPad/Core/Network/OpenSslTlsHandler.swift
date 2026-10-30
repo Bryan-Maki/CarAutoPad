@@ -42,6 +42,9 @@ class OpenSslTlsHandler {
         }
 
         SSL_CTX_set_verify(sslContext, SSL_VERIFY_NONE, nil)
+        SSL_CTX_set_security_level(sslContext, 1)
+        SSL_CTX_set_min_proto_version(sslContext, Int32(TLS1_2_VERSION))
+        SSL_CTX_set_max_proto_version(sslContext, Int32(TLS1_2_VERSION))
 
         AppLog.i("SSL context created", tag: "OpenSslTls")
         return true
@@ -153,9 +156,6 @@ class OpenSslTlsHandler {
         guard readBio != nil && writeBio != nil else {
             throw OpenSslTlsError.bioError("Failed to create BIO")
         }
-
-        setBioWriteBufferSize(readBio, size: AapMessage.DEF_BUFFER_LENGTH)
-        setBioWriteBufferSize(writeBio, size: AapMessage.DEF_BUFFER_LENGTH)
 
         SSL_set0_rbio(ssl, readBio)
         SSL_set0_wbio(ssl, writeBio)

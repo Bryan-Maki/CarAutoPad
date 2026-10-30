@@ -57,6 +57,7 @@ struct AapPlaybackStatus {
 enum AapTransportError: Error {
     case encryptionFailed
     case transportGone
+    case invalidState
 }
 
 enum AapTransportState: Equatable {
@@ -363,7 +364,7 @@ class AapTransport {
             self.sendVersionRequestWithRetry()
         }
         delayedVersionStartWorkItem = delayedStart
-        handshakeQueue.asyncAfter(deadline: .now() + initialVersionRequestDelay, execute: delayedStart)
+        processingQueue.asyncAfter(deadline: .now() + initialVersionRequestDelay, execute: delayedStart)
 
         startHandshakeTimeout(for: .waitingForVersion)
     }
@@ -419,7 +420,10 @@ class AapTransport {
     }
 
     private func sendVersionRequest() {
-        let versionRequest = Data([0x00, 0x02, 0x00, 0x00])
+        let versionRequest = Data([
+            0x00, UInt8(AapVersionNegotiation.announcedMajor),
+            0x00, UInt8(AapVersionNegotiation.announcedMinor)
+        ])
         let message = AapMessage(
             channel: Channel.ID_CTR,
             flags: 0x03,
@@ -453,7 +457,7 @@ class AapTransport {
         }
         versionRetryWorkItem?.cancel()
         versionRetryWorkItem = retryWork
-        handshakeQueue.asyncAfter(deadline: .now() + versionRetryInterval, execute: retryWork)
+        processingQueue.asyncAfter(deadline: .now() + versionRetryInterval, execute: retryWork)
     }
 
     private func triggerLauncherPokeIfNeeded() {
@@ -527,8 +531,8 @@ class AapTransport {
                 self.sendEncryptedMessage(message, completion: completion)
             }
         } else {
-            let data = message.toData()
-            connection.send(data, completion: completion)
+            AppLog.w("Dropping unencrypted message in state \(state): channel=\(message.channelUInt8) type=\(message.typeUInt16)", tag: "AapTransport")
+            completion?(AapTransportError.invalidState)
         }
     }
 
@@ -538,8 +542,8 @@ class AapTransport {
         if state == .authenticating || state == .authenticatingComplete || state == .binding || state == .running {
             sendEncryptedMessage(message, completion: completion)
         } else {
-            let data = message.toData()
-            connection.send(data, completion: completion)
+            AppLog.w("Dropping unencrypted message in state \(state): channel=\(message.channelUInt8) type=\(message.typeUInt16)", tag: "AapTransport")
+            completion?(AapTransportError.invalidState)
         }
     }
 
@@ -1189,6 +1193,22 @@ class AapTransport {
             if let message = AapMessage(data: frame) {
                 handleMessage(message)
             }
+
+            if state == .authenticating || state == .authenticatingComplete || state == .binding || state == .running {
+                var leftover = Data()
+                bufferLock.lock()
+                if !receiveBuffer.isEmpty {
+                    leftover = receiveBuffer
+                    receiveBuffer.removeAll()
+                    encryptedReceiveBuffer.append(leftover)
+                }
+                bufferLock.unlock()
+                if !leftover.isEmpty {
+                    AppLog.i("Migrated \(leftover.count) trailing bytes from plaintext receiveBuffer to encryptedReceiveBuffer upon entering \(state)", tag: "AapTransport")
+                    processEncryptedBuffer()
+                }
+                return
+            }
         }
     }
 
@@ -1453,7 +1473,12 @@ class AapTransport {
         switch message.typeUInt16 {
         case AapMessageType.VERSION_RESPONSE.rawValue:
             AppLog.i("Version response received", tag: "AapTransport")
-            if let result = AapVersionNegotiation.parse(frame: message.data, length: message.size) {
+            guard state == .waitingForVersion || state == .versionSent else {
+                AppLog.w("Ignoring late VERSION_RESPONSE in state \(state)", tag: "AapTransport")
+                return
+            }
+            let fullFrame = message.toData()
+            if let result = AapVersionNegotiation.parse(frame: fullFrame, length: fullFrame.count) {
                 AppLog.i("Negotiated AAP version \(result.major).\(result.minor), status=\(result.statusName), supports16=\(result.supports16)", tag: "AapTransport")
             }
             delayedVersionStartWorkItem?.cancel()

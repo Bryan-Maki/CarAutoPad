@@ -54,6 +54,16 @@ public class H264VideoRendererView: UIView {
     private var lastNotifiedVideoSize: CGSize = .zero
 
     public let displayLayer = AVSampleBufferDisplayLayer()
+    public let motionBlurTrailLayer = AVSampleBufferDisplayLayer()
+    public var motionBlurMode: MotionBlurMode = ProjectionSettings.motionBlurMode {
+        didSet {
+            guard motionBlurMode != oldValue else { return }
+            applyMotionBlurModeChange(from: oldValue, to: motionBlurMode)
+        }
+    }
+    private var previousSampleBuffer: CMSampleBuffer?
+    private var trailLayerHasDecodedKeyframe = false
+    private var trailSettleWorkItem: DispatchWorkItem?
 
     public private(set) var pinnedCodec: VideoCodecType?
 
@@ -203,7 +213,11 @@ public class H264VideoRendererView: UIView {
         activeClipView.isUserInteractionEnabled = false
         addSubview(activeClipView)
         displayLayer.videoGravity = .resize
+        motionBlurTrailLayer.videoGravity = .resize
+        motionBlurTrailLayer.opacity = 0.0
+        motionBlurTrailLayer.isHidden = (motionBlurMode == .off)
         activeClipView.layer.addSublayer(displayLayer)
+        activeClipView.layer.addSublayer(motionBlurTrailLayer)
         applyGeometry()
     }
 
@@ -306,7 +320,37 @@ public class H264VideoRendererView: UIView {
             }
         }
 
+        motionBlurTrailLayer.videoGravity = displayLayer.videoGravity
+        motionBlurTrailLayer.frame = displayLayer.frame
+
         CATransaction.commit()
+    }
+
+    private func applyMotionBlurModeChange(from oldValue: MotionBlurMode, to newValue: MotionBlurMode) {
+        processQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.trailSettleWorkItem?.cancel()
+            self.trailSettleWorkItem = nil
+            self.previousSampleBuffer = nil
+            self.trailLayerHasDecodedKeyframe = false
+
+            if newValue == .off {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.motionBlurTrailLayer.opacity = 0.0
+                    self.motionBlurTrailLayer.isHidden = true
+                    self.motionBlurTrailLayer.flushAndRemoveImage()
+                }
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.motionBlurTrailLayer.isHidden = false
+                    self.motionBlurTrailLayer.opacity = 0.0
+                    self.motionBlurTrailLayer.flushAndRemoveImage()
+                }
+                self.onKeyframeRequested?()
+            }
+        }
     }
 
     public func reset() {
@@ -341,16 +385,24 @@ public class H264VideoRendererView: UIView {
             self.hasDecodedKeyframe = false
             self.pinnedCodec = nil
             self.lastNotifiedVideoSize = .zero
+            self.previousSampleBuffer = nil
+            self.trailLayerHasDecodedKeyframe = false
+            self.trailSettleWorkItem?.cancel()
+            self.trailSettleWorkItem = nil
         }
 
         if Thread.isMainThread {
             notReadyStreak = 0
             displayLayer.flushAndRemoveImage()
+            motionBlurTrailLayer.flushAndRemoveImage()
+            motionBlurTrailLayer.opacity = 0.0
         } else {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.notReadyStreak = 0
                 self.displayLayer.flushAndRemoveImage()
+                self.motionBlurTrailLayer.flushAndRemoveImage()
+                self.motionBlurTrailLayer.opacity = 0.0
             }
         }
     }
@@ -365,15 +417,24 @@ public class H264VideoRendererView: UIView {
         processQueue.async { [weak self] in
             guard let self = self else { return }
             self.hasDecodedKeyframe = false
+            self.trailLayerHasDecodedKeyframe = false
+            self.previousSampleBuffer = nil
+            self.trailSettleWorkItem?.cancel()
+            self.trailSettleWorkItem = nil
             self.notReadyStreak = 0
             self.framePacer.reset()
         }
 
         if Thread.isMainThread {
             displayLayer.flushAndRemoveImage()
+            motionBlurTrailLayer.flushAndRemoveImage()
+            motionBlurTrailLayer.opacity = 0.0
         } else {
             DispatchQueue.main.async { [weak self] in
-                self?.displayLayer.flushAndRemoveImage()
+                guard let self = self else { return }
+                self.displayLayer.flushAndRemoveImage()
+                self.motionBlurTrailLayer.flushAndRemoveImage()
+                self.motionBlurTrailLayer.opacity = 0.0
             }
         }
     }
@@ -384,6 +445,10 @@ public class H264VideoRendererView: UIView {
         processQueue.async { [weak self] in
             guard let self = self else { return }
             self.hasDecodedKeyframe = false
+            self.trailLayerHasDecodedKeyframe = false
+            self.previousSampleBuffer = nil
+            self.trailSettleWorkItem?.cancel()
+            self.trailSettleWorkItem = nil
             self.notReadyStreak = 0
             self.framePacer.reset()
             self.lastRenderUptime = 0
@@ -392,9 +457,14 @@ public class H264VideoRendererView: UIView {
 
         if Thread.isMainThread {
             displayLayer.flushAndRemoveImage()
+            motionBlurTrailLayer.flushAndRemoveImage()
+            motionBlurTrailLayer.opacity = 0.0
         } else {
             DispatchQueue.main.async { [weak self] in
-                self?.displayLayer.flushAndRemoveImage()
+                guard let self = self else { return }
+                self.displayLayer.flushAndRemoveImage()
+                self.motionBlurTrailLayer.flushAndRemoveImage()
+                self.motionBlurTrailLayer.opacity = 0.0
             }
         }
     }
@@ -767,6 +837,55 @@ public class H264VideoRendererView: UIView {
         notReadyStreak = 0
         consecutiveDecodeFailures = 0
         displayLayer.enqueue(sampleBuffer)
+
+        let activeBlurMode = motionBlurMode
+        if activeBlurMode != .off {
+            if motionBlurTrailLayer.status == .failed {
+                trailLayerHasDecodedKeyframe = false
+                previousSampleBuffer = nil
+                DispatchQueue.main.async { [weak self] in
+                    self?.motionBlurTrailLayer.flushAndRemoveImage()
+                }
+            }
+
+            if isKeyframe {
+                trailLayerHasDecodedKeyframe = true
+                previousSampleBuffer = sampleBuffer
+                motionBlurTrailLayer.enqueue(sampleBuffer)
+                DispatchQueue.main.async { [weak self] in
+                    self?.motionBlurTrailLayer.opacity = 0.0
+                }
+            } else if trailLayerHasDecodedKeyframe {
+                trailSettleWorkItem?.cancel()
+                if let prevBuf = previousSampleBuffer {
+                    motionBlurTrailLayer.enqueue(prevBuf)
+                }
+                previousSampleBuffer = sampleBuffer
+
+                let targetOpacity = activeBlurMode.trailOpacity
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    self.motionBlurTrailLayer.opacity = targetOpacity
+                    CATransaction.commit()
+                }
+
+                let fps = (ProjectionSettings.fpsLimit == .fps30) ? 30.0 : 60.0
+                let frameInterval = 1.0 / fps
+                let settleDelay = 1.6 * frameInterval
+                let settleItem = DispatchWorkItem { [weak self] in
+                    guard let self = self else { return }
+                    self.motionBlurTrailLayer.enqueue(sampleBuffer)
+                    CATransaction.begin()
+                    CATransaction.setAnimationDuration(0.1)
+                    self.motionBlurTrailLayer.opacity = 0.0
+                    CATransaction.commit()
+                }
+                trailSettleWorkItem = settleItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + settleDelay, execute: settleItem)
+            }
+        }
 
         let nowUptime = ProcessInfo.processInfo.systemUptime
         let renderGapMs = lastRenderUptime > 0 ? (nowUptime - lastRenderUptime) * 1000.0 : 0

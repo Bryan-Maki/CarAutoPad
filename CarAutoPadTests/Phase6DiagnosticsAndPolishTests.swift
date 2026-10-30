@@ -365,4 +365,89 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         renderer.reset()
         XCTAssertFalse(renderer.isInBackground)
     }
+
+    func testMotionBlurModeMetadataAndDefaults() {
+        XCTAssertEqual(MotionBlurMode.allCases.count, 4)
+        XCTAssertEqual(MotionBlurMode.off.rawValue, 0)
+        XCTAssertEqual(MotionBlurMode.light.rawValue, 1)
+        XCTAssertEqual(MotionBlurMode.medium.rawValue, 2)
+        XCTAssertEqual(MotionBlurMode.strong.rawValue, 3)
+
+        XCTAssertEqual(MotionBlurMode.off.title, "Off")
+        XCTAssertEqual(MotionBlurMode.light.title, "Subtle (Light)")
+        XCTAssertEqual(MotionBlurMode.medium.title, "Balanced (Medium)")
+        XCTAssertEqual(MotionBlurMode.strong.title, "Strong")
+
+        XCTAssertEqual(MotionBlurMode.off.shortTitle, "Off")
+        XCTAssertEqual(MotionBlurMode.light.shortTitle, "Subtle")
+        XCTAssertEqual(MotionBlurMode.medium.shortTitle, "Balanced")
+        XCTAssertEqual(MotionBlurMode.strong.shortTitle, "Strong")
+
+        XCTAssertEqual(MotionBlurMode.off.trailOpacity, 0.0)
+        XCTAssertEqual(MotionBlurMode.light.trailOpacity, 0.18, accuracy: 0.001)
+        XCTAssertEqual(MotionBlurMode.medium.trailOpacity, 0.32, accuracy: 0.001)
+        XCTAssertEqual(MotionBlurMode.strong.trailOpacity, 0.48, accuracy: 0.001)
+    }
+
+    func testMotionBlurModePersistenceAndReset() {
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.motionBlurMode, .off)
+
+        ProjectionSettings.motionBlurMode = .medium
+        XCTAssertEqual(ProjectionSettings.motionBlurMode, .medium)
+
+        ProjectionSettings.motionBlurMode = .strong
+        XCTAssertEqual(ProjectionSettings.motionBlurMode, .strong)
+
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.motionBlurMode, .off)
+    }
+
+    func testSettingsBackupManagerMotionBlurModeExportAndImport() throws {
+        ProjectionSettings.resetToDefaults()
+        ProjectionSettings.motionBlurMode = .strong
+
+        let json = SettingsBackupManager.exportToJson()
+        XCTAssertTrue(json.contains("\"motionBlurMode\" : 3"))
+
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.motionBlurMode, .off)
+
+        let count = try SettingsBackupManager.importFromJson(json)
+        XCTAssertEqual(count, 14)
+        XCTAssertEqual(ProjectionSettings.motionBlurMode, .strong)
+    }
+
+    func testVideoRendererMotionBlurHotSwitching() {
+        ProjectionSettings.resetToDefaults()
+        let renderer = H264VideoRendererView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        XCTAssertEqual(renderer.motionBlurMode, .off)
+        XCTAssertTrue(renderer.motionBlurTrailLayer.isHidden)
+
+        var keyframeRequested = false
+        renderer.onKeyframeRequested = {
+            keyframeRequested = true
+        }
+
+        renderer.motionBlurMode = .light
+        XCTAssertEqual(renderer.motionBlurMode, .light)
+
+        let exp = expectation(description: "Motion blur mode change processed")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            XCTAssertFalse(renderer.motionBlurTrailLayer.isHidden)
+            XCTAssertTrue(keyframeRequested, "Switching motion blur mode on should request keyframe to seed trail layer")
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 1.0)
+
+        renderer.motionBlurMode = .off
+        XCTAssertEqual(renderer.motionBlurMode, .off)
+
+        let exp2 = expectation(description: "Motion blur mode off processed")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            XCTAssertTrue(renderer.motionBlurTrailLayer.isHidden)
+            exp2.fulfill()
+        }
+        wait(for: [exp2], timeout: 1.0)
+    }
 }
