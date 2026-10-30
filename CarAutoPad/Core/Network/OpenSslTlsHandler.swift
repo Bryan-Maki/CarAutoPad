@@ -17,6 +17,7 @@ enum OpenSslTlsError: Error {
 }
 
 class OpenSslTlsHandler {
+    private static let bioSetWriteBufSizeCmd: Int32 = 136
     private static let sslCtrlSetMinProtoVersion: Int32 = 123
     private static let sslCtrlSetMaxProtoVersion: Int32 = 124
     private static let tls12Version: Int = 0x0303
