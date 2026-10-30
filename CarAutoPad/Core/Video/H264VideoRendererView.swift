@@ -871,11 +871,12 @@ public class H264VideoRendererView: UIView {
                     CATransaction.commit()
                 }
 
-                let fps = (ProjectionSettings.fpsLimit == .fps30) ? 30.0 : 60.0
+                let is30Fps = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
+                let fps = is30Fps ? 30.0 : 60.0
                 let frameInterval = 1.0 / fps
                 let settleDelay = 1.6 * frameInterval
                 let settleItem = DispatchWorkItem { [weak self] in
-                    guard let self = self else { return }
+                    guard let self = self, self.motionBlurMode != .off, !self.isInBackground else { return }
                     self.motionBlurTrailLayer.enqueue(sampleBuffer)
                     CATransaction.begin()
                     CATransaction.setAnimationDuration(0.1)

@@ -450,4 +450,71 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         }
         wait(for: [exp2], timeout: 1.0)
     }
+
+    func testEffectiveFpsLimitPortraitModeAndMotionBlurTiming() {
+        ProjectionSettings.resetToDefaults()
+        ProjectionSettings.fpsLimit = .fps60
+        ProjectionSettings.orientation = .portrait
+        XCTAssertEqual(ProjectionSettings.effectiveFpsLimit, .fps30, "Portrait orientation must constrain effectiveFpsLimit to 30 FPS")
+
+        let is30Fps = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
+        XCTAssertTrue(is30Fps)
+        let fps = is30Fps ? 30.0 : 60.0
+        XCTAssertEqual(fps, 30.0)
+        let frameInterval = 1.0 / fps
+        let settleDelay = 1.6 * frameInterval
+        XCTAssertEqual(settleDelay, 1.6 * (1.0 / 30.0), accuracy: 0.0001)
+
+        ProjectionSettings.orientation = .landscape
+        XCTAssertEqual(ProjectionSettings.effectiveFpsLimit, .fps60)
+        let is30FpsLandscape = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
+        XCTAssertFalse(is30FpsLandscape)
+        let fpsLandscape = is30FpsLandscape ? 30.0 : 60.0
+        XCTAssertEqual(fpsLandscape, 60.0)
+    }
+
+    func testAapTransportDropsUnencryptedMessageDuringHandshake() {
+        final class HandshakeDummyConnection: ByteStreamConnection {
+            weak var delegate: ByteStreamConnectionDelegate?
+            var isConnected: Bool = true
+            var sentData: [Data] = []
+            func send(_ data: Data, completion: ((Error?) -> Void)?) {
+                sentData.append(data)
+                completion?(nil)
+            }
+            func disconnect() { isConnected = false }
+        }
+
+        let connection = HandshakeDummyConnection()
+        let transport = AapTransport(connection: connection, handshakeProfile: .network)
+        transport.setState(.waitingForVersion)
+
+        let msg = AapMessage(channel: Channel.ID_SEN, flags: 0, type: 0x8003, payload: Data([0x01]))
+        var droppedError: Error?
+        transport.send(message: msg) { error in
+            droppedError = error
+        }
+
+        XCTAssertTrue(connection.sentData.isEmpty, "No plaintext business message should be sent during handshake")
+        XCTAssertEqual(droppedError as? AapTransportError, AapTransportError.invalidState)
+    }
+
+    func testAapTransportIgnoresLateVersionResponseInTlsHandshake() {
+        final class LateVersionDummyConnection: ByteStreamConnection {
+            weak var delegate: ByteStreamConnectionDelegate?
+            var isConnected: Bool = true
+            func send(_ data: Data, completion: ((Error?) -> Void)?) { completion?(nil) }
+            func disconnect() { isConnected = false }
+        }
+
+        let connection = LateVersionDummyConnection()
+        let transport = AapTransport(connection: connection, handshakeProfile: .network)
+        transport.setState(.tlsHandshaking)
+
+        let versionPayload = Data([0x00, 0x01, 0x00, 0x02, 0x00, 0x00])
+        let msg = AapMessage(channel: Channel.ID_CTR, flags: 0x03, type: AapMessageType.VERSION_RESPONSE.rawValue, payload: versionPayload)
+
+        transport.handleMessage(msg)
+        XCTAssertEqual(transport.state, .tlsHandshaking, "Late VERSION_RESPONSE in .tlsHandshaking must be ignored and not reset state or TLS session")
+    }
 }

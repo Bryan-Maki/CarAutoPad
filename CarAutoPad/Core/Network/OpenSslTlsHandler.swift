@@ -17,7 +17,6 @@ enum OpenSslTlsError: Error {
 }
 
 class OpenSslTlsHandler {
-    private static let bioSetWriteBufSizeCmd: Int32 = 136
     private static let sslCtrlSetMinProtoVersion: Int32 = 123
     private static let sslCtrlSetMaxProtoVersion: Int32 = 124
     private static let tls12Version: Int = 0x0303
@@ -164,6 +163,7 @@ class OpenSslTlsHandler {
         SSL_set0_wbio(ssl, writeBio)
         SSL_set_connect_state(ssl)
         SSL_set_verify(ssl, SSL_VERIFY_NONE, nil)
+        SSL_set_security_level(ssl, 1)
 
         AppLog.i("Handshake session prepared", tag: "OpenSslTls")
         return try runHandshakeStep()
@@ -238,14 +238,6 @@ class OpenSslTlsHandler {
                 return
             }
             output.append(contentsOf: buffer[0..<Int(read)])
-        }
-    }
-
-    private func setBioWriteBufferSize(_ bio: OpaquePointer?, size: Int) {
-        guard let bio = bio else { return }
-        let ret = BIO_ctrl(bio, OpenSslTlsHandler.bioSetWriteBufSizeCmd, size, nil)
-        if ret <= 0 {
-            AppLog.e("Failed to set BIO write buffer size to \(size)", tag: "OpenSslTls")
         }
     }
 

@@ -480,7 +480,7 @@ The overall port is considered complete only when all of the following criteria 
 2. **双 `AVSampleBufferDisplayLayer` 硬件时间混合与 IDR 安全门控 (M-02)**：
    - 在 `H264VideoRendererView` 内置硬件 `motionBlurTrailLayer`，叠加在 `displayLayer` 之上，同向同步几何与裁剪模式。
    - 仅在接收到 IDR 关键帧建档后激活余晖图层（`trailLayerHasDecodedKeyframe`），非关键帧向余晖图层注入上一帧（Frame N-1）并呈现对应档位半透明余晖。
-   - **26ms 静止自动消隐防重影**：当画面停止滑动（1.6 倍帧间隔内无新帧到达），自动将最新帧送入副图层并将 `opacity` 平滑过渡归零，保证地图和静态文字 100% 清晰锐利。
+   - **26ms/53ms 静止自动消隐防重影**：当画面停止滑动（动态基于 `effectiveFpsLimit` 设定 1.6 倍帧间隔，60fps 下约 26ms，30fps / 竖屏模式下约 53ms 内无新帧到达），自动将最新帧送入副图层并将 `opacity` 平滑过渡归零，保证地图和静态文字 100% 清晰锐利，同时避免 30fps 下误触发闪烁。
 3. **UI 接入与实时热切换 (M-03 & M-04)**：
    - Settings 面板 Display & Coolwalk Layout 分组新增 `Motion Blur` 原生分段控制器。
    - 主页 Display 快捷磁贴实时展示档位（`Blur: Subtle/Balanced/Strong`），点击磁贴支持底部快捷热切换。
