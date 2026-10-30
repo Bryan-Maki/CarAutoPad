@@ -358,6 +358,11 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
 
         renderer.enterForeground()
         XCTAssertFalse(renderer.isInBackground)
-        XCTAssertNotNil(renderer.displayLayer.controlTimebase)
+        XCTAssertNil(renderer.displayLayer.controlTimebase)
+
+        renderer.enterBackground()
+        XCTAssertTrue(renderer.isInBackground)
+        renderer.reset()
+        XCTAssertFalse(renderer.isInBackground)
     }
 }
