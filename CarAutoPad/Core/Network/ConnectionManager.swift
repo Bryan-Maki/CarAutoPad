@@ -216,6 +216,9 @@ class ConnectionManager {
     }
 
     func connect(to device: DiscoveredDevice, userInitiated: Bool = true) {
+        foregroundWatchdogWorkItem?.cancel()
+        foregroundWatchdogWorkItem = nil
+        backgroundEnteredUptime = 0
         AppLog.i("ConnectionManager: connect(to:) called with device: \(device.displayName), userInitiated: \(userInitiated)", tag: "ConnectionManager")
         hasHandledDisconnectForCurrentAttempt = false
         if userInitiated {
@@ -290,32 +293,32 @@ class ConnectionManager {
         autoReconnect.cancel()
         foregroundWatchdogWorkItem?.cancel()
         foregroundWatchdogWorkItem = nil
+        backgroundEnteredUptime = 0
 
+        NowPlayingCoordinator.shared.deactivate()
+        PCMAudioPlayer.shared.stop()
+        microphoneCapture.stop()
+        locationCapture.stop()
+        connectedDevice = nil
+        state = .disconnected
+        updateStatus("Ready to connect")
+
+        var shouldDelayClose = false
         if let transport = aapTransport {
             lastSessionDiagnosticLines = transport.videoDiagnosticLines() + transport.teardownDiagnosticLines()
-            if (transport.state == .running || transport.state == .binding || transport.state == .authenticatingComplete) {
+            if transport.state == .running || transport.state == .binding || transport.state == .authenticatingComplete {
                 transport.send(message: .userSelectionByebyeRequest)
+                shouldDelayClose = true
             }
         }
 
-        TeardownGuard.runThenClose(
-            teardown: { [weak self] in
-                guard let self = self else { return }
-                NowPlayingCoordinator.shared.deactivate()
-                PCMAudioPlayer.shared.stop()
-                self.microphoneCapture.stop()
-                self.locationCapture.stop()
-                self.connectedDevice = nil
-                self.state = .disconnected
-                self.updateStatus("Ready to connect")
-            },
-            close: { [weak self] in
+        if shouldDelayClose {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 self?.activeConnection?.disconnect()
-            },
-            onError: { phase, error in
-                AppLog.e("ConnectionManager: disconnect error during \(phase): \(error.localizedDescription)", tag: "ConnectionManager")
             }
-        )
+        } else {
+            activeConnection?.disconnect()
+        }
     }
 
     public func reconnectForSettingsChange() {
@@ -324,7 +327,7 @@ class ConnectionManager {
         let port = device.port
         AppLog.i("ConnectionManager: Reconnecting for settings change to \(ip):\(port)", tag: "ConnectionManager")
         disconnect()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.connect(to: ip, port: port)
         }
     }
@@ -347,6 +350,9 @@ class ConnectionManager {
     }
 
     public func handleWillEnterForeground() {
+        guard backgroundEnteredUptime > 0 else { return }
+        backgroundEnteredUptime = 0
+
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.delegate?.connectionManagerWillEnterForeground(self)

@@ -278,11 +278,17 @@ class AapTransport {
         delayedVersionStartWorkItem?.cancel()
         delayedVersionStartWorkItem = nil
         cancelGracefulDisconnect()
+        touchQueueLock.lock()
+        pendingTouchEvents.removeAll()
+        touchQueueLock.unlock()
         setState(.idle)
     }
 
     func startHandshake() {
         AppLog.i("Starting handshake", tag: "AapTransport")
+        touchQueueLock.lock()
+        pendingTouchEvents.removeAll()
+        touchQueueLock.unlock()
         bufferLock.lock()
         receiveBuffer.removeAll()
         encryptedReceiveBuffer.removeAll()
@@ -703,6 +709,12 @@ class AapTransport {
     }
 
     private func flushPendingTouchEventsOnProcessingQueue() {
+        guard state == .running, isVideoChannelStarted else {
+            touchQueueLock.lock()
+            pendingTouchEvents.removeAll()
+            touchQueueLock.unlock()
+            return
+        }
         touchQueueLock.lock()
         guard !pendingTouchEvents.isEmpty else {
             touchQueueLock.unlock()
@@ -752,6 +764,7 @@ class AapTransport {
     }
 
     func sendTouchEvent(pointers: [(id: Int, x: Int, y: Int)], action: TouchAction, actionIndex: Int, touchTimestamp: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        guard state == .running, isVideoChannelStarted else { return }
         guard !pointers.isEmpty else { return }
 
         let protoAction: ProtoTouchEvent.PointerAction
@@ -1492,14 +1505,8 @@ class AapTransport {
             sendNavFocusNotification(on: chan)
 
         case 0x0018:
-            let requestedMode = ProtoWire.extractFirstVarint(from: message.payload, fieldNumber: 2) ?? 1
-            if requestedMode == 2 || requestedMode == 3 {
-                AppLog.i("Native exit requested on control channel (mode=\(requestedMode))", tag: "AapTransport")
-                sendVideoFocusNotification(on: Channel.ID_VID, gain: false, unsolicited: false, reason: "control-video-focus-exit")
-                delegate?.aapTransportDidRequestExit(self)
-            } else if requestedMode == 1 || requestedMode == 4 {
-                sendVideoFocusNotification(on: Channel.ID_VID, gain: true, unsolicited: false, reason: "control-video-focus-request")
-            }
+            AppLog.d("Call availability status (0x0018) received on control channel", tag: "AapTransport")
+            break
 
         case AapMessageType.BYEBYE_REQUEST.rawValue:
             let reason = ProtoWire.extractFirstVarint(from: message.payload, fieldNumber: 1)
@@ -1562,22 +1569,29 @@ class AapTransport {
     private func sendServiceDiscoveryResponse() {
         let isRhd = ProjectionSettings.driverPosition == .right
         let useGps = ProjectionSettings.gpsSource == .ipad
+        let useMic = ProjectionSettings.effectiveUseIpadMic
+        let effectiveDpi = ProjectionSettings.effectiveDpi
+        let audioSink = ProjectionSettings.isAudioSinkEnabled
+        let screenConfig = HeadUnitScreenConfig.shared
+        let resWidth = screenConfig.negotiatedWidth
+        let resHeight = screenConfig.negotiatedHeight
+        let fpsLimit = ProjectionSettings.effectiveFpsLimit.rawValue
         let message = AapServiceDiscoveryResponseMessage.make(
-            screenConfig: HeadUnitScreenConfig.shared,
-            fpsLimit: ProjectionSettings.effectiveFpsLimit.rawValue,
+            screenConfig: screenConfig,
+            fpsLimit: fpsLimit,
             rightHandDrive: isRhd,
             useGps: useGps,
-            useMic: ProjectionSettings.effectiveUseIpadMic,
-            requestedDpi: ProjectionSettings.effectiveDpi,
-            enableAudioSink: ProjectionSettings.isAudioSinkEnabled
+            useMic: useMic,
+            requestedDpi: effectiveDpi,
+            enableAudioSink: audioSink
         )
         send(message: message)
         AppLog.category(
             .connectionHandshake,
-            "[CONN] Sent ServiceDiscoveryResponse (\(message.size) bytes, res=\(HeadUnitScreenConfig.shared.negotiatedWidth)x\(HeadUnitScreenConfig.shared.negotiatedHeight), dpi=\(ProjectionSettings.effectiveDpi), useMic=\(ProjectionSettings.effectiveUseIpadMic), audioSink=\(ProjectionSettings.isAudioSinkEnabled))",
+            "[CONN] Sent ServiceDiscoveryResponse (\(message.size) bytes, res=\(resWidth)x\(resHeight), dpi=\(effectiveDpi), useMic=\(useMic), audioSink=\(audioSink))",
             tag: "AapTransport"
         )
-        AppLog.i("Sent typed ServiceDiscoveryResponse (\(message.size) bytes, useMic=\(ProjectionSettings.effectiveUseIpadMic))", tag: "AapTransport")
+        AppLog.i("Sent typed ServiceDiscoveryResponse (\(message.size) bytes, useMic=\(useMic))", tag: "AapTransport")
     }
 
     private func sendChannelOpenResponse(on channel: UInt8) {
@@ -1665,12 +1679,12 @@ class AapTransport {
     }
 
     public func performVideoFocusCycle(reason: String) {
+        lastFocusCycleAtMs = Int64(uptimeMs())
         guard focusCycleLever.tryClaim() else {
             AppLog.i("Focus cycle already in flight, skipping redundant cycle", tag: "AapTransport")
             return
         }
         focusCyclesUsedThisSession += 1
-        lastFocusCycleAtMs = Int64(uptimeMs())
         AppLog.category(.protocolControl, "[PROTO] Initiating VideoFocus cycle (reason: \(reason), cycle #\(focusCyclesUsedThisSession))", tag: "AapTransport")
         AppLog.i("Initiating VideoFocus release/regain cycle (reason: \(reason), cycle #\(focusCyclesUsedThisSession))", tag: "AapTransport")
         sendVideoFocusNotification(on: Channel.ID_VID, gain: false, reason: "cycle-release-\(reason)")
@@ -1717,7 +1731,7 @@ class AapTransport {
 
     public func handleWillEnterForeground() {
         processingQueue.async { [weak self] in
-            guard let self = self, self.state == .running else { return }
+            guard let self = self, self.state == .running, self.isVideoChannelStarted else { return }
             self.videoAssemblyBuffer.removeAll(keepingCapacity: true)
             self.videoFirstFragmentAtMs = 0
             self.sendPingRequest()
@@ -2007,10 +2021,17 @@ enum ProtoWire {
 
         case 0x8007:
             let requestedMode = ProtoWire.extractFirstVarint(from: message.payload, fieldNumber: 2) ?? 1
+            let nowMs = Int64(uptimeMs())
+            let isWithinFocusCycle = (lastFocusCycleAtMs > 0 && (nowMs - lastFocusCycleAtMs) < 3000)
             if requestedMode == 2 || requestedMode == 3 {
-                AppLog.i("Native exit requested via VIDEO_FOCUS_REQUEST (mode=\(requestedMode))", tag: "AapTransport")
-                sendVideoFocusNotification(on: Channel.ID_VID, gain: false, unsolicited: false, reason: "video-focus-exit")
-                delegate?.aapTransportDidRequestExit(self)
+                if isWithinFocusCycle {
+                    AppLog.i("Ignoring VIDEO_FOCUS_REQUEST mode=\(requestedMode) during active focus cycle; reclaiming focus", tag: "AapTransport")
+                    sendVideoFocusNotification(on: message.channelUInt8, gain: true, unsolicited: false, reason: "focus-cycle-reclaim")
+                } else {
+                    AppLog.i("Native exit requested via VIDEO_FOCUS_REQUEST (mode=\(requestedMode))", tag: "AapTransport")
+                    sendVideoFocusNotification(on: Channel.ID_VID, gain: false, unsolicited: false, reason: "video-focus-exit")
+                    delegate?.aapTransportDidRequestExit(self)
+                }
             } else if requestedMode == 1 || requestedMode == 4 {
                 sendVideoFocusNotification(on: message.channelUInt8, gain: true, unsolicited: false, reason: "video-focus-request")
             }

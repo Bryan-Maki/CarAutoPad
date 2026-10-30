@@ -194,25 +194,6 @@ public class H264VideoRendererView: UIView {
         commonInit()
     }
 
-    private func setupOrSyncControlTimebase() {
-        let now = CMClockGetTime(CMClockGetHostTimeClock())
-        if let existing = displayLayer.controlTimebase {
-            CMTimebaseSetTime(existing, time: now)
-            CMTimebaseSetRate(existing, rate: 1.0)
-        } else {
-            var timebase: CMTimebase?
-            if CMTimebaseCreateWithSourceClock(
-                allocator: kCFAllocatorDefault,
-                sourceClock: CMClockGetHostTimeClock(),
-                timebaseOut: &timebase
-            ) == noErr, let tb = timebase {
-                CMTimebaseSetTime(tb, time: now)
-                CMTimebaseSetRate(tb, rate: 1.0)
-                displayLayer.controlTimebase = tb
-            }
-        }
-    }
-
     private func commonInit() {
         backgroundColor = .black
         clipsToBounds = true
@@ -222,7 +203,6 @@ public class H264VideoRendererView: UIView {
         activeClipView.isUserInteractionEnabled = false
         addSubview(activeClipView)
         displayLayer.videoGravity = .resize
-        setupOrSyncControlTimebase()
         activeClipView.layer.addSublayer(displayLayer)
         applyGeometry()
     }
@@ -330,6 +310,8 @@ public class H264VideoRendererView: UIView {
     }
 
     public func reset() {
+        isInBackground = false
+
         diagnosticsLock.lock()
         diagnostics = RendererDiagnostics()
         diagnosticsLock.unlock()
@@ -364,13 +346,11 @@ public class H264VideoRendererView: UIView {
         if Thread.isMainThread {
             notReadyStreak = 0
             displayLayer.flushAndRemoveImage()
-            setupOrSyncControlTimebase()
         } else {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.notReadyStreak = 0
                 self.displayLayer.flushAndRemoveImage()
-                self.setupOrSyncControlTimebase()
             }
         }
     }
@@ -412,12 +392,9 @@ public class H264VideoRendererView: UIView {
 
         if Thread.isMainThread {
             displayLayer.flushAndRemoveImage()
-            setupOrSyncControlTimebase()
         } else {
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.displayLayer.flushAndRemoveImage()
-                self.setupOrSyncControlTimebase()
+                self?.displayLayer.flushAndRemoveImage()
             }
         }
     }
@@ -1044,11 +1021,10 @@ public class H264VideoRendererView: UIView {
             sampleBufferOut: &sampleBuffer
         )
         guard sampleStatus == noErr, let sampleBuffer else { return nil }
-        if decodedFrameCount == 0,
-           let attachments = CMSampleBufferGetSampleAttachmentsArray(
-               sampleBuffer,
-               createIfNecessary: true
-           ), CFArrayGetCount(attachments) > 0 {
+        if let attachments = CMSampleBufferGetSampleAttachmentsArray(
+            sampleBuffer,
+            createIfNecessary: true
+        ), CFArrayGetCount(attachments) > 0 {
             let dictionary = unsafeBitCast(
                 CFArrayGetValueAtIndex(attachments, 0),
                 to: CFMutableDictionary.self

@@ -352,6 +352,64 @@ final class Phase5SystemIntegrationTests: XCTestCase {
         XCTAssertTrue(delegate.exitRequested, "Native video focus request (mode=2) must trigger aapTransportDidRequestExit")
     }
 
+    func testCallAvailability0x0018DoesNotTriggerExit() {
+        final class TestExitDelegate: AapTransportDelegate {
+            var exitRequested = false
+            func aapTransportDidRequestExit(_ transport: AapTransport) {
+                exitRequested = true
+            }
+        }
+
+        final class DummyConnection: ByteStreamConnection {
+            weak var delegate: ByteStreamConnectionDelegate?
+            var isConnected: Bool = true
+            func send(_ data: Data, completion: ((Error?) -> Void)?) { completion?(nil) }
+            func disconnect() { isConnected = false }
+        }
+
+        let connection = DummyConnection()
+        let transport = AapTransport(connection: connection, handshakeProfile: .network)
+        let delegate = TestExitDelegate()
+        transport.delegate = delegate
+
+        var payload = Data()
+        payload.append(contentsOf: [0x10, 0x02])
+        let msg = AapMessage(channel: Channel.ID_CTR, flags: 0, type: 0x0018, payload: payload)
+
+        transport.handleMessage(msg)
+        XCTAssertFalse(delegate.exitRequested, "Call availability status (0x0018) on control channel must not trigger exit")
+    }
+
+    func testVideoFocusCycleProtectsAgainst0x8007Exit() {
+        final class TestExitDelegate: AapTransportDelegate {
+            var exitRequested = false
+            func aapTransportDidRequestExit(_ transport: AapTransport) {
+                exitRequested = true
+            }
+        }
+
+        final class DummyConnection: ByteStreamConnection {
+            weak var delegate: ByteStreamConnectionDelegate?
+            var isConnected: Bool = true
+            func send(_ data: Data, completion: ((Error?) -> Void)?) { completion?(nil) }
+            func disconnect() { isConnected = false }
+        }
+
+        let connection = DummyConnection()
+        let transport = AapTransport(connection: connection, handshakeProfile: .network)
+        let delegate = TestExitDelegate()
+        transport.delegate = delegate
+
+        transport.performVideoFocusCycle(reason: "test-cycle")
+
+        var payload = Data()
+        payload.append(contentsOf: [0x10, 0x02])
+        let msg = AapMessage(channel: Channel.ID_VID, flags: 0, type: 0x8007, payload: payload)
+
+        transport.handleMessage(msg)
+        XCTAssertFalse(delegate.exitRequested, "0x8007 received within 3000ms focus cycle must not trigger exit")
+    }
+
     func testCustomDpiOverridesDefaultModelDpiInServiceDiscovery() {
         let config = HeadUnitScreenConfig.shared
         let prevOrientation = ProjectionSettings.orientation

@@ -627,9 +627,6 @@ final class MainViewController: UIViewController {
         touchOverlayView.translatesAutoresizingMaskIntoConstraints = false
         performanceOverlayView.translatesAutoresizingMaskIntoConstraints = false
 
-        touchOverlayView.onTouch = { [weak self] pointers, action, actionIndex in
-            self?.connectionManager.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex)
-        }
         touchOverlayView.onTouchWithTimestamp = { [weak self] pointers, action, actionIndex, timestamp in
             self?.connectionManager.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex, touchTimestamp: timestamp)
         }
