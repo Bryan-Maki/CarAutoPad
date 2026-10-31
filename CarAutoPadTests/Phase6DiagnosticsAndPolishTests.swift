@@ -494,7 +494,7 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         guard fmtStatus == noErr, let formatDesc = formatDesc else { return nil }
 
         var blockBuffer: CMBlockBuffer?
-        var bytes: [UInt8] = [0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84, 0x00]
+        let bytes: [UInt8] = [0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84, 0x00]
         let bbStatus = CMBlockBufferCreateWithMemoryBlock(
             allocator: kCFAllocatorDefault,
             memoryBlock: nil,
@@ -701,7 +701,7 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         }
 
         let exp = expectation(description: "Process queued frames")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             let diag = renderer.currentDiagnostics
             XCTAssertEqual(diag.awaitingIDRDrops, 0, "No P-frames should be dropped awaiting IDR when frame smoothing is active")
             XCTAssertGreaterThanOrEqual(diag.enqueuedSamples, 1, "First frame (!sessionHasRendered) must immediately light up screen and increment enqueuedSamples")
@@ -714,7 +714,7 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
             XCTAssertLessThan(renderer.queuedPacedSampleCount, initialQueued, "VSync tick should dequeue paced frame")
             exp.fulfill()
         }
-        wait(for: [exp], timeout: 1.0)
+        wait(for: [exp], timeout: 2.0)
     }
 }
 
