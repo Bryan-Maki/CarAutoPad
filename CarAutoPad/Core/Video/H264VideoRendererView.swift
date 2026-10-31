@@ -998,7 +998,7 @@ public class H264VideoRendererView: UIView {
         }
     }
 
-    @objc private func handleVSyncTick(_ link: CADisplayLink) {
+    @objc fileprivate func handleVSyncTick(_ link: CADisplayLink) {
         processVSyncTick()
     }
 
