@@ -997,7 +997,7 @@ final class MainViewController: UIViewController {
         let fps = ProjectionSettings.fpsLimit.title
         var displayValue = "\(res) • \(fps)"
         if ProjectionSettings.motionBlurMode != .off {
-            displayValue += " • Blur: \(ProjectionSettings.motionBlurMode.shortTitle)"
+            displayValue += " • Smooth: \(ProjectionSettings.motionBlurMode.shortTitle)"
         }
         displayTile?.value = displayValue
 
@@ -1346,12 +1346,9 @@ final class MainViewController: UIViewController {
             })
         }
 
-        let blurOptions: [(title: String, mode: MotionBlurMode)] = [
-            ("Motion Blur: Off", .off),
-            ("Motion Blur: Subtle", .light),
-            ("Motion Blur: Balanced", .medium),
-            ("Motion Blur: Strong", .strong)
-        ]
+        let blurOptions: [(title: String, mode: MotionBlurMode)] = MotionBlurMode.allCases.map {
+            ("Frame Smoothing: \($0.title)", $0)
+        }
         for item in blurOptions {
             let isCurrent = (ProjectionSettings.motionBlurMode == item.mode)
             let prefix = isCurrent ? "✓ " : ""

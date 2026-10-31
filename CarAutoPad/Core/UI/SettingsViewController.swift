@@ -273,7 +273,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 6:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Motion Blur"
+            cell.textLabel?.text = "Frame Smoothing"
             let seg = UISegmentedControl(items: ["Off", "Subtle", "Balanced", "Strong"])
             seg.selectedSegmentIndex = ProjectionSettings.motionBlurMode.rawValue
             seg.addAction(UIAction { [weak self] _ in

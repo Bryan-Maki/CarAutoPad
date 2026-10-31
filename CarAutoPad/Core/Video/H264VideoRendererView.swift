@@ -54,16 +54,43 @@ public class H264VideoRendererView: UIView {
     private var lastNotifiedVideoSize: CGSize = .zero
 
     public let displayLayer = AVSampleBufferDisplayLayer()
-    public let motionBlurTrailLayer = AVSampleBufferDisplayLayer()
+
     public var motionBlurMode: MotionBlurMode = ProjectionSettings.motionBlurMode {
         didSet {
             guard motionBlurMode != oldValue else { return }
-            applyMotionBlurModeChange(from: oldValue, to: motionBlurMode)
+            applySmoothingModeChange(to: motionBlurMode)
         }
     }
-    private var previousSampleBuffer: CMSampleBuffer?
-    private var trailLayerHasDecodedKeyframe = false
-    private var trailSettleWorkItem: DispatchWorkItem?
+
+    private struct PacedSampleEntry {
+        let sampleBuffer: CMSampleBuffer
+        let ptsUs: Int64
+        let isKeyframe: Bool
+        let parseMs: Double
+        let frameBytes: Int
+    }
+
+    private let pacedQueueLock = NSLock()
+    private var pacedSampleQueue: [PacedSampleEntry] = []
+    private var displayLink: CADisplayLink?
+    private var displayLinkProxy: DisplayLinkTargetProxy?
+    private var lastVSyncPresentUptime: TimeInterval = 0
+
+    public var queuedPacedSampleCount: Int {
+        pacedQueueLock.lock()
+        defer { pacedQueueLock.unlock() }
+        return pacedSampleQueue.count
+    }
+
+    public var isDisplayLinkActive: Bool {
+        return displayLink != nil && !(displayLink?.isPaused ?? true)
+    }
+
+    deinit {
+        displayLink?.invalidate()
+        displayLink = nil
+        displayLinkProxy = nil
+    }
 
     public private(set) var pinnedCodec: VideoCodecType?
 
@@ -213,12 +240,11 @@ public class H264VideoRendererView: UIView {
         activeClipView.isUserInteractionEnabled = false
         addSubview(activeClipView)
         displayLayer.videoGravity = .resize
-        motionBlurTrailLayer.videoGravity = .resize
-        motionBlurTrailLayer.opacity = 0.0
-        motionBlurTrailLayer.isHidden = (motionBlurMode == .off)
         activeClipView.layer.addSublayer(displayLayer)
-        activeClipView.layer.addSublayer(motionBlurTrailLayer)
         applyGeometry()
+        if motionBlurMode != .off {
+            ensureDisplayLinkStarted()
+        }
     }
 
     override public func layoutSubviews() {
@@ -320,36 +346,30 @@ public class H264VideoRendererView: UIView {
             }
         }
 
-        motionBlurTrailLayer.videoGravity = displayLayer.videoGravity
-        motionBlurTrailLayer.frame = displayLayer.frame
-
         CATransaction.commit()
     }
 
-    private func applyMotionBlurModeChange(from oldValue: MotionBlurMode, to newValue: MotionBlurMode) {
-        processQueue.async { [weak self] in
-            guard let self = self else { return }
-            self.trailSettleWorkItem?.cancel()
-            self.trailSettleWorkItem = nil
-            self.previousSampleBuffer = nil
-            self.trailLayerHasDecodedKeyframe = false
+    private func applySmoothingModeChange(to newValue: MotionBlurMode) {
+        if newValue == .off {
+            stopDisplayLink()
+            var remaining: [PacedSampleEntry] = []
+            pacedQueueLock.lock()
+            remaining = pacedSampleQueue
+            pacedSampleQueue.removeAll()
+            lastVSyncPresentUptime = 0
+            pacedQueueLock.unlock()
 
-            if newValue == .off {
-                DispatchQueue.main.async { [weak self] in
+            if !remaining.isEmpty {
+                processQueue.async { [weak self] in
                     guard let self = self else { return }
-                    self.motionBlurTrailLayer.opacity = 0.0
-                    self.motionBlurTrailLayer.isHidden = true
-                    self.motionBlurTrailLayer.flushAndRemoveImage()
+                    for entry in remaining {
+                        self.submitSampleEntry(entry, displayImmediately: true, doNotDisplay: false)
+                    }
                 }
-            } else {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    self.motionBlurTrailLayer.isHidden = false
-                    self.motionBlurTrailLayer.opacity = 0.0
-                    self.motionBlurTrailLayer.flushAndRemoveImage()
-                }
-                self.onKeyframeRequested?()
             }
+        } else {
+            ensureDisplayLinkStarted()
+            onKeyframeRequested?()
         }
     }
 
@@ -368,6 +388,12 @@ public class H264VideoRendererView: UIView {
         keyframeRepairTracker.reset()
         latencyMonitor.reset()
 
+        pacedQueueLock.lock()
+        pacedSampleQueue.removeAll()
+        lastVSyncPresentUptime = 0
+        pacedQueueLock.unlock()
+        pauseDisplayLink()
+
         processQueue.async { [weak self] in
             guard let self = self else { return }
             self.concealmentState = .armed
@@ -385,24 +411,16 @@ public class H264VideoRendererView: UIView {
             self.hasDecodedKeyframe = false
             self.pinnedCodec = nil
             self.lastNotifiedVideoSize = .zero
-            self.previousSampleBuffer = nil
-            self.trailLayerHasDecodedKeyframe = false
-            self.trailSettleWorkItem?.cancel()
-            self.trailSettleWorkItem = nil
         }
 
         if Thread.isMainThread {
             notReadyStreak = 0
             displayLayer.flushAndRemoveImage()
-            motionBlurTrailLayer.flushAndRemoveImage()
-            motionBlurTrailLayer.opacity = 0.0
         } else {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.notReadyStreak = 0
                 self.displayLayer.flushAndRemoveImage()
-                self.motionBlurTrailLayer.flushAndRemoveImage()
-                self.motionBlurTrailLayer.opacity = 0.0
             }
         }
     }
@@ -414,27 +432,24 @@ public class H264VideoRendererView: UIView {
         isProcessingFrame = false
         frameQueueLock.unlock()
 
+        pacedQueueLock.lock()
+        pacedSampleQueue.removeAll()
+        lastVSyncPresentUptime = 0
+        pacedQueueLock.unlock()
+        pauseDisplayLink()
+
         processQueue.async { [weak self] in
             guard let self = self else { return }
             self.hasDecodedKeyframe = false
-            self.trailLayerHasDecodedKeyframe = false
-            self.previousSampleBuffer = nil
-            self.trailSettleWorkItem?.cancel()
-            self.trailSettleWorkItem = nil
             self.notReadyStreak = 0
             self.framePacer.reset()
         }
 
         if Thread.isMainThread {
             displayLayer.flushAndRemoveImage()
-            motionBlurTrailLayer.flushAndRemoveImage()
-            motionBlurTrailLayer.opacity = 0.0
         } else {
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.displayLayer.flushAndRemoveImage()
-                self.motionBlurTrailLayer.flushAndRemoveImage()
-                self.motionBlurTrailLayer.opacity = 0.0
+                self?.displayLayer.flushAndRemoveImage()
             }
         }
     }
@@ -442,13 +457,17 @@ public class H264VideoRendererView: UIView {
     public func enterForeground() {
         isInBackground = false
 
+        pacedQueueLock.lock()
+        pacedSampleQueue.removeAll()
+        lastVSyncPresentUptime = 0
+        pacedQueueLock.unlock()
+        if motionBlurMode != .off {
+            resumeDisplayLink()
+        }
+
         processQueue.async { [weak self] in
             guard let self = self else { return }
             self.hasDecodedKeyframe = false
-            self.trailLayerHasDecodedKeyframe = false
-            self.previousSampleBuffer = nil
-            self.trailSettleWorkItem?.cancel()
-            self.trailSettleWorkItem = nil
             self.notReadyStreak = 0
             self.framePacer.reset()
             self.lastRenderUptime = 0
@@ -457,14 +476,9 @@ public class H264VideoRendererView: UIView {
 
         if Thread.isMainThread {
             displayLayer.flushAndRemoveImage()
-            motionBlurTrailLayer.flushAndRemoveImage()
-            motionBlurTrailLayer.opacity = 0.0
         } else {
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.displayLayer.flushAndRemoveImage()
-                self.motionBlurTrailLayer.flushAndRemoveImage()
-                self.motionBlurTrailLayer.opacity = 0.0
+                self?.displayLayer.flushAndRemoveImage()
             }
         }
     }
@@ -784,6 +798,62 @@ public class H264VideoRendererView: UIView {
         let elapsedUs = Int64((CFAbsoluteTimeGetCurrent() - startTime) * 1_000_000)
         latencyMonitor.onFrameDecoded(latencyUs: elapsedUs)
 
+        let entry = PacedSampleEntry(
+            sampleBuffer: sampleBuffer,
+            ptsUs: currentPts,
+            isKeyframe: isKeyframe,
+            parseMs: parseMs,
+            frameBytes: frame.count
+        )
+
+        if motionBlurMode == .off {
+            submitSampleEntry(entry, displayImmediately: true, doNotDisplay: false)
+        } else {
+            pacedQueueLock.lock()
+            pacedSampleQueue.append(entry)
+            pacedQueueLock.unlock()
+            ensureDisplayLinkStarted()
+        }
+    }
+
+    private func configureSampleAttachments(
+        _ sampleBuffer: CMSampleBuffer,
+        displayImmediately: Bool,
+        doNotDisplay: Bool
+    ) {
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
+            sampleBuffer,
+            createIfNecessary: true
+        ), CFArrayGetCount(attachments) > 0 else { return }
+        let dict = unsafeBitCast(
+            CFArrayGetValueAtIndex(attachments, 0),
+            to: CFMutableDictionary.self
+        )
+        CFDictionarySetValue(
+            dict,
+            Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+            Unmanaged.passUnretained(displayImmediately ? kCFBooleanTrue : kCFBooleanFalse).toOpaque()
+        )
+        CFDictionarySetValue(
+            dict,
+            Unmanaged.passUnretained(kCMSampleAttachmentKey_DoNotDisplay).toOpaque(),
+            Unmanaged.passUnretained(doNotDisplay ? kCFBooleanTrue : kCFBooleanFalse).toOpaque()
+        )
+    }
+
+    private func submitSampleEntry(
+        _ entry: PacedSampleEntry,
+        displayImmediately: Bool,
+        doNotDisplay: Bool
+    ) {
+        guard !isInBackground else { return }
+
+        configureSampleAttachments(
+            entry.sampleBuffer,
+            displayImmediately: displayImmediately,
+            doNotDisplay: doNotDisplay
+        )
+
         if displayLayer.status == .failed {
             updateDiagnostics { $0.layerFailures += 1 }
             recordDecodeFailure(reason: "AVSampleBufferDisplayLayer status is failed")
@@ -836,144 +906,216 @@ public class H264VideoRendererView: UIView {
         hasDecodedKeyframe = true
         notReadyStreak = 0
         consecutiveDecodeFailures = 0
-        displayLayer.enqueue(sampleBuffer)
+        displayLayer.enqueue(entry.sampleBuffer)
 
-        let activeBlurMode = motionBlurMode
-        if activeBlurMode != .off {
-            if motionBlurTrailLayer.status == .failed {
-                trailLayerHasDecodedKeyframe = false
-                previousSampleBuffer = nil
-                DispatchQueue.main.async { [weak self] in
-                    self?.motionBlurTrailLayer.flushAndRemoveImage()
+        if !doNotDisplay {
+            let nowUptime = ProcessInfo.processInfo.systemUptime
+            let renderGapMs = lastRenderUptime > 0 ? (nowUptime - lastRenderUptime) * 1000.0 : 0
+            lastRenderUptime = nowUptime
+
+            frameQueueLock.lock()
+            let pendingQ = pendingFrames.count
+            frameQueueLock.unlock()
+
+            let ptsLeadMs = lastCalculatedPtsLeadMs
+
+            if sessionHasRendered {
+                if (renderGapMs > 45.0 && renderGapMs < 2000.0) || (entry.parseMs + waitDurationMs > 12.0) {
+                    AppLog.category(
+                        .videoTelemetry,
+                        "[VIDEO-HITCH] frame=#\(decodedFrameCount) renderGap=\(String(format: "%.1f", renderGapMs))ms netGap=\(String(format: "%.1f", renderGapMs))ms bytes=\(entry.frameBytes) isIDR=\(entry.isKeyframe) parseMs=\(String(format: "%.2f", entry.parseMs))ms layerWaitMs=\(String(format: "%.2f", waitDurationMs))ms pendingQ=\(pendingQ) ptsLead=\(String(format: "%.1f", ptsLeadMs))ms",
+                        tag: "VideoRenderer"
+                    )
                 }
             }
 
-            if isKeyframe {
-                trailLayerHasDecodedKeyframe = true
-                previousSampleBuffer = sampleBuffer
-                motionBlurTrailLayer.enqueue(sampleBuffer)
-                DispatchQueue.main.async { [weak self] in
-                    self?.motionBlurTrailLayer.opacity = 0.0
-                }
-            } else if trailLayerHasDecodedKeyframe {
-                trailSettleWorkItem?.cancel()
-                if let prevBuf = previousSampleBuffer {
-                    motionBlurTrailLayer.enqueue(prevBuf)
-                }
-                previousSampleBuffer = sampleBuffer
-
-                let targetOpacity = activeBlurMode.trailOpacity
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    CATransaction.begin()
-                    CATransaction.setDisableActions(true)
-                    self.motionBlurTrailLayer.opacity = targetOpacity
-                    CATransaction.commit()
-                }
-
-                let is30Fps = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
-                let fps = is30Fps ? 30.0 : 60.0
-                let frameInterval = 1.0 / fps
-                let settleDelay = 1.6 * frameInterval
-                let settleItem = DispatchWorkItem { [weak self] in
-                    guard let self = self, self.motionBlurMode != .off, !self.isInBackground else { return }
-                    self.motionBlurTrailLayer.enqueue(sampleBuffer)
-                    CATransaction.begin()
-                    CATransaction.setAnimationDuration(0.1)
-                    self.motionBlurTrailLayer.opacity = 0.0
-                    CATransaction.commit()
-                }
-                trailSettleWorkItem = settleItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + settleDelay, execute: settleItem)
+            enqueuedFrames1s += 1
+            parseDurationMsSum1s += entry.parseMs
+            if entry.parseMs > maxParseMs1s { maxParseMs1s = entry.parseMs }
+            if waitCount > 0 {
+                layerWaitCount1s += 1
+                layerWaitDurationMsSum1s += waitDurationMs
             }
-        }
+            ptsLeadMsSum1s += ptsLeadMs
+            if renderGapMs > renderGapMaxMs1s { renderGapMaxMs1s = renderGapMs }
+            if pendingQ > qMax1s { qMax1s = pendingQ }
 
-        let nowUptime = ProcessInfo.processInfo.systemUptime
-        let renderGapMs = lastRenderUptime > 0 ? (nowUptime - lastRenderUptime) * 1000.0 : 0
-        lastRenderUptime = nowUptime
+            if lastTelemetryUptime == 0 {
+                lastTelemetryUptime = nowUptime
+            } else if nowUptime - lastTelemetryUptime >= 1.0 {
+                let elapsed = nowUptime - lastTelemetryUptime
+                let enqFps = Int((Double(enqueuedFrames1s) / elapsed).rounded())
+                let avgParse = enqueuedFrames1s > 0 ? String(format: "%.2f", parseDurationMsSum1s / Double(enqueuedFrames1s)) : "0.00"
+                let maxParse = String(format: "%.2f", maxParseMs1s)
+                let avgWaitMs = layerWaitCount1s > 0 ? String(format: "%.1f", layerWaitDurationMsSum1s) : "0.0"
+                let avgPtsLead = enqueuedFrames1s > 0 ? String(format: "%.1f", ptsLeadMsSum1s / Double(enqueuedFrames1s)) : "0.0"
+                let renderGapMax = String(format: "%.1f", renderGapMaxMs1s)
 
-        frameQueueLock.lock()
-        let pendingQ = pendingFrames.count
-        frameQueueLock.unlock()
+                let netStats = onProvideNetStats?() ?? (fps: 0, bytes: 0, maxGapMs: 0.0)
+                let netFps = netStats.fps
+                let mbps = String(format: "%.2f", Double(netStats.bytes * 8) / (elapsed * 1_000_000.0))
+                let netGap = String(format: "%.1f", netStats.maxGapMs)
 
-        let ptsLeadMs = lastCalculatedPtsLeadMs
+                let currentDiag = currentDiagnostics
+                let qDrop = currentDiag.queueDrops - lastReportedQDrops
+                let nrDrop = currentDiag.notReadyDrops - lastReportedNotReadyDrops
+                let idrDrop = currentDiag.awaitingIDRDrops - lastReportedAwaitingIdrDrops
+                lastReportedQDrops = currentDiag.queueDrops
+                lastReportedNotReadyDrops = currentDiag.notReadyDrops
+                lastReportedAwaitingIdrDrops = currentDiag.awaitingIDRDrops
 
-        if sessionHasRendered {
-            if (renderGapMs > 45.0 && renderGapMs < 2000.0) || (parseMs + waitDurationMs > 12.0) {
                 AppLog.category(
                     .videoTelemetry,
-                    "[VIDEO-HITCH] frame=#\(decodedFrameCount) renderGap=\(String(format: "%.1f", renderGapMs))ms netGap=\(String(format: "%.1f", renderGapMs))ms bytes=\(frame.count) isIDR=\(isKeyframe) parseMs=\(String(format: "%.2f", parseMs))ms layerWaitMs=\(String(format: "%.2f", waitDurationMs))ms pendingQ=\(pendingQ) ptsLead=\(String(format: "%.1f", ptsLeadMs))ms",
+                    "[VIDEO-1S] netRx=\(netFps)fps(\(mbps)Mbps) enq=\(enqFps)fps | netGapMax=\(netGap)ms renderGapMax=\(renderGapMax)ms | parseAvg=\(avgParse)ms(max=\(maxParse)ms) | layerWait=\(layerWaitCount1s)(\(avgWaitMs)ms) | ptsLead=\(avgPtsLead)ms | qMax=\(qMax1s) drops(q=\(qDrop),notReady=\(nrDrop),awaitIDR=\(idrDrop))",
                     tag: "VideoRenderer"
                 )
+
+                enqueuedFrames1s = 0
+                parseDurationMsSum1s = 0
+                maxParseMs1s = 0
+                layerWaitCount1s = 0
+                layerWaitDurationMsSum1s = 0
+                ptsLeadMsSum1s = 0
+                renderGapMaxMs1s = 0
+                qMax1s = pendingQ
+                lastTelemetryUptime = nowUptime
+            }
+
+            let nowTime = CACurrentMediaTime()
+            fpsFrameCount += 1
+            if lastFpsTimestamp == 0 {
+                lastFpsTimestamp = nowTime
+            } else if nowTime - lastFpsTimestamp >= 1.0 {
+                currentFps = Int((Double(fpsFrameCount) / (nowTime - lastFpsTimestamp)).rounded())
+                fpsFrameCount = 0
+                lastFpsTimestamp = nowTime
+            }
+            sessionHasRendered = true
+            _ = keyframeRepairTracker.onFrameRendered(ptsUs: entry.ptsUs)
+
+            updateDiagnostics { $0.enqueuedSamples += 1 }
+            onFrameDisplayed?()
+        }
+    }
+
+    @objc private func handleVSyncTick(_ link: CADisplayLink) {
+        processVSyncTick()
+    }
+
+    public func tickVSyncForTesting() {
+        processVSyncTick()
+    }
+
+    private func processVSyncTick() {
+        guard !isInBackground else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+
+        var skippedForReference: [PacedSampleEntry] = []
+        var chosenToDisplay: PacedSampleEntry?
+
+        pacedQueueLock.lock()
+        let count = pacedSampleQueue.count
+        if count > 0 {
+            let maxHold = motionBlurMode.maxBufferedFrames
+            let elapsed = now - lastVSyncPresentUptime
+            let is30Fps = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
+            let minInterval: TimeInterval = is30Fps ? 0.0285 : 0.0142
+
+            if maxHold > 0 && count > maxHold {
+                let dropCount = count - maxHold
+                for _ in 0..<dropCount {
+                    if !pacedSampleQueue.isEmpty {
+                        skippedForReference.append(pacedSampleQueue.removeFirst())
+                    }
+                }
+                if !pacedSampleQueue.isEmpty {
+                    chosenToDisplay = pacedSampleQueue.removeFirst()
+                    lastVSyncPresentUptime = now
+                }
+            } else {
+                let canPresent: Bool
+                if lastVSyncPresentUptime == 0 || elapsed >= minInterval {
+                    canPresent = true
+                } else if !motionBlurMode.enforcesStrictCadence && motionBlurMode == .light && count == 1 && elapsed >= 0.0075 {
+                    canPresent = true
+                } else {
+                    canPresent = false
+                }
+
+                if canPresent && !pacedSampleQueue.isEmpty {
+                    chosenToDisplay = pacedSampleQueue.removeFirst()
+                    lastVSyncPresentUptime = now
+                }
             }
         }
+        pacedQueueLock.unlock()
 
-        enqueuedFrames1s += 1
-        parseDurationMsSum1s += parseMs
-        if parseMs > maxParseMs1s { maxParseMs1s = parseMs }
-        if waitCount > 0 {
-            layerWaitCount1s += 1
-            layerWaitDurationMsSum1s += waitDurationMs
+        guard chosenToDisplay != nil || !skippedForReference.isEmpty else { return }
+
+        processQueue.async { [weak self] in
+            guard let self = self, !self.isInBackground else { return }
+            for skipped in skippedForReference {
+                self.submitSampleEntry(skipped, displayImmediately: false, doNotDisplay: true)
+            }
+            if let displayItem = chosenToDisplay {
+                self.submitSampleEntry(displayItem, displayImmediately: true, doNotDisplay: false)
+            }
         }
-        ptsLeadMsSum1s += ptsLeadMs
-        if renderGapMs > renderGapMaxMs1s { renderGapMaxMs1s = renderGapMs }
-        if pendingQ > qMax1s { qMax1s = pendingQ }
+    }
 
-        if lastTelemetryUptime == 0 {
-            lastTelemetryUptime = nowUptime
-        } else if nowUptime - lastTelemetryUptime >= 1.0 {
-            let elapsed = nowUptime - lastTelemetryUptime
-            let enqFps = Int((Double(enqueuedFrames1s) / elapsed).rounded())
-            let avgParse = enqueuedFrames1s > 0 ? String(format: "%.2f", parseDurationMsSum1s / Double(enqueuedFrames1s)) : "0.00"
-            let maxParse = String(format: "%.2f", maxParseMs1s)
-            let avgWaitMs = layerWaitCount1s > 0 ? String(format: "%.1f", layerWaitDurationMsSum1s) : "0.0"
-            let avgPtsLead = enqueuedFrames1s > 0 ? String(format: "%.1f", ptsLeadMsSum1s / Double(enqueuedFrames1s)) : "0.0"
-            let renderGapMax = String(format: "%.1f", renderGapMaxMs1s)
-
-            let netStats = onProvideNetStats?() ?? (fps: 0, bytes: 0, maxGapMs: 0.0)
-            let netFps = netStats.fps
-            let mbps = String(format: "%.2f", Double(netStats.bytes * 8) / (elapsed * 1_000_000.0))
-            let netGap = String(format: "%.1f", netStats.maxGapMs)
-
-            let currentDiag = currentDiagnostics
-            let qDrop = currentDiag.queueDrops - lastReportedQDrops
-            let nrDrop = currentDiag.notReadyDrops - lastReportedNotReadyDrops
-            let idrDrop = currentDiag.awaitingIDRDrops - lastReportedAwaitingIdrDrops
-            lastReportedQDrops = currentDiag.queueDrops
-            lastReportedNotReadyDrops = currentDiag.notReadyDrops
-            lastReportedAwaitingIdrDrops = currentDiag.awaitingIDRDrops
-
-            AppLog.category(
-                .videoTelemetry,
-                "[VIDEO-1S] netRx=\(netFps)fps(\(mbps)Mbps) enq=\(enqFps)fps | netGapMax=\(netGap)ms renderGapMax=\(renderGapMax)ms | parseAvg=\(avgParse)ms(max=\(maxParse)ms) | layerWait=\(layerWaitCount1s)(\(avgWaitMs)ms) | ptsLead=\(avgPtsLead)ms | qMax=\(qMax1s) drops(q=\(qDrop),notReady=\(nrDrop),awaitIDR=\(idrDrop))",
-                tag: "VideoRenderer"
-            )
-
-            enqueuedFrames1s = 0
-            parseDurationMsSum1s = 0
-            maxParseMs1s = 0
-            layerWaitCount1s = 0
-            layerWaitDurationMsSum1s = 0
-            ptsLeadMsSum1s = 0
-            renderGapMaxMs1s = 0
-            qMax1s = pendingQ
-            lastTelemetryUptime = nowUptime
+    private func ensureDisplayLinkStarted() {
+        guard motionBlurMode != .off, !isInBackground else { return }
+        if Thread.isMainThread {
+            setupDisplayLinkOnMain()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.setupDisplayLinkOnMain()
+            }
         }
+    }
 
-        let nowTime = CACurrentMediaTime()
-        fpsFrameCount += 1
-        if lastFpsTimestamp == 0 {
-            lastFpsTimestamp = nowTime
-        } else if nowTime - lastFpsTimestamp >= 1.0 {
-            currentFps = Int((Double(fpsFrameCount) / (nowTime - lastFpsTimestamp)).rounded())
-            fpsFrameCount = 0
-            lastFpsTimestamp = nowTime
+    private func setupDisplayLinkOnMain() {
+        guard motionBlurMode != .off, !isInBackground else { return }
+        if displayLink == nil {
+            let proxy = DisplayLinkTargetProxy(target: self)
+            self.displayLinkProxy = proxy
+            let link = CADisplayLink(target: proxy, selector: #selector(DisplayLinkTargetProxy.onTick(_:)))
+            if #available(iOS 15.0, *) {
+                link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+            }
+            link.add(to: .main, forMode: .common)
+            self.displayLink = link
         }
-        sessionHasRendered = true
-        _ = keyframeRepairTracker.onFrameRendered(ptsUs: currentPts)
+        displayLink?.isPaused = false
+    }
 
-        updateDiagnostics { $0.enqueuedSamples += 1 }
-        onFrameDisplayed?()
+    private func pauseDisplayLink() {
+        if Thread.isMainThread {
+            displayLink?.isPaused = true
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.displayLink?.isPaused = true
+            }
+        }
+    }
+
+    private func resumeDisplayLink() {
+        guard motionBlurMode != .off, !isInBackground else { return }
+        ensureDisplayLinkStarted()
+    }
+
+    private func stopDisplayLink() {
+        if Thread.isMainThread {
+            displayLink?.invalidate()
+            displayLink = nil
+            displayLinkProxy = nil
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.displayLink?.invalidate()
+                self?.displayLink = nil
+                self?.displayLinkProxy = nil
+            }
+        }
     }
 
     static func detectHevc(from nalUnits: [Data], preference: VideoCodecPreference = ProjectionSettings.videoCodecPreference) -> Bool {
@@ -1174,3 +1316,17 @@ public class H264VideoRendererView: UIView {
         }
     }
 }
+
+private final class DisplayLinkTargetProxy: NSObject {
+    private weak var target: H264VideoRendererView?
+
+    init(target: H264VideoRendererView) {
+        self.target = target
+        super.init()
+    }
+
+    @objc func onTick(_ link: CADisplayLink) {
+        target?.handleVSyncTick(link)
+    }
+}
+

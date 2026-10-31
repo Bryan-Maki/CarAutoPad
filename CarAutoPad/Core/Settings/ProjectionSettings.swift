@@ -119,9 +119,9 @@ public enum MotionBlurMode: Int, CaseIterable {
     public var title: String {
         switch self {
         case .off: return "Off"
-        case .light: return "Subtle (Light)"
-        case .medium: return "Balanced (Medium)"
-        case .strong: return "Strong"
+        case .light: return "Subtle (Low-Latency)"
+        case .medium: return "Balanced (Smooth)"
+        case .strong: return "Strong (Max Pacing)"
         }
     }
 
@@ -134,6 +134,25 @@ public enum MotionBlurMode: Int, CaseIterable {
         }
     }
 
+    /// Maximum queued frames held in VSync de-jitter buffer before DoNotDisplay reference-safe catch-up
+    public var maxBufferedFrames: Int {
+        switch self {
+        case .off: return 0
+        case .light: return 2
+        case .medium: return 3
+        case .strong: return 4
+        }
+    }
+
+    /// Whether single-frame arrivals must wait for the full frame cadence interval
+    public var enforcesStrictCadence: Bool {
+        switch self {
+        case .off, .light: return false
+        case .medium, .strong: return true
+        }
+    }
+
+    /// Kept for backward test compatibility (0.0 since ghosting trail overlay is replaced by VSync pacing)
     public var trailOpacity: Float {
         switch self {
         case .off: return 0.0
@@ -143,6 +162,8 @@ public enum MotionBlurMode: Int, CaseIterable {
         }
     }
 }
+
+public typealias FrameSmoothingMode = MotionBlurMode
 
 public typealias ProjectionVideoResolution = ResolutionPreset
 public typealias ProjectionResolution = ResolutionPreset

@@ -368,20 +368,31 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
 
     func testMotionBlurModeMetadataAndDefaults() {
         XCTAssertEqual(MotionBlurMode.allCases.count, 4)
+        XCTAssertEqual(FrameSmoothingMode.allCases.count, 4)
         XCTAssertEqual(MotionBlurMode.off.rawValue, 0)
         XCTAssertEqual(MotionBlurMode.light.rawValue, 1)
         XCTAssertEqual(MotionBlurMode.medium.rawValue, 2)
         XCTAssertEqual(MotionBlurMode.strong.rawValue, 3)
 
         XCTAssertEqual(MotionBlurMode.off.title, "Off")
-        XCTAssertEqual(MotionBlurMode.light.title, "Subtle (Light)")
-        XCTAssertEqual(MotionBlurMode.medium.title, "Balanced (Medium)")
-        XCTAssertEqual(MotionBlurMode.strong.title, "Strong")
+        XCTAssertEqual(MotionBlurMode.light.title, "Subtle (Low-Latency)")
+        XCTAssertEqual(MotionBlurMode.medium.title, "Balanced (Smooth)")
+        XCTAssertEqual(MotionBlurMode.strong.title, "Strong (Max Pacing)")
 
         XCTAssertEqual(MotionBlurMode.off.shortTitle, "Off")
         XCTAssertEqual(MotionBlurMode.light.shortTitle, "Subtle")
         XCTAssertEqual(MotionBlurMode.medium.shortTitle, "Balanced")
         XCTAssertEqual(MotionBlurMode.strong.shortTitle, "Strong")
+
+        XCTAssertEqual(MotionBlurMode.off.maxBufferedFrames, 0)
+        XCTAssertEqual(MotionBlurMode.light.maxBufferedFrames, 2)
+        XCTAssertEqual(MotionBlurMode.medium.maxBufferedFrames, 3)
+        XCTAssertEqual(MotionBlurMode.strong.maxBufferedFrames, 4)
+
+        XCTAssertFalse(MotionBlurMode.off.enforcesStrictCadence)
+        XCTAssertFalse(MotionBlurMode.light.enforcesStrictCadence)
+        XCTAssertTrue(MotionBlurMode.medium.enforcesStrictCadence)
+        XCTAssertTrue(MotionBlurMode.strong.enforcesStrictCadence)
 
         XCTAssertEqual(MotionBlurMode.off.trailOpacity, 0.0)
         XCTAssertEqual(MotionBlurMode.light.trailOpacity, 0.18, accuracy: 0.001)
@@ -418,11 +429,12 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         XCTAssertEqual(ProjectionSettings.motionBlurMode, .strong)
     }
 
-    func testVideoRendererMotionBlurHotSwitching() {
+    func testVideoRendererFrameSmoothingHotSwitchingAndQueueLifecycle() {
         ProjectionSettings.resetToDefaults()
         let renderer = H264VideoRendererView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
         XCTAssertEqual(renderer.motionBlurMode, .off)
-        XCTAssertTrue(renderer.motionBlurTrailLayer.isHidden)
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
+        XCTAssertFalse(renderer.isDisplayLinkActive)
 
         var keyframeRequested = false
         renderer.onKeyframeRequested = {
@@ -432,20 +444,37 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         renderer.motionBlurMode = .light
         XCTAssertEqual(renderer.motionBlurMode, .light)
 
-        let exp = expectation(description: "Motion blur mode change processed")
+        let exp = expectation(description: "Frame smoothing mode change processed")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            XCTAssertFalse(renderer.motionBlurTrailLayer.isHidden)
-            XCTAssertTrue(keyframeRequested, "Switching motion blur mode on should request keyframe to seed trail layer")
+            XCTAssertTrue(renderer.isDisplayLinkActive)
+            XCTAssertTrue(keyframeRequested, "Switching frame smoothing mode on should request keyframe")
             exp.fulfill()
         }
         wait(for: [exp], timeout: 1.0)
 
+        // Test backgrounding cleans queue and pauses display link
+        renderer.enterBackground()
+        XCTAssertTrue(renderer.isInBackground)
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
+        XCTAssertFalse(renderer.isDisplayLinkActive)
+
+        // Test foregrounding restores display link
+        renderer.enterForeground()
+        XCTAssertFalse(renderer.isInBackground)
+        let expForeground = expectation(description: "DisplayLink restored on foreground")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            XCTAssertTrue(renderer.isDisplayLinkActive)
+            expForeground.fulfill()
+        }
+        wait(for: [expForeground], timeout: 1.0)
+
+        // Test switching off stops display link and clears queue
         renderer.motionBlurMode = .off
         XCTAssertEqual(renderer.motionBlurMode, .off)
-
-        let exp2 = expectation(description: "Motion blur mode off processed")
+        let exp2 = expectation(description: "Frame smoothing mode off processed")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            XCTAssertTrue(renderer.motionBlurTrailLayer.isHidden)
+            XCTAssertFalse(renderer.isDisplayLinkActive)
+            XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
             exp2.fulfill()
         }
         wait(for: [exp2], timeout: 1.0)

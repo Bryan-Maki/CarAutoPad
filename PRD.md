@@ -473,16 +473,18 @@ The overall port is considered complete only when all of the following criteria 
    - `send` 与 `sendOnProcessingQueue` 丢弃在未加密状态下触发的业务消息并报警，杜绝明文数据混入 TLS 握手流。
    - `processBuffer()` 在处理消息导致状态迁入 `.authenticating / .authenticatingComplete / .binding / .running` 时，将 `receiveBuffer` 剩余的粘包字节原子迁移追加到 `encryptedReceiveBuffer` 并触发解密解析，防止首包加密帧误当明文被丢弃。
 
-### 13.2 4 档硬件动态模糊模式 (Motion Blur Mode M-01 ~ M-05)
-1. **4 档模式模型与持久化 (M-01 & M-05)**：
-   - 提供 `Off (0.0)`、`Subtle (Light, 0.18)`、`Balanced (Medium, 0.32)`、`Strong (0.48)` 4 档可选。
-   - `ProjectionSettings.motionBlurMode` 持久化与 `SettingsBackupManager` 完整 JSON 导入导出与重置。
-2. **双 `AVSampleBufferDisplayLayer` 硬件时间混合与 IDR 安全门控 (M-02)**：
-   - 在 `H264VideoRendererView` 内置硬件 `motionBlurTrailLayer`，叠加在 `displayLayer` 之上，同向同步几何与裁剪模式。
-   - 仅在接收到 IDR 关键帧建档后激活余晖图层（`trailLayerHasDecodedKeyframe`），非关键帧向余晖图层注入上一帧（Frame N-1）并呈现对应档位半透明余晖。
-   - **26ms/53ms 静止自动消隐防重影**：当画面停止滑动（动态基于 `effectiveFpsLimit` 设定 1.6 倍帧间隔，60fps 下约 26ms，30fps / 竖屏模式下约 53ms 内无新帧到达），自动将最新帧送入副图层并将 `opacity` 平滑过渡归零，保证地图和静态文字 100% 清晰锐利，同时避免 30fps 下误触发闪烁。
-3. **UI 接入与实时热切换 (M-03 & M-04)**：
-   - Settings 面板 Display & Coolwalk Layout 分组新增 `Motion Blur` 原生分段控制器。
-   - 主页 Display 快捷磁贴实时展示档位（`Blur: Subtle/Balanced/Strong`），点击磁贴支持底部快捷热切换。
-   - 切换瞬时热生效，触发关键帧请求以秒级激活余晖，绝不触发断开与重连。
+### 13.2 4 档单解码器 CADisplayLink 硬件 VSync 帧率平滑系统 (Frame Smoothing V-01 ~ V-06)
+1. **彻底移除双图层残影与双倍解码消耗 (V-01)**：
+   - 彻底废除 `motionBlurTrailLayer` 双 `AVSampleBufferDisplayLayer` 半透明余晖方案，移除每帧向两个图层重复提交解码和 `CATransaction` 动态修改透明度逻辑，消除 100% 残影（Ghosting）与双倍硬解发热。
+2. **单解码器 `CADisplayLink` 硬件 VSync 去抖动帧节拍器 (V-02 & V-03)**：
+   - 基于主线程 `CADisplayLink` 精准锁定硬件垂直同步周期（`16.67ms`，支持 120Hz ProMotion 动态适配）；
+   - 将 Wi-Fi 抖动突发到达的多帧缓冲均匀平铺到每个 VSync 周期释放，彻底解决微突发到达时后帧直接覆盖前帧导致的微卡顿与跳帧；
+   - 设定帧节拍门限（`is30Fps ? 0.0285 : 0.0142`），在 60Hz/120Hz 屏幕上锁定 60fps 稳定帧率。
+3. **`kCMSampleAttachmentKey_DoNotDisplay` 参考链无损追帧 (V-04)**：
+   - 当 Wi-Fi 突发积压超过档位上限（`maxBufferedFrames`: Subtle=2, Balanced=3, Strong=4）时，旧帧自动移入参考帧硬解列表；
+   - 对超出的历史帧打上 `DoNotDisplay = true` 附件，VideoToolbox 极速硬解更新 H.264/HEVC DPB 参考帧而不送显；
+   - 仅将最新帧打上 `DisplayImmediately = true, DoNotDisplay = false` 立即送显，实现 100% 零花屏、零掉帧、零残影的毫秒级平滑追帧。
+4. **4 档模式与 UI 整合 (V-05 & V-06)**：
+   - 提供 `Off (0)`、`Subtle (Low-Latency, 2)`、`Balanced (Smooth, 3)`、`Strong (Max Pacing, 4)` 4 档可调，兼顾极限低延迟与极致平滑；
+   - 原生 Settings 视图与主页快捷磁贴升级为 `"Frame Smoothing"` 品牌展示与瞬时热切换。
 
