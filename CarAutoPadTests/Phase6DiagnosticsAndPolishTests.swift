@@ -704,11 +704,40 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             let diag = renderer.currentDiagnostics
             XCTAssertEqual(diag.awaitingIDRDrops, 0, "No P-frames should be dropped awaiting IDR when frame smoothing is active")
+            XCTAssertEqual(diag.sampleBuffers, 6, "All 6 frames (1 IDR + 5 P-frames) must generate sample buffers without awaitingIDRDrops")
+            XCTAssertEqual(diag.queueDrops, 0, "No frames should be dropped from queue")
             XCTAssertGreaterThanOrEqual(diag.enqueuedSamples, 1, "First frame (!sessionHasRendered) must immediately light up screen and increment enqueuedSamples")
             XCTAssertGreaterThanOrEqual(displayedFrames, 1, "First IDR frame must immediately trigger onFrameDisplayed")
             exp.fulfill()
         }
         wait(for: [exp], timeout: 2.0)
+    }
+
+    func testFrameSmoothingKeyframeFlushesStalePacedEntries() {
+        ProjectionSettings.resetToDefaults()
+        let renderer = H264VideoRendererView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        renderer.motionBlurMode = .medium
+
+        guard let sb1 = makeTestSampleBuffer(),
+              let sb2 = makeTestSampleBuffer(),
+              let sbKey = makeTestSampleBuffer() else {
+            XCTFail("Failed to create test sample buffers")
+            return
+        }
+
+        // Buffer frames in pacing queue
+        renderer.enqueueSampleBufferForTesting(sb1, ptsUs: 1, isKeyframe: false)
+        renderer.enqueueSampleBufferForTesting(sb2, ptsUs: 2, isKeyframe: false)
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 2)
+
+        // When keyframe arrives, stale queued entries must be flushed and submitted immediately
+        renderer.enqueueSampleBufferForTesting(sbKey, ptsUs: 3, isKeyframe: true)
+        // Paced queue now contains only the new keyframe
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 1)
+
+        // Reset clears pacing queue completely
+        renderer.reset()
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
     }
 }
 

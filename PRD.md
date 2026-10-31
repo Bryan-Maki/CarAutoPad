@@ -480,10 +480,9 @@ The overall port is considered complete only when all of the following criteria 
    - 基于主线程 `CADisplayLink` 精准锁定硬件垂直同步周期（`16.67ms`，支持 120Hz ProMotion 动态适配）；
    - 将 Wi-Fi 抖动突发到达的多帧缓冲均匀平铺到每个 VSync 周期释放，彻底解决微突发到达时后帧直接覆盖前帧导致的微卡顿与跳帧；
    - 设定帧节拍门限（`is30Fps ? 0.0285 : 0.0142`），在 60Hz/120Hz 屏幕上锁定 60fps 稳定帧率。
-3. **`kCMSampleAttachmentKey_DoNotDisplay` 参考链无损追帧 (V-04)**：
-   - 当 Wi-Fi 突发积压超过档位上限（`maxBufferedFrames`: Subtle=2, Balanced=3, Strong=4）时，旧帧自动移入参考帧硬解列表；
-   - 对超出的历史帧打上 `DoNotDisplay = true` 附件，VideoToolbox 极速硬解更新 H.264/HEVC DPB 参考帧而不送显；
-   - 仅将最新帧打上 `DisplayImmediately = true, DoNotDisplay = false` 立即送显，实现 100% 零花屏、零掉帧、零残影的毫秒级平滑追帧。
+3. **参考链无损追帧与直通送显升级 (V-04 & V-10)**：
+   - 当 Wi-Fi 突发积压超过档位上限（`maxBufferedFrames`: Subtle=2, Balanced=3, Strong=4）时，旧帧顺序释放入硬解队列；
+   - 杜绝 `DisplayImmediately = false` 导致的 `FigVideoQueue` 堵死问题（V-10），所有参考帧与显示帧均以 `DisplayImmediately = true, DoNotDisplay = false` 顺序喂入 `AVSampleBufferDisplayLayer`，利用同一 VSync 内后帧自然覆盖前帧的特性，既 100% 保持 DPB 参考链完整，又实现毫秒级追帧。
 4. **4 档模式与 UI 整合 (V-05 & V-06)**：
    - 提供 `Off (0)`、`Subtle (Low-Latency, 2)`、`Balanced (Smooth, 3)`、`Strong (Max Pacing, 4)` 4 档可调，兼顾极限低延迟与极致平滑；
    - 原生 Settings 视图与主页快捷磁贴升级为 `"Frame Smoothing"` 品牌展示与瞬时热切换。

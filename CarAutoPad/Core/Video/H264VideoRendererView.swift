@@ -1060,12 +1060,20 @@ public class H264VideoRendererView: UIView {
             submitSampleEntry(entry, displayImmediately: true, doNotDisplay: false)
         } else {
             var needStart = false
+            var staleEntries: [PacedSampleEntry] = []
             pacedQueueLock.lock()
+            if isKeyframe && !pacedSampleQueue.isEmpty {
+                staleEntries = pacedSampleQueue
+                pacedSampleQueue.removeAll()
+            }
             pacedSampleQueue.append(entry)
             if !isDisplayLinkRunning || !isDisplayLinkActive {
                 needStart = true
             }
             pacedQueueLock.unlock()
+            for stale in staleEntries {
+                submitSampleEntry(stale, displayImmediately: true, doNotDisplay: false)
+            }
             if needStart {
                 ensureDisplayLinkStarted()
             }
