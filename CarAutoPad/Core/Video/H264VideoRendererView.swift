@@ -74,6 +74,7 @@ public class H264VideoRendererView: UIView {
     private var pacedSampleQueue: [PacedSampleEntry] = []
     private var displayLink: CADisplayLink?
     private var displayLinkProxy: DisplayLinkTargetProxy?
+    private var isDisplayLinkRunning = false
     private var lastVSyncPresentUptime: TimeInterval = 0
 
     public var queuedPacedSampleCount: Int {
@@ -87,7 +88,14 @@ public class H264VideoRendererView: UIView {
     }
 
     deinit {
-        displayLink?.invalidate()
+        let link = displayLink
+        if Thread.isMainThread {
+            link?.invalidate()
+        } else {
+            DispatchQueue.main.async {
+                link?.invalidate()
+            }
+        }
         displayLink = nil
         displayLinkProxy = nil
     }
@@ -357,6 +365,7 @@ public class H264VideoRendererView: UIView {
             remaining = pacedSampleQueue
             pacedSampleQueue.removeAll()
             lastVSyncPresentUptime = 0
+            isDisplayLinkRunning = false
             pacedQueueLock.unlock()
 
             if !remaining.isEmpty {
@@ -391,6 +400,7 @@ public class H264VideoRendererView: UIView {
         pacedQueueLock.lock()
         pacedSampleQueue.removeAll()
         lastVSyncPresentUptime = 0
+        isDisplayLinkRunning = false
         pacedQueueLock.unlock()
         pauseDisplayLink()
 
@@ -435,6 +445,7 @@ public class H264VideoRendererView: UIView {
         pacedQueueLock.lock()
         pacedSampleQueue.removeAll()
         lastVSyncPresentUptime = 0
+        isDisplayLinkRunning = false
         pacedQueueLock.unlock()
         pauseDisplayLink()
 
@@ -460,6 +471,7 @@ public class H264VideoRendererView: UIView {
         pacedQueueLock.lock()
         pacedSampleQueue.removeAll()
         lastVSyncPresentUptime = 0
+        isDisplayLinkRunning = false
         pacedQueueLock.unlock()
         if motionBlurMode != .off {
             resumeDisplayLink()
@@ -809,14 +821,21 @@ public class H264VideoRendererView: UIView {
         if motionBlurMode == .off {
             submitSampleEntry(entry, displayImmediately: true, doNotDisplay: false)
         } else {
+            var needStart = false
             pacedQueueLock.lock()
             pacedSampleQueue.append(entry)
+            if !isDisplayLinkRunning {
+                isDisplayLinkRunning = true
+                needStart = true
+            }
             pacedQueueLock.unlock()
-            ensureDisplayLinkStarted()
+            if needStart {
+                ensureDisplayLinkStarted()
+            }
         }
     }
 
-    private func configureSampleAttachments(
+    func configureSampleAttachments(
         _ sampleBuffer: CMSampleBuffer,
         displayImmediately: Bool,
         doNotDisplay: Bool
@@ -1006,6 +1025,31 @@ public class H264VideoRendererView: UIView {
         processVSyncTick()
     }
 
+    public func enqueueSampleBufferForTesting(_ sampleBuffer: CMSampleBuffer, ptsUs: Int64 = 0, isKeyframe: Bool = false) {
+        let entry = PacedSampleEntry(
+            sampleBuffer: sampleBuffer,
+            ptsUs: ptsUs,
+            isKeyframe: isKeyframe,
+            parseMs: 0.5,
+            frameBytes: 1024
+        )
+        if motionBlurMode == .off {
+            submitSampleEntry(entry, displayImmediately: true, doNotDisplay: false)
+        } else {
+            var needStart = false
+            pacedQueueLock.lock()
+            pacedSampleQueue.append(entry)
+            if !isDisplayLinkRunning {
+                isDisplayLinkRunning = true
+                needStart = true
+            }
+            pacedQueueLock.unlock()
+            if needStart {
+                ensureDisplayLinkStarted()
+            }
+        }
+    }
+
     private func processVSyncTick() {
         guard !isInBackground else { return }
         let now = ProcessInfo.processInfo.systemUptime
@@ -1020,6 +1064,7 @@ public class H264VideoRendererView: UIView {
             let elapsed = now - lastVSyncPresentUptime
             let is30Fps = (ProjectionSettings.effectiveFpsLimit.rawValue == 2 || ProjectionSettings.effectiveFpsLimit == .fps30)
             let minInterval: TimeInterval = is30Fps ? 0.0285 : 0.0142
+            let earlyMin: TimeInterval = is30Fps ? 0.015 : 0.0075
 
             if maxHold > 0 && count > maxHold {
                 let dropCount = count - maxHold
@@ -1036,7 +1081,7 @@ public class H264VideoRendererView: UIView {
                 let canPresent: Bool
                 if lastVSyncPresentUptime == 0 || elapsed >= minInterval {
                     canPresent = true
-                } else if !motionBlurMode.enforcesStrictCadence && motionBlurMode == .light && count == 1 && elapsed >= 0.0075 {
+                } else if !motionBlurMode.enforcesStrictCadence && motionBlurMode == .light && count == 1 && elapsed >= earlyMin {
                     canPresent = true
                 } else {
                     canPresent = false
@@ -1075,7 +1120,12 @@ public class H264VideoRendererView: UIView {
     }
 
     private func setupDisplayLinkOnMain() {
-        guard motionBlurMode != .off, !isInBackground else { return }
+        guard motionBlurMode != .off, !isInBackground else {
+            pacedQueueLock.lock()
+            isDisplayLinkRunning = false
+            pacedQueueLock.unlock()
+            return
+        }
         if displayLink == nil {
             let proxy = DisplayLinkTargetProxy(target: self)
             self.displayLinkProxy = proxy
@@ -1087,9 +1137,15 @@ public class H264VideoRendererView: UIView {
             self.displayLink = link
         }
         displayLink?.isPaused = false
+        pacedQueueLock.lock()
+        isDisplayLinkRunning = true
+        pacedQueueLock.unlock()
     }
 
     private func pauseDisplayLink() {
+        pacedQueueLock.lock()
+        isDisplayLinkRunning = false
+        pacedQueueLock.unlock()
         if Thread.isMainThread {
             displayLink?.isPaused = true
         } else {
@@ -1105,6 +1161,9 @@ public class H264VideoRendererView: UIView {
     }
 
     private func stopDisplayLink() {
+        pacedQueueLock.lock()
+        isDisplayLinkRunning = false
+        pacedQueueLock.unlock()
         if Thread.isMainThread {
             displayLink?.invalidate()
             displayLink = nil

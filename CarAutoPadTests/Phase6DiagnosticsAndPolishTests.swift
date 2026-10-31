@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import CoreMedia
 @testable import CarAutoPad
 
 final class Phase6DiagnosticsAndPolishTests: XCTestCase {
@@ -478,6 +479,127 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
             exp2.fulfill()
         }
         wait(for: [exp2], timeout: 1.0)
+    }
+
+    private func makeTestSampleBuffer() -> CMSampleBuffer? {
+        var formatDesc: CMVideoFormatDescription?
+        let fmtStatus = CMVideoFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            codecType: kCMVideoCodecType_H264,
+            width: 64,
+            height: 64,
+            extensions: nil,
+            formatDescriptionOut: &formatDesc
+        )
+        guard fmtStatus == noErr, let formatDesc = formatDesc else { return nil }
+
+        var blockBuffer: CMBlockBuffer?
+        var bytes: [UInt8] = [0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84, 0x00]
+        let bbStatus = CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: bytes.count,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: bytes.count,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+        guard bbStatus == noErr, let blockBuffer = blockBuffer else { return nil }
+
+        let replaceStatus = bytes.withUnsafeBytes { raw in
+            CMBlockBufferReplaceDataBytes(with: raw.baseAddress!, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: bytes.count)
+        }
+        guard replaceStatus == noErr else { return nil }
+
+        var sampleBuffer: CMSampleBuffer?
+        var timing = CMSampleTimingInfo(
+            duration: CMTimeMake(value: 1, timescale: 60),
+            presentationTimeStamp: CMTimeMake(value: 1, timescale: 60),
+            decodeTimeStamp: .invalid
+        )
+        var size = bytes.count
+        let sbStatus = CMSampleBufferCreateReady(
+            allocator: kCFAllocatorDefault,
+            dataBuffer: blockBuffer,
+            formatDescription: formatDesc,
+            sampleCount: 1,
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleSizeEntryCount: 1,
+            sampleSizeArray: &size,
+            sampleBufferOut: &sampleBuffer
+        )
+        guard sbStatus == noErr else { return nil }
+        return sampleBuffer
+    }
+
+    func testConfigureSampleAttachmentsImmediatelyAndDoNotDisplay() {
+        guard let sampleBuffer = makeTestSampleBuffer() else {
+            XCTFail("Failed to create test CMSampleBuffer")
+            return
+        }
+        let renderer = H264VideoRendererView()
+
+        // 1. Immediate display attachments
+        renderer.configureSampleAttachments(sampleBuffer, displayImmediately: true, doNotDisplay: false)
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false),
+              CFArrayGetCount(attachments) > 0 else {
+            XCTFail("Missing sample attachments")
+            return
+        }
+        let dict = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFDictionary.self)
+        let displayImm = CFDictionaryGetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque())
+        let doNotDisp = CFDictionaryGetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DoNotDisplay).toOpaque())
+        XCTAssertEqual(unsafeBitCast(displayImm, to: CFBoolean.self), kCFBooleanTrue)
+        XCTAssertEqual(unsafeBitCast(doNotDisp, to: CFBoolean.self), kCFBooleanFalse)
+
+        // 2. Decode-only reference update attachments (DoNotDisplay)
+        renderer.configureSampleAttachments(sampleBuffer, displayImmediately: false, doNotDisplay: true)
+        let displayImm2 = CFDictionaryGetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque())
+        let doNotDisp2 = CFDictionaryGetValue(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_DoNotDisplay).toOpaque())
+        XCTAssertEqual(unsafeBitCast(displayImm2, to: CFBoolean.self), kCFBooleanFalse)
+        XCTAssertEqual(unsafeBitCast(doNotDisp2, to: CFBoolean.self), kCFBooleanTrue)
+    }
+
+    func testVideoRendererVSyncPacingBurstCatchUpAndCadence() {
+        ProjectionSettings.resetToDefaults()
+        let renderer = H264VideoRendererView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        renderer.motionBlurMode = .light // maxBufferedFrames = 2
+
+        guard let sb1 = makeTestSampleBuffer(),
+              let sb2 = makeTestSampleBuffer(),
+              let sb3 = makeTestSampleBuffer(),
+              let sb4 = makeTestSampleBuffer(),
+              let sb5 = makeTestSampleBuffer() else {
+            XCTFail("Failed to create test sample buffers")
+            return
+        }
+
+        // Simulate burst arriving with 5 frames:
+        renderer.enqueueSampleBufferForTesting(sb1, ptsUs: 1)
+        renderer.enqueueSampleBufferForTesting(sb2, ptsUs: 2)
+        renderer.enqueueSampleBufferForTesting(sb3, ptsUs: 3)
+        renderer.enqueueSampleBufferForTesting(sb4, ptsUs: 4)
+        renderer.enqueueSampleBufferForTesting(sb5, ptsUs: 5)
+
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 5)
+
+        // VSync tick with burst backlog (5 > maxHold 2):
+        // Excess dropCount = 5 - 2 = 3 frames (sb1, sb2, sb3) dropped for reference (DoNotDisplay = true)
+        // Next frame sb4 popped for display, leaving 1 frame (sb5) in queue.
+        renderer.tickVSyncForTesting()
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 1)
+
+        // Switching to .off drains queue:
+        renderer.motionBlurMode = .off
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
+
+        // Enqueuing in .off mode bypasses pacing queue:
+        guard let sb6 = makeTestSampleBuffer() else { return }
+        renderer.enqueueSampleBufferForTesting(sb6, ptsUs: 6)
+        XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
     }
 
     func testEffectiveFpsLimitPortraitModeAndMotionBlurTiming() {
