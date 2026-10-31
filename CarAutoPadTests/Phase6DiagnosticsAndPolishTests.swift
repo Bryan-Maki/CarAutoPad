@@ -668,4 +668,53 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         transport.handleMessage(msg)
         XCTAssertEqual(transport.state, .tlsHandshaking, "Late VERSION_RESPONSE in .tlsHandshaking must be ignored and not reset state or TLS session")
     }
+
+    func testFrameSmoothingKeyframeImmediateRenderAndZeroAwaitingIDRDrops() {
+        ProjectionSettings.resetToDefaults()
+        let renderer = H264VideoRendererView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        renderer.motionBlurMode = .medium // Balanced Frame Smoothing mode
+
+        let startCode = Data([0x00, 0x00, 0x00, 0x01])
+        let sps = Data([
+            0x67, 0x42, 0xc0, 0x1f, 0x8c, 0x8d, 0x40, 0x50,
+            0x17, 0xfc, 0xb8, 0x08, 0x80, 0x00, 0x00, 0x03,
+            0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18, 0x80
+        ])
+        let pps = Data([0x68, 0xce, 0x3c, 0x80])
+        let idrSlice = Data([0x65, 0x88, 0x84, 0x00, 0x10, 0x20])
+        let idrFrame = startCode + sps + startCode + pps + startCode + idrSlice
+
+        let pSlice = Data([0x41, 0x9a, 0x00, 0x01, 0x10, 0x20])
+        let pFrame = startCode + pSlice
+
+        var displayedFrames = 0
+        renderer.onFrameDisplayed = {
+            displayedFrames += 1
+        }
+
+        // 1. Enqueue IDR keyframe
+        renderer.enqueueAnnexBFrame(idrFrame)
+
+        // 2. Continuously enqueue 5 P-frames
+        for _ in 0..<5 {
+            renderer.enqueueAnnexBFrame(pFrame)
+        }
+
+        let exp = expectation(description: "Process queued frames")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            let diag = renderer.currentDiagnostics
+            XCTAssertEqual(diag.awaitingIDRDrops, 0, "No P-frames should be dropped awaiting IDR when frame smoothing is active")
+            XCTAssertGreaterThanOrEqual(diag.enqueuedSamples, 1, "First frame (!sessionHasRendered) must immediately light up screen and increment enqueuedSamples")
+            XCTAssertGreaterThanOrEqual(displayedFrames, 1, "First IDR frame must immediately trigger onFrameDisplayed")
+
+            // Tick VSync to verify paced queue is drained smoothly without stalls
+            let initialQueued = renderer.queuedPacedSampleCount
+            XCTAssertGreaterThan(initialQueued, 0, "P-frames should be buffered in pacedSampleQueue")
+            renderer.tickVSyncForTesting()
+            XCTAssertLessThan(renderer.queuedPacedSampleCount, initialQueued, "VSync tick should dequeue paced frame")
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 1.0)
+    }
 }
+

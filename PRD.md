@@ -488,3 +488,15 @@ The overall port is considered complete only when all of the following criteria 
    - 提供 `Off (0)`、`Subtle (Low-Latency, 2)`、`Balanced (Smooth, 3)`、`Strong (Max Pacing, 4)` 4 档可调，兼顾极限低延迟与极致平滑；
    - 原生 Settings 视图与主页快捷磁贴升级为 `"Frame Smoothing"` 品牌展示与瞬时热切换。
 
+### 13.3 帧平滑 (Frame Smoothing) 黑屏故障根因消除与无损追帧强化 (V-07 ~ V-10)
+1. **`hasDecodedKeyframe` 同步即时置位 (V-07)**：
+   - 修复在 `motionBlurMode != .off` 时 `hasDecodedKeyframe` 延迟到 VSync 释放帧才置位的致命 Bug：在 `processSingleFrame(_:)` 中成功创建 `CMSampleBuffer` 后立即同步置位 `hasDecodedKeyframe = true`，杜绝紧随 IDR 帧到达的所有参考 P 帧在 `processFrameLoop` 循环中被 `awaitingIDRDrops` 错误误杀抛弃。
+2. **首帧与关键帧刷新直通上屏 (V-08)**：
+   - 当 `!sessionHasRendered` 时首帧无论何种平滑模式均走 `displayImmediately: true, doNotDisplay: false` 极速直通上屏，保证画面瞬时点亮；
+   - 收到新关键帧时加锁排空并提交残留旧帧，彻底消除画面黑屏等待。
+3. **消除 CADisplayLink 跨线程假死锁 (V-09)**：
+   - 严禁在后台 `processQueue` 线程提前给 `isDisplayLinkRunning` 赋值 `true`；统一由主线程 `setupDisplayLinkOnMain()` 在 `displayLink?.isPaused = false` 成功后才置位 `isDisplayLinkRunning = true`，解除与 `reset()` / `pauseDisplayLink()` 异步闭包交错引发的永久性 CADisplayLink 停摆。
+4. **消除无 `controlTimebase` 下 `DisplayImmediately = false` 导致的 `FigVideoQueue` 堵死 (V-10)**：
+   - 在 `processVSyncTick()` 中对 `skippedForReference` 保持 `displayImmediately: true`，杜绝苹果底层由于缺少时钟基准导致帧卡在队首堵塞整个渲染流水线的 Bug，同时在图层失败与 `notReadyStreak >= 90` 重置分支同步加锁清空 `pacedSampleQueue`。
+
+

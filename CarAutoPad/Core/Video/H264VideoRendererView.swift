@@ -806,6 +806,10 @@ public class H264VideoRendererView: UIView {
         }
         updateDiagnostics { $0.sampleBuffers += 1 }
 
+        if isKeyframe {
+            hasDecodedKeyframe = true
+        }
+
         let currentPts = frameIndex
         let elapsedUs = Int64((CFAbsoluteTimeGetCurrent() - startTime) * 1_000_000)
         latencyMonitor.onFrameDecoded(latencyUs: elapsedUs)
@@ -818,17 +822,27 @@ public class H264VideoRendererView: UIView {
             frameBytes: frame.count
         )
 
-        if motionBlurMode == .off {
+        if motionBlurMode == .off || !sessionHasRendered {
             submitSampleEntry(entry, displayImmediately: true, doNotDisplay: false)
+            if motionBlurMode != .off {
+                ensureDisplayLinkStarted()
+            }
         } else {
             var needStart = false
+            var staleEntries: [PacedSampleEntry] = []
             pacedQueueLock.lock()
+            if isKeyframe && !pacedSampleQueue.isEmpty {
+                staleEntries = pacedSampleQueue
+                pacedSampleQueue.removeAll()
+            }
             pacedSampleQueue.append(entry)
-            if !isDisplayLinkRunning {
-                isDisplayLinkRunning = true
+            if !isDisplayLinkRunning || !isDisplayLinkActive {
                 needStart = true
             }
             pacedQueueLock.unlock()
+            for stale in staleEntries {
+                submitSampleEntry(stale, displayImmediately: true, doNotDisplay: false)
+            }
             if needStart {
                 ensureDisplayLinkStarted()
             }
@@ -882,6 +896,9 @@ public class H264VideoRendererView: UIView {
             formatDescription = nil
             frameIndex = 0
             hasDecodedKeyframe = false
+            pacedQueueLock.lock()
+            pacedSampleQueue.removeAll()
+            pacedQueueLock.unlock()
             notReadyStreak = 0
             onKeyframeRequested?()
             return
@@ -917,12 +934,17 @@ public class H264VideoRendererView: UIView {
                 formatDescription = nil
                 frameIndex = 0
                 hasDecodedKeyframe = false
+                pacedQueueLock.lock()
+                pacedSampleQueue.removeAll()
+                pacedQueueLock.unlock()
                 notReadyStreak = 0
             }
             return
         }
 
-        hasDecodedKeyframe = true
+        if entry.isKeyframe {
+            hasDecodedKeyframe = true
+        }
         notReadyStreak = 0
         consecutiveDecodeFailures = 0
         displayLayer.enqueue(entry.sampleBuffer)
@@ -1039,8 +1061,7 @@ public class H264VideoRendererView: UIView {
             var needStart = false
             pacedQueueLock.lock()
             pacedSampleQueue.append(entry)
-            if !isDisplayLinkRunning {
-                isDisplayLinkRunning = true
+            if !isDisplayLinkRunning || !isDisplayLinkActive {
                 needStart = true
             }
             pacedQueueLock.unlock()
@@ -1100,7 +1121,7 @@ public class H264VideoRendererView: UIView {
         processQueue.async { [weak self] in
             guard let self = self, !self.isInBackground else { return }
             for skipped in skippedForReference {
-                self.submitSampleEntry(skipped, displayImmediately: false, doNotDisplay: true)
+                self.submitSampleEntry(skipped, displayImmediately: true, doNotDisplay: false)
             }
             if let displayItem = chosenToDisplay {
                 self.submitSampleEntry(displayItem, displayImmediately: true, doNotDisplay: false)
