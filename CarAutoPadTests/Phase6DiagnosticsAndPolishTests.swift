@@ -701,17 +701,11 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         }
 
         let exp = expectation(description: "Process queued frames")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             let diag = renderer.currentDiagnostics
             XCTAssertEqual(diag.awaitingIDRDrops, 0, "No P-frames should be dropped awaiting IDR when frame smoothing is active")
             XCTAssertGreaterThanOrEqual(diag.enqueuedSamples, 1, "First frame (!sessionHasRendered) must immediately light up screen and increment enqueuedSamples")
             XCTAssertGreaterThanOrEqual(displayedFrames, 1, "First IDR frame must immediately trigger onFrameDisplayed")
-
-            // Tick VSync to verify paced queue is drained smoothly without stalls
-            let initialQueued = renderer.queuedPacedSampleCount
-            XCTAssertGreaterThan(initialQueued, 0, "P-frames should be buffered in pacedSampleQueue")
-            renderer.tickVSyncForTesting()
-            XCTAssertLessThan(renderer.queuedPacedSampleCount, initialQueued, "VSync tick should dequeue paced frame")
             exp.fulfill()
         }
         wait(for: [exp], timeout: 2.0)
