@@ -264,7 +264,8 @@ final class PCMAudioPlayer {
         guard startEngineIfNeeded() else { return }
 
         if channel == Channel.ID_AU1 || channel == Channel.ID_AU2 {
-            noteSpeechActivity()
+            let clipDuration = Double(buffer.frameLength) / Double(max(sampleRate, 1))
+            noteSpeechActivity(duration: max(0.8, clipDuration + 0.25))
         }
 
         if stream.isPrebuffering {
@@ -375,7 +376,8 @@ final class PCMAudioPlayer {
         }
     }
 
-    public func noteSpeechActivity() {
+    public func noteSpeechActivity(duration: TimeInterval = 0.8) {
+        let deadline = max(0.8, duration)
         let block = { [self] in
             self.isSpeechActive = true
             self.duckingEnvelope.setSpeechActive(true)
@@ -383,7 +385,7 @@ final class PCMAudioPlayer {
 
             self.speechActiveTimer?.cancel()
             let timer = DispatchSource.makeTimerSource(queue: self.audioQueue)
-            timer.schedule(deadline: .now() + 0.8)
+            timer.schedule(deadline: .now() + deadline)
             timer.setEventHandler { [weak self] in
                 guard let self = self else { return }
                 self.isSpeechActive = false

@@ -1,9 +1,64 @@
 import Foundation
+import AVFoundation
 
 public final class AudioStreamTester {
     public static let shared = AudioStreamTester()
 
     public init() {}
+
+    public enum SampleAsset: CaseIterable {
+        case media
+        case navigation
+        case system
+
+        public var filename: String {
+            switch self {
+            case .media: return "podcast-music-intro-sample"
+            case .navigation: return "Route-sample"
+            case .system: return "phone-ringing-sample"
+            }
+        }
+
+        public var fileExtension: String {
+            switch self {
+            case .media, .system: return "mp3"
+            case .navigation: return "wav"
+            }
+        }
+
+        public var targetSampleRate: Int {
+            switch self {
+            case .media: return 48000
+            case .navigation, .system: return 16000
+            }
+        }
+
+        public var targetChannels: Int {
+            switch self {
+            case .media: return 2
+            case .navigation, .system: return 1
+            }
+        }
+
+        public var channelId: UInt8 {
+            switch self {
+            case .media: return Channel.ID_AUD
+            case .navigation: return Channel.ID_AU1
+            case .system: return Channel.ID_AU2
+            }
+        }
+
+        public var fallbackFrequency: Double {
+            switch self {
+            case .media: return 440.0
+            case .navigation: return 587.33
+            case .system: return 880.0
+            }
+        }
+    }
+
+    private var sampleCache: [String: Data] = [:]
+    private let cacheLock = NSLock()
 
     public static func generateSineWavePCM(
         sampleRate: Int,
@@ -44,68 +99,191 @@ public final class AudioStreamTester {
         return data
     }
 
+    public static func locateResourceURL(name: String, ext: String) -> URL? {
+        var bundles = [Bundle.main, Bundle(for: AudioStreamTester.self)]
+        for b in Bundle.allBundles where !bundles.contains(b) {
+            bundles.append(b)
+        }
+        let subpaths: [String?] = [nil, "Audio", "Resources/Audio", "Resources"]
+        for bundle in bundles {
+            for subpath in subpaths {
+                if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subpath) {
+                    return url
+                }
+            }
+            if let url = bundle.url(forResource: name, withExtension: ext) {
+                return url
+            }
+        }
+        return nil
+    }
+
+    public static func decodeAudioFileToInt16PCM(
+        url: URL,
+        targetSampleRate: Int,
+        targetChannels: Int,
+        maxDurationSeconds: Double? = nil
+    ) -> Data? {
+        guard let audioFile = try? AVAudioFile(forReading: url) else { return nil }
+        let srcFormat = audioFile.processingFormat
+        guard let dstFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: Double(targetSampleRate),
+            channels: AVAudioChannelCount(targetChannels),
+            interleaved: false
+        ) else { return nil }
+
+        guard let converter = AVAudioConverter(from: srcFormat, to: dstFormat) else { return nil }
+
+        let totalSrcFrames = audioFile.length
+        let maxSrcFrames: AVAudioFramePosition
+        if let maxDur = maxDurationSeconds, maxDur > 0 {
+            maxSrcFrames = min(totalSrcFrames, AVAudioFramePosition(maxDur * srcFormat.sampleRate))
+        } else {
+            maxSrcFrames = totalSrcFrames
+        }
+
+        let ratio = Double(targetSampleRate) / max(srcFormat.sampleRate, 1.0)
+        let estimatedDstFrames = Int(Double(maxSrcFrames) * ratio)
+        var outData = Data()
+        outData.reserveCapacity(max(1, estimatedDstFrames) * targetChannels * MemoryLayout<Int16>.size)
+
+        let readChunkFrames: AVAudioFrameCount = 32768
+        guard let srcBuffer = AVAudioPCMBuffer(pcmFormat: srcFormat, frameCapacity: readChunkFrames) else { return nil }
+        let dstChunkCapacity = AVAudioFrameCount(Double(readChunkFrames) * ratio) + 2048
+        guard let dstBuffer = AVAudioPCMBuffer(pcmFormat: dstFormat, frameCapacity: dstChunkCapacity) else { return nil }
+
+        var totalReadFrames: AVAudioFramePosition = 0
+
+        while totalReadFrames < maxSrcFrames {
+            let framesToRead = min(readChunkFrames, AVAudioFrameCount(maxSrcFrames - totalReadFrames))
+            srcBuffer.frameLength = 0
+            do {
+                try audioFile.read(into: srcBuffer, frameCount: framesToRead)
+            } catch {
+                break
+            }
+            if srcBuffer.frameLength == 0 { break }
+            totalReadFrames += AVAudioFramePosition(srcBuffer.frameLength)
+
+            var hasSuppliedInput = false
+            var conversionError: NSError?
+            dstBuffer.frameLength = 0
+
+            let status = converter.convert(to: dstBuffer, error: &conversionError) { _, outStatus in
+                if !hasSuppliedInput {
+                    hasSuppliedInput = true
+                    outStatus.pointee = .haveData
+                    return srcBuffer
+                } else {
+                    outStatus.pointee = .noDataNow
+                    return nil
+                }
+            }
+
+            if conversionError != nil || status == .error {
+                break
+            }
+
+            let framesConverted = Int(dstBuffer.frameLength)
+            if framesConverted > 0, let floatChannels = dstBuffer.floatChannelData {
+                let channels = Int(dstFormat.channelCount)
+                for f in 0..<framesConverted {
+                    for ch in 0..<channels {
+                        let sample = floatChannels[ch][f]
+                        let clamped = Int16(clamping: Int((sample * 32767.0).rounded()))
+                        var le = clamped.littleEndian
+                        withUnsafeBytes(of: &le) { bytes in
+                            outData.append(contentsOf: bytes)
+                        }
+                    }
+                }
+            }
+
+            if status == .endOfStream {
+                break
+            }
+        }
+
+        return outData.isEmpty ? nil : outData
+    }
+
+    public func loadPCMData(
+        for asset: SampleAsset,
+        maxDurationSeconds: Double? = nil,
+        fallbackDuration: Double = 1.5
+    ) -> Data {
+        let cacheKey = "\(asset.filename)_\(maxDurationSeconds.map { String($0) } ?? "full")"
+        cacheLock.lock()
+        if let cached = sampleCache[cacheKey] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
+        if let url = Self.locateResourceURL(name: asset.filename, ext: asset.fileExtension),
+           let pcm = Self.decodeAudioFileToInt16PCM(
+                url: url,
+                targetSampleRate: asset.targetSampleRate,
+                targetChannels: asset.targetChannels,
+                maxDurationSeconds: maxDurationSeconds
+           ), !pcm.isEmpty {
+            cacheLock.lock()
+            sampleCache[cacheKey] = pcm
+            cacheLock.unlock()
+            return pcm
+        }
+
+        let fallback = Self.generateSineWavePCM(
+            sampleRate: asset.targetSampleRate,
+            channelCount: asset.targetChannels,
+            frequencyHz: asset.fallbackFrequency,
+            durationSeconds: fallbackDuration
+        )
+        return fallback
+    }
+
     public func playMediaTestTone() {
+        PCMAudioPlayer.shared.reset()
         let vol = Int((ProjectionSettings.mediaVolume * 100).rounded())
         let enabled = ProjectionSettings.isMediaChannelEnabled ? "enabled" : "disabled"
-        AudioDiagnostics.shared.record("AudioStreamTester: Playing 440Hz Media test tone (48kHz stereo, 1.0s, vol=\(vol)%, \(enabled))")
-        let data = Self.generateSineWavePCM(
-            sampleRate: 48000,
-            channelCount: 2,
-            frequencyHz: 440.0,
-            durationSeconds: 1.0
-        )
+        AudioDiagnostics.shared.record("AudioStreamTester: Playing Media sample (48kHz stereo, vol=\(vol)%, \(enabled))")
+        let data = loadPCMData(for: .media, maxDurationSeconds: 4.0)
         PCMAudioPlayer.shared.playPCM(data, on: Channel.ID_AUD)
     }
 
     public func playGuidanceTestTone() {
+        PCMAudioPlayer.shared.reset()
         let vol = Int((ProjectionSettings.navigationVolume * 100).rounded())
         let enabled = ProjectionSettings.isNavigationChannelEnabled ? "enabled" : "disabled"
-        AudioDiagnostics.shared.record("AudioStreamTester: Playing 587Hz Guidance test tone (16kHz mono, 1.0s, vol=\(vol)%, \(enabled))")
-        let data = Self.generateSineWavePCM(
-            sampleRate: 16000,
-            channelCount: 1,
-            frequencyHz: 587.33,
-            durationSeconds: 1.0
-        )
-        PCMAudioPlayer.shared.playPCM(data, on: Channel.ID_GUD)
+        AudioDiagnostics.shared.record("AudioStreamTester: Playing Route navigation sample (16kHz mono, vol=\(vol)%, \(enabled))")
+        let data = loadPCMData(for: .navigation, maxDurationSeconds: 3.5)
+        PCMAudioPlayer.shared.playPCM(data, on: Channel.ID_AU1)
     }
 
     public func playSystemTestTone() {
+        PCMAudioPlayer.shared.reset()
         let vol = Int((ProjectionSettings.phoneSystemVolume * 100).rounded())
         let enabled = ProjectionSettings.isSystemChannelEnabled ? "enabled" : "disabled"
-        AudioDiagnostics.shared.record("AudioStreamTester: Playing 880Hz System test tone (16kHz mono, 0.8s, vol=\(vol)%, \(enabled))")
-        let data = Self.generateSineWavePCM(
-            sampleRate: 16000,
-            channelCount: 1,
-            frequencyHz: 880.0,
-            durationSeconds: 0.8
-        )
-        PCMAudioPlayer.shared.playPCM(data, on: Channel.ID_SYS)
+        AudioDiagnostics.shared.record("AudioStreamTester: Playing Phone ringing sample (16kHz mono, vol=\(vol)%, \(enabled))")
+        let data = loadPCMData(for: .system, maxDurationSeconds: 3.0)
+        PCMAudioPlayer.shared.playPCM(data, on: Channel.ID_AU2)
     }
 
     public func playDuckingTestSequence() {
+        PCMAudioPlayer.shared.reset()
         let duckPct = Int((ProjectionSettings.navigationDuckingAmount * 100).rounded())
         let medVol = Int((ProjectionSettings.mediaVolume * 100).rounded())
         let navVol = Int((ProjectionSettings.navigationVolume * 100).rounded())
         AudioDiagnostics.shared.record("AudioStreamTester: Starting ducking test sequence (Media=\(medVol)%, Nav=\(navVol)%, Ducking=-\(duckPct)%)")
-        let mediaData = Self.generateSineWavePCM(
-            sampleRate: 48000,
-            channelCount: 2,
-            frequencyHz: 440.0,
-            durationSeconds: 2.5
-        )
+        let mediaData = loadPCMData(for: .media, maxDurationSeconds: 6.0)
         PCMAudioPlayer.shared.playPCM(mediaData, on: Channel.ID_AUD)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            AudioDiagnostics.shared.record("AudioStreamTester: Overlaying Guidance speech tone (triggering ducking -\(duckPct)%)")
-            let guidanceData = Self.generateSineWavePCM(
-                sampleRate: 16000,
-                channelCount: 1,
-                frequencyHz: 880.0,
-                durationSeconds: 1.0
-            )
-            PCMAudioPlayer.shared.noteSpeechActivity()
-            PCMAudioPlayer.shared.playPCM(guidanceData, on: Channel.ID_GUD)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self = self else { return }
+            AudioDiagnostics.shared.record("AudioStreamTester: Overlaying Route navigation sample (triggering ducking -\(duckPct)%)")
+            let guidanceData = self.loadPCMData(for: .navigation, maxDurationSeconds: 4.0)
+            PCMAudioPlayer.shared.playPCM(guidanceData, on: Channel.ID_AU1)
         }
     }
 }

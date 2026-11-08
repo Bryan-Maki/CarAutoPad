@@ -107,7 +107,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .displayLayout:
             return 7
         case .videoAudio:
-            return 6
+            return 5
         case .smartSensors:
             return 2
         case .connectionAutomation:
@@ -386,13 +386,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }
             return cell
 
-        case 5:
-            let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-            cell.textLabel?.text = "Audio Stream Tester"
-            cell.detailTextLabel?.text = "Test tones & ducking"
-            cell.accessoryType = .disclosureIndicator
-            return cell
-
         default:
             return UITableViewCell()
         }
@@ -485,11 +478,11 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         switch row {
         case 0:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Performance HUD Overlay"
+            cell.textLabel?.text = "Debug Mode (HUD & Floating Bubble)"
             let toggle = UISwitch()
-            toggle.isOn = ProjectionSettings.showPerformanceOverlay
+            toggle.isOn = ProjectionSettings.isDebugModeEnabled
             toggle.addAction(UIAction { [weak self] _ in
-                ProjectionSettings.showPerformanceOverlay = toggle.isOn
+                ProjectionSettings.isDebugModeEnabled = toggle.isOn
                 self?.onSettingsChanged?(.uiOnly)
             }, for: .valueChanged)
             cell.accessoryView = toggle
@@ -559,11 +552,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 presentResolutionPicker(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
             }
 
-        case .videoAudio:
-            if indexPath.row == 5 {
-                presentAudioStreamTester(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
-            }
-
         case .diagnosticsBackup:
             switch indexPath.row {
             case 1:
@@ -622,33 +610,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 }
             })
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
-    }
-
-    private func presentAudioStreamTester(sourceView: UIView) {
-        let alert = UIAlertController(
-            title: "Audio Stream Tester",
-            message: "Generate synthetic 16-bit LE PCM tones to test playback channels and ducking.",
-            preferredStyle: .actionSheet
-        )
-        configurePopover(for: alert, sourceView: sourceView)
-
-        alert.addAction(UIAlertAction(title: "Play Media 440 Hz (1.0s)", style: .default) { _ in
-            AudioStreamTester.shared.playMediaTestTone()
-        })
-        alert.addAction(UIAlertAction(title: "Play Guidance 587 Hz (1.0s)", style: .default) { _ in
-            AudioStreamTester.shared.playGuidanceTestTone()
-        })
-        alert.addAction(UIAlertAction(title: "Play System 880 Hz (0.8s)", style: .default) { _ in
-            AudioStreamTester.shared.playSystemTestTone()
-        })
-        alert.addAction(UIAlertAction(title: "Run Ducking Sequence Test", style: .default) { _ in
-            AudioStreamTester.shared.playDuckingTestSequence()
-        })
-        alert.addAction(UIAlertAction(title: "Stop All Audio", style: .destructive) { _ in
-            PCMAudioPlayer.shared.reset()
-        })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(alert, animated: true)
     }

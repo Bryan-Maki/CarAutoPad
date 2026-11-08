@@ -153,4 +153,46 @@ final class ViewControllersSmokeTests: XCTestCase {
         cell.layoutIfNeeded()
         XCTAssertNotNil(cell.contentView)
     }
+
+    @MainActor
+    func testSettingsViewControllerVideoAudioSectionHasFiveRows() {
+        let settingsVC = SettingsViewController()
+        settingsVC.loadViewIfNeeded()
+        settingsVC.view.layoutIfNeeded()
+
+        guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView else {
+            XCTFail("SettingsViewController must contain a UITableView")
+            return
+        }
+
+        let rowCount = settingsVC.tableView(tableView, numberOfRowsInSection: SettingsViewController.SettingsSection.videoAudio.rawValue)
+        XCTAssertEqual(rowCount, 5, "Video & Audio section must have exactly 5 rows after removing standalone Audio Stream Tester")
+
+        let cell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: SettingsViewController.SettingsSection.diagnosticsBackup.rawValue))
+        XCTAssertEqual(cell.textLabel?.text, "Debug Mode (HUD & Floating Bubble)")
+    }
+
+    @MainActor
+    func testMainViewControllerDebugBubbleButtonPropertiesAndToggle() {
+        let initial = ProjectionSettings.isDebugModeEnabled
+        defer { ProjectionSettings.isDebugModeEnabled = initial }
+
+        let mvc = MainViewController()
+        mvc.loadViewIfNeeded()
+        mvc.view.layoutIfNeeded()
+
+        XCTAssertTrue(mvc.view.subviews.contains(mvc.debugBubbleButton), "MainViewController view must contain debugBubbleButton")
+        XCTAssertEqual(mvc.debugBubbleButton.accessibilityIdentifier, "debugBubbleButton")
+        XCTAssertEqual(mvc.debugBubbleButton.layer.cornerRadius, 24)
+
+        // Toggle debug mode on
+        ProjectionSettings.isDebugModeEnabled = true
+        mvc.updatePerformanceOverlayState()
+        XCTAssertFalse(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be visible when debug mode is enabled")
+
+        // Toggle debug mode off
+        ProjectionSettings.isDebugModeEnabled = false
+        mvc.updatePerformanceOverlayState()
+        XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be hidden when debug mode is disabled")
+    }
 }

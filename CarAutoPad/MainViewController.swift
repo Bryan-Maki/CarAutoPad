@@ -30,6 +30,97 @@ final class MainViewController: UIViewController {
     private let performanceOverlayView = PerformanceOverlayView()
     private var performanceTimer: Timer?
 
+    private var debugBubbleCenterXConstraint: NSLayoutConstraint?
+    private var debugBubbleCenterYConstraint: NSLayoutConstraint?
+    private var debugBubblePanStartCenter: CGPoint = .zero
+
+    public private(set) lazy var debugBubbleButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.accessibilityIdentifier = "debugBubbleButton"
+        button.layer.cornerRadius = 24
+        button.layer.masksToBounds = false
+        button.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+        button.layer.borderWidth = 1.0
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.35
+        button.layer.shadowOffset = CGSize(width: 0, height: 2)
+        button.layer.shadowRadius = 4.0
+
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+        let icon = UIImage(systemName: "wrench.and.screwdriver.fill", withConfiguration: symbolConfig)
+        button.setImage(icon, for: .normal)
+        button.tintColor = .white
+        button.isHidden = true
+
+        button.addTarget(self, action: #selector(debugBubbleTapped), for: .touchUpInside)
+
+        let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleDebugBubblePan(_:)))
+        button.addGestureRecognizer(panGesture)
+        return button
+    }()
+
+    @objc private func debugBubbleTapped() {
+        presentSettingsMenu()
+    }
+
+    @objc private func handleDebugBubblePan(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: view)
+        switch gesture.state {
+        case .began:
+            debugBubblePanStartCenter = CGPoint(
+                x: debugBubbleCenterXConstraint?.constant ?? debugBubbleButton.center.x,
+                y: debugBubbleCenterYConstraint?.constant ?? debugBubbleButton.center.y
+            )
+        case .changed:
+            let newX = debugBubblePanStartCenter.x + translation.x
+            let newY = debugBubblePanStartCenter.y + translation.y
+            debugBubbleCenterXConstraint?.constant = newX
+            debugBubbleCenterYConstraint?.constant = newY
+            view.layoutIfNeeded()
+        case .ended, .cancelled:
+            clampDebugBubbleToSafeBounds(animated: true)
+        default:
+            break
+        }
+    }
+
+    private func clampDebugBubbleToSafeBounds(animated: Bool) {
+        guard view.bounds.width > 0 && view.bounds.height > 0 else { return }
+        let safeArea = view.safeAreaInsets
+        let bubbleRadius: CGFloat = 24.0
+        let margin: CGFloat = 12.0
+
+        let minX = safeArea.left + bubbleRadius + margin
+        let maxX = view.bounds.width - safeArea.right - bubbleRadius - margin
+        let minY = safeArea.top + bubbleRadius + margin
+        let maxY = view.bounds.height - safeArea.bottom - bubbleRadius - margin
+
+        let currentX = debugBubbleCenterXConstraint?.constant ?? maxX
+        let currentY = debugBubbleCenterYConstraint?.constant ?? (minY + 60)
+
+        let snapX: CGFloat = (currentX < (view.bounds.width / 2.0)) ? minX : maxX
+        let clampedY = min(maxY, max(minY, currentY))
+
+        debugBubbleCenterXConstraint?.constant = snapX
+        debugBubbleCenterYConstraint?.constant = clampedY
+
+        if animated {
+            UIView.animate(
+                withDuration: 0.35,
+                delay: 0,
+                usingSpringWithDamping: 0.75,
+                initialSpringVelocity: 0.5,
+                options: [.allowUserInteraction, .beginFromCurrentState]
+            ) {
+                self.view.layoutIfNeeded()
+            }
+        } else {
+            view.layoutIfNeeded()
+        }
+    }
+
     private let homeScrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -512,6 +603,8 @@ final class MainViewController: UIViewController {
             videoContainerView.bringSubviewToFront(touchOverlayView)
             videoContainerView.bringSubviewToFront(performanceOverlayView)
         }
+        view.bringSubviewToFront(debugBubbleButton)
+        clampDebugBubbleToSafeBounds(animated: false)
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -737,6 +830,7 @@ final class MainViewController: UIViewController {
 
         view.addSubview(videoContainerView)
         view.addSubview(homeScrollView)
+        view.addSubview(debugBubbleButton)
 
         videoContainerView.isHidden = true
         homeScrollView.isHidden = false
@@ -877,6 +971,11 @@ final class MainViewController: UIViewController {
         let containerCenterY = dashboardContentContainer.centerYAnchor.constraint(equalTo: homeContentView.centerYAnchor)
         containerCenterY.priority = .defaultHigh
 
+        let bubbleCenterX = debugBubbleButton.centerXAnchor.constraint(equalTo: view.leadingAnchor, constant: 10000)
+        let bubbleCenterY = debugBubbleButton.centerYAnchor.constraint(equalTo: view.topAnchor, constant: 120)
+        self.debugBubbleCenterXConstraint = bubbleCenterX
+        self.debugBubbleCenterYConstraint = bubbleCenterY
+
         NSLayoutConstraint.activate([
             videoContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             videoContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -895,6 +994,11 @@ final class MainViewController: UIViewController {
 
             performanceOverlayView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             performanceOverlayView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+
+            debugBubbleButton.widthAnchor.constraint(equalToConstant: 48),
+            debugBubbleButton.heightAnchor.constraint(equalToConstant: 48),
+            bubbleCenterX,
+            bubbleCenterY,
 
             homeScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             homeScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -1536,10 +1640,16 @@ final class MainViewController: UIViewController {
         present(alert, animated: true)
     }
 
-    private func updatePerformanceOverlayState() {
-        let shouldShow = ProjectionSettings.showPerformanceOverlay && connectionManager.state == .running
-        performanceOverlayView.isHidden = !shouldShow
-        if shouldShow {
+    func updatePerformanceOverlayState() {
+        let isDebug = ProjectionSettings.isDebugModeEnabled
+        debugBubbleButton.isHidden = !isDebug
+        if isDebug {
+            view.bringSubviewToFront(debugBubbleButton)
+        }
+
+        let shouldShowHud = isDebug && connectionManager.state == .running
+        performanceOverlayView.isHidden = !shouldShowHud
+        if shouldShowHud {
             if performanceTimer == nil {
                 performanceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                     self?.refreshPerformanceOverlay()

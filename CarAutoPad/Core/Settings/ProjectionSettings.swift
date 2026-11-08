@@ -340,6 +340,16 @@ public enum ProjectionSettings {
         }
     }
 
+    public static var isDebugModeEnabled: Bool {
+        get { showPerformanceOverlay }
+        set { showPerformanceOverlay = newValue }
+    }
+
+    public static var isPerformanceHudEnabled: Bool {
+        get { showPerformanceOverlay }
+        set { showPerformanceOverlay = newValue }
+    }
+
     public static var lastKnownLatitude: Double? {
         get {
             guard defaults.object(forKey: lastKnownLatitudeKey) != nil else { return nil }

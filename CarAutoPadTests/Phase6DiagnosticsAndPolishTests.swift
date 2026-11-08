@@ -739,5 +739,58 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         renderer.reset()
         XCTAssertEqual(renderer.queuedPacedSampleCount, 0)
     }
+
+    func testAudioStreamTesterLocatesSampleAssetsAndMetadata() {
+        for asset in AudioStreamTester.SampleAsset.allCases {
+            XCTAssertFalse(asset.filename.isEmpty)
+            XCTAssertFalse(asset.fileExtension.isEmpty)
+            XCTAssertGreaterThan(asset.targetSampleRate, 0)
+            XCTAssertGreaterThan(asset.targetChannels, 0)
+            XCTAssertGreaterThan(asset.fallbackFrequency, 0)
+        }
+
+        XCTAssertEqual(AudioStreamTester.SampleAsset.media.channelId, Channel.ID_AUD)
+        XCTAssertEqual(AudioStreamTester.SampleAsset.navigation.channelId, Channel.ID_AU1)
+        XCTAssertEqual(AudioStreamTester.SampleAsset.system.channelId, Channel.ID_AU2)
+
+        for asset in AudioStreamTester.SampleAsset.allCases {
+            if let url = AudioStreamTester.locateResourceURL(name: asset.filename, ext: asset.fileExtension) {
+                XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+                let decoded = AudioStreamTester.decodeAudioFileToInt16PCM(
+                    url: url,
+                    targetSampleRate: asset.targetSampleRate,
+                    targetChannels: asset.targetChannels,
+                    maxDurationSeconds: 0.2
+                )
+                XCTAssertNotNil(decoded, "Should decode sample asset \(asset.filename)")
+                XCTAssertFalse(decoded?.isEmpty ?? true)
+            }
+        }
+    }
+
+    func testAudioStreamTesterLoadPCMDataFallbackAndCache() {
+        let tester = AudioStreamTester()
+        let pcm = tester.loadPCMData(for: .media, maxDurationSeconds: 0.1)
+        XCTAssertFalse(pcm.isEmpty)
+
+        // Check in-memory cache hit
+        let pcmCached = tester.loadPCMData(for: .media, maxDurationSeconds: 0.1)
+        XCTAssertEqual(pcm, pcmCached)
+    }
+
+    func testProjectionSettingsDebugModeAliases() {
+        let initial = ProjectionSettings.isDebugModeEnabled
+        defer { ProjectionSettings.isDebugModeEnabled = initial }
+
+        ProjectionSettings.isDebugModeEnabled = true
+        XCTAssertTrue(ProjectionSettings.isDebugModeEnabled)
+        XCTAssertTrue(ProjectionSettings.showPerformanceOverlay)
+        XCTAssertTrue(ProjectionSettings.isPerformanceHudEnabled)
+
+        ProjectionSettings.isDebugModeEnabled = false
+        XCTAssertFalse(ProjectionSettings.isDebugModeEnabled)
+        XCTAssertFalse(ProjectionSettings.showPerformanceOverlay)
+        XCTAssertFalse(ProjectionSettings.isPerformanceHudEnabled)
+    }
 }
 
