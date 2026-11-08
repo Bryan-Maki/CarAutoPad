@@ -137,6 +137,9 @@ final class PCMAudioPlayer {
             }
             self.engine.reset()
             self.sessionConfigured = false
+            self.speechActiveTimer?.cancel()
+            self.speechActiveTimer = nil
+            self.isSpeechActive = false
             self.aacDecoders.values.forEach { $0.reset() }
             self.duckingEnvelope.reset()
             AppLog.category(.audioMic, "[AUDIO] Stopped and cleared all audio streams", tag: "PCMAudioPlayer")
@@ -500,6 +503,10 @@ final class PCMAudioPlayer {
             self.engine.reset()
 
             self.sessionConfigured = false
+            self.speechActiveTimer?.cancel()
+            self.speechActiveTimer = nil
+            self.isSpeechActive = false
+            self.duckingEnvelope.reset()
             self.ensureSessionConfigured()
         }
 
