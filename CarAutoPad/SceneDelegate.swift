@@ -24,6 +24,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         ConnectionManager.shared.disconnectForAppTermination()
     }
 
@@ -34,10 +35,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         ConnectionManager.shared.handleWillEnterForeground()
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         ConnectionManager.shared.handleDidEnterBackground()
     }
 }

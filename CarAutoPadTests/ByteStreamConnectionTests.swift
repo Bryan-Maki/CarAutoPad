@@ -138,6 +138,9 @@ final class ByteStreamConnectionTests: XCTestCase {
         XCTAssertEqual(connectCount, 1, "byteStreamConnectionDidConnect must be called exactly once")
 
         // Disconnect handler and verify clean state
+        delegate.onConnect = nil
+        delegate.onReceive = nil
+        delegate.onDisconnect = nil
         handler.disconnect()
         XCTAssertFalse(handler.isConnected)
 
