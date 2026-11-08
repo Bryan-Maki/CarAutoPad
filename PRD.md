@@ -498,4 +498,40 @@ The overall port is considered complete only when all of the following criteria 
 4. **消除无 `controlTimebase` 下 `DisplayImmediately = false` 导致的 `FigVideoQueue` 堵死 (V-10)**：
    - 在 `processVSyncTick()` 中对 `skippedForReference` 保持 `displayImmediately: true`，杜绝苹果底层由于缺少时钟基准导致帧卡在队首堵塞整个渲染流水线的 Bug，同时在图层失败与 `notReadyStreak >= 90` 重置分支同步加锁清空 `pacedSampleQueue`。
 
+---
+
+## 14. 三通道独立音频调音台与导航播报媒体压音幅度自定义系统 (Multi-Channel Audio Mixer & Custom Ducking Level)
+
+### 14.1 独立三通道音频控制架构 (Media, Navigation, Phone & System)
+1. **多通道解耦与物理隔离**：
+   - 彻底解除媒体音乐、导航语音以及电话/系统提示音的全局绑定：
+     - **Media Audio (`Channel.ID_AUD` / 6)**：48kHz Stereo 媒体通道，支持独立开关与 0% ~ 100% 线性音量微调；
+     - **Navigation / Guidance (`Channel.ID_AU1` / 4)**：16kHz Mono 导航语音通道，支持独立开关与 0% ~ 100% 线性音量微调；
+     - **Phone & System Alerts (`Channel.ID_AU2` / 5)**：16kHz Mono 电话与系统提示音通道，支持独立开关与 0% ~ 100% 线性音量微调。
+2. **静音免压音与流控保护**：
+   - 在 `PCMAudioPlayer.enqueuePreparedBuffer` 入口处严格实施静音与开关检查：
+     - 当通道处于禁用状态或音量 `<= 0.001` 时，直接阻断本地渲染与播放，但底层 `AapTransport` 依然按协议向手机应答 `MediaAck`，确保手机端音频流控与发送窗口不阻塞；
+     - 当导航语音或系统提示音通道被用户关闭或静音时，阻断 `noteSpeechActivity()` 触发，杜绝导航静音状态下媒体音乐被错误压低的逻辑 Bug。
+
+### 14.2 导航媒体压音降低比例系统 (Navigation Audio Ducking Level: 0% ~ -100%)
+1. **连续调节与 6 档常用预设**：
+   - 新增 `navigationDuckingAmount` (0.0 ~ 1.0) 连续比例设置，支持 6 档车载场景快捷预设：
+     - `0% Off`（`reduction = 0.0`，不压音，媒体保持 100% 音量）；
+     - `-25% Light`（`reduction = 0.25`，轻微压音，媒体保留 75% 音量）；
+     - `-50% Medium`（`reduction = 0.50`，中度压音，媒体保留 50% 音量）；
+     - `-70% Standard`（`reduction = 0.70`，默认标准压音，媒体保留 30% 音量）；
+     - `-85% Deep`（`reduction = 0.85`，深度压音，媒体保留 15% 音量）；
+     - `-100% Mute`（`reduction = 1.0`，导航播报时媒体完全静音）。
+2. **Audio Focus 提前感知与平滑渐变**：
+   - 在 `AapTransport.sendAudioFocusNotification` 中收到 `requestType == 3` (`GAIN_TRANSIENT_MAY_DUCK`) 时，提前通知 `PCMAudioPlayer` 启动平滑渐变；
+   - 结合 `MixerDuckingEnvelope` 的 Attack / Release 平滑曲线，杜绝音量骤变引起的爆音与突兀感。
+
+### 14.3 原生设置视图与主页快捷调音台 UI
+1. **原生设置中心调音台单元格 (`AudioChannelMixerCell`)**：
+   - 在 `SettingsViewController` 的 `Video & Audio Pipeline` 分组内嵌 `AudioChannelMixerCell`；
+   - 包含三通道独立开关、等宽百分比标签、连续滑块及各通道单音试听按钮；包含导航压音滑块、6 档预设胶囊以及一键压音序列试听与重置。
+2. **主页车载磁贴与快捷弹窗 (`QuickAudioConfigViewController`)**：
+   - 主页速览磁贴升级为 `"Audio & Ducking"`，实时呈现 `iPad (100%/100%/100% • Duck -70%)` 综合通道状态；
+   - 点击磁贴弹出 `.formSheet` 模态卡片 `QuickAudioConfigViewController`，支持免打断投屏会话的热调音与实时生效。
+
 

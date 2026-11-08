@@ -110,6 +110,34 @@ public enum MicrophoneSource: Int, CaseIterable {
     }
 }
 
+public enum NavigationDuckingPreset: Int, CaseIterable {
+    case off = 0        // 降低 0%（不压音，媒体保持 100%）
+    case light = 25     // 降低 -25%（媒体保留 75%）
+    case medium = 50    // 降低 -50%（媒体保留 50%）
+    case standard = 70  // 降低 -70%（默认，媒体保留 30%）
+    case deep = 85      // 降低 -85%（媒体保留 15%）
+    case mute = 100     // 降低 -100%（导航播报时媒体完全静音）
+
+    public var dropPercentage: Int { rawValue }
+    public var reductionAmount: Float { Float(rawValue) / 100.0 }
+    public var retainedGain: Float { 1.0 - reductionAmount }
+
+    public var title: String {
+        switch self {
+        case .off: return "0% (No Ducking)"
+        case .light: return "-25% (Light)"
+        case .medium: return "-50% (Half)"
+        case .standard: return "-70% (Default)"
+        case .deep: return "-85% (Deep)"
+        case .mute: return "-100% (Mute Media)"
+        }
+    }
+
+    public var shortTitle: String {
+        return rawValue == 0 ? "Off (0%)" : "-\(rawValue)%"
+    }
+}
+
 public enum MotionBlurMode: Int, CaseIterable {
     case off = 0
     case light = 1
@@ -184,6 +212,13 @@ public enum ProjectionSettings {
     private static let audioCodecPreferenceKey = "projection-audio-codec-preference"
     private static let audioOutputTargetKey = "projection-audio-output-target"
     private static let microphoneSourceKey = "projection-microphone-source"
+    private static let mediaVolumeKey = "projection-audio-media-volume"
+    private static let navigationVolumeKey = "projection-audio-navigation-volume"
+    private static let phoneSystemVolumeKey = "projection-audio-phone-system-volume"
+    private static let mediaChannelEnabledKey = "projection-audio-media-channel-enabled"
+    private static let navigationChannelEnabledKey = "projection-audio-navigation-channel-enabled"
+    private static let systemChannelEnabledKey = "projection-audio-system-channel-enabled"
+    private static let navigationDuckingAmountKey = "projection-audio-navigation-ducking-amount"
     private static let nightModeKey = "projection-night-mode"
     private static let motionBlurModeKey = "projection-motion-blur-mode"
 
@@ -421,6 +456,13 @@ public enum ProjectionSettings {
         audioCodecPreference = .aac
         audioOutputTarget = .ipad
         microphoneSource = .followAudioOutput
+        mediaVolume = defaultChannelVolume
+        navigationVolume = defaultChannelVolume
+        phoneSystemVolume = defaultChannelVolume
+        isMediaChannelEnabled = true
+        isNavigationChannelEnabled = true
+        isSystemChannelEnabled = true
+        navigationDuckingAmount = defaultNavigationDuckingAmount
         nightMode = .auto
         motionBlurMode = .off
         resetDpiToDefault()
@@ -478,6 +520,78 @@ public enum ProjectionSettings {
         case .phone:
             return false
         }
+    }
+
+    public static let defaultChannelVolume: Float = 1.0
+    public static let defaultNavigationDuckingAmount: Float = 0.70
+
+    public static var mediaVolume: Float {
+        get {
+            guard defaults.object(forKey: mediaVolumeKey) != nil else { return defaultChannelVolume }
+            return min(max(defaults.float(forKey: mediaVolumeKey), 0.0), 1.0)
+        }
+        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: mediaVolumeKey) }
+    }
+
+    public static var navigationVolume: Float {
+        get {
+            guard defaults.object(forKey: navigationVolumeKey) != nil else { return defaultChannelVolume }
+            return min(max(defaults.float(forKey: navigationVolumeKey), 0.0), 1.0)
+        }
+        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: navigationVolumeKey) }
+    }
+
+    public static var phoneSystemVolume: Float {
+        get {
+            guard defaults.object(forKey: phoneSystemVolumeKey) != nil else { return defaultChannelVolume }
+            return min(max(defaults.float(forKey: phoneSystemVolumeKey), 0.0), 1.0)
+        }
+        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: phoneSystemVolumeKey) }
+    }
+
+    public static var isMediaChannelEnabled: Bool {
+        get {
+            guard defaults.object(forKey: mediaChannelEnabledKey) != nil else { return true }
+            return defaults.bool(forKey: mediaChannelEnabledKey)
+        }
+        set { defaults.set(newValue, forKey: mediaChannelEnabledKey) }
+    }
+
+    public static var isNavigationChannelEnabled: Bool {
+        get {
+            guard defaults.object(forKey: navigationChannelEnabledKey) != nil else { return true }
+            return defaults.bool(forKey: navigationChannelEnabledKey)
+        }
+        set { defaults.set(newValue, forKey: navigationChannelEnabledKey) }
+    }
+
+    public static var isSystemChannelEnabled: Bool {
+        get {
+            guard defaults.object(forKey: systemChannelEnabledKey) != nil else { return true }
+            return defaults.bool(forKey: systemChannelEnabledKey)
+        }
+        set { defaults.set(newValue, forKey: systemChannelEnabledKey) }
+    }
+
+    /// 导航播报时媒体音量降低比例 (0.0 = 不压音, 0.70 = 降低 -70%, 1.0 = 完全静音媒体)
+    public static var navigationDuckingAmount: Float {
+        get {
+            guard defaults.object(forKey: navigationDuckingAmountKey) != nil else {
+                return defaultNavigationDuckingAmount
+            }
+            return min(max(defaults.float(forKey: navigationDuckingAmountKey), 0.0), 1.0)
+        }
+        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: navigationDuckingAmountKey) }
+    }
+
+    public static var audioChannelsSummaryText: String {
+        guard isAudioSinkEnabled else { return audioOutputTarget.title }
+        let mPct = isMediaChannelEnabled ? "\(Int((mediaVolume * 100).rounded()))%" : "Off"
+        let nPct = isNavigationChannelEnabled ? "\(Int((navigationVolume * 100).rounded()))%" : "Off"
+        let sPct = isSystemChannelEnabled ? "\(Int((phoneSystemVolume * 100).rounded()))%" : "Off"
+        let duckPct = Int((navigationDuckingAmount * 100).rounded())
+        let duckStr = duckPct == 0 ? "No Duck" : "Duck -\(duckPct)%"
+        return "iPad (\(mPct)/\(nPct)/\(sPct) • \(duckStr))"
     }
 
     public static var videoResolution: ResolutionPreset {

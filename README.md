@@ -50,7 +50,7 @@ Running Android Auto on an iPad has traditionally suffered from major compromise
 | **Display & UI** | **Full-Screen Margin Cropping & Live DPI Preview** | Eliminates 16:9 black bars via `MarginStrategyPolicy` and `VideoFitPolicy` (`Fill Margin`, `Fit`, `Stretch`). Includes an interactive **Live DPI Preview (`DpiPreviewView`)** (`100–320 DPI`) and Left/Right-Hand Drive (`LHD`/`RHD`) switching. |
 | **Dashboard** | **Automotive Dual-Column Home & Settings Center** | Card-based dashboard (`MainViewController`) with a live status pill, direct IP connection hub, step-by-step setup guide, 6 interactive quick-spec tiles, and a native `.insetGrouped` settings modal (`SettingsViewController`). |
 | **Video Pipeline** | **Hardware H.264 / HEVC Decoding & Self-Healing** | Low-latency `VideoToolbox` rendering (`H264VideoRendererView`) up to `4K 60FPS`, backed by one-time codec locking, packet-loss keyframe recovery (`KeyframeRepairTracker`), and an automatic resolution fallback ladder (`DecoderConfigLadder`). |
-| **Audio & Media** | **Hardware AAC/PCM, Ducking & Lock Screen Sync** | Decodes compressed `AAC-LC` and uncompressed `PCM` audio (`AacAudioDecoder`, `PCMAudioPlayer`), smoothly ducks music during navigation prompts (`MixerDuckingEnvelope`), and syncs track metadata & album art to the iPadOS Lock Screen (`NowPlayingCoordinator`). |
+| **Audio & Media** | **Independent Multi-Channel Mixer & Custom Ducking** | Decodes compressed `AAC-LC` and uncompressed `PCM` audio (`AacAudioDecoder`, `PCMAudioPlayer`), offers independent channel volumes and toggles (Media, Navigation, Phone/System), customizable navigation ducking reduction levels (0% to -100%), and syncs track metadata & album art to the iPadOS Lock Screen (`NowPlayingCoordinator`). |
 | **Voice & Identity** | **On-Demand Mic Routing & Single Vehicle Identity** | Supports `Follow Audio Output`, `iPad Microphone` (48kHz-to-16kHz anti-aliased decimation via `MicPcmDecimator`), and `Phone / Car BT Mic` under a unified vehicle profile (`iPad-CarAutoPad-moto`) that prevents duplicate car entries on your phone. |
 | **Sensors & Input** | **Astronomical Twilight, Signed GPS & Keymaps** | Computes local sunrise/sunset times offline via NOAA solar algorithms (`TwilightCalculator`), forwards full signed GPS coordinates (`LocationCapture`), and maps hardware keyboards & Bluetooth steering wheel buttons (`KeymapManager`). |
 | **Diagnostics** | **Real-Time Performance HUD & Profile Backup** | Monitors live FPS, decode latency, and bitrate (`PerformanceOverlayView`), tests audio output (`AudioStreamTester`), surfaces network alerts (`ConnectionIssueBannerPolicy`), exports logs (`LogExporter`), and backs up settings to JSON (`SettingsBackupManager`). |
@@ -160,7 +160,7 @@ HeadunitPad-Auto/
 
 Because **CarAutoPad** uses zero private Apple entitlements, you can install it on any non-jailbroken iPad running **iPadOS 15.0 or later** using a free Apple ID:
 
-1. Download the latest `CarAutoPad.ipa` from the [Releases](https://github.com/Bryan-Maki/HeadunitPad-Auto/releases) page (latest release: `v0.5.0-beta`).
+1. Download the latest `CarAutoPad.ipa` from the [Releases](https://github.com/Bryan-Maki/HeadunitPad-Auto/releases) page (latest release: `v0.5.2-beta`).
 2. Sign and sideload `CarAutoPad.ipa` onto your iPad using [SideStore](https://sidestore.io/), [AltStore](https://altstore.io/), [Sideloadly](https://sideloadly.io/), or an Apple Developer certificate.
 3. Launch **CarAutoPad** on your iPad and grant **Local Network**, **Microphone**, and **Location** permissions when prompted.
 
@@ -258,7 +258,7 @@ When opening an issue on GitHub, please include:
 
 ## What's Next?
 
-**CarAutoPad** (`v0.5.0-beta`) is actively evolving. Planned enhancements for upcoming releases include:
+**CarAutoPad** (`v0.5.2-beta`) is actively evolving. Planned enhancements for upcoming releases include:
 
 - [ ] **Localization (i18n)**: Multi-language UI support (Simplified/Traditional Chinese, English, Japanese, and European languages).
 - [ ] **AltStore / SideStore Source Feed**: Automated JSON repository feed for one-tap OTA updates in SideStore and AltStore.

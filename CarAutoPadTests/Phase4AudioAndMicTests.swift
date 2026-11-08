@@ -150,4 +150,189 @@ final class Phase4AudioAndMicTests: XCTestCase {
         player.stop()
         XCTAssertEqual(player.streamCount, 0)
     }
+
+    func testChannelVolumesAndTogglesDefaultsAndClamping() {
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.0)
+        XCTAssertEqual(ProjectionSettings.navigationVolume, 1.0)
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 1.0)
+        XCTAssertTrue(ProjectionSettings.isMediaChannelEnabled)
+        XCTAssertTrue(ProjectionSettings.isNavigationChannelEnabled)
+        XCTAssertTrue(ProjectionSettings.isSystemChannelEnabled)
+        XCTAssertEqual(ProjectionSettings.navigationDuckingAmount, 0.70, accuracy: 0.001)
+
+        XCTAssertEqual(ProjectionSettings.audioChannelsSummaryText, "iPad (100%/100%/100% • Duck -70%)")
+
+        ProjectionSettings.audioOutputTarget = .phone
+        XCTAssertEqual(ProjectionSettings.audioChannelsSummaryText, "Phone (Original Device)")
+        ProjectionSettings.audioOutputTarget = .ipad
+
+        // Test clamping
+        ProjectionSettings.mediaVolume = -0.5
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 0.0)
+        ProjectionSettings.mediaVolume = 1.8
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.0)
+
+        ProjectionSettings.navigationVolume = -0.1
+        XCTAssertEqual(ProjectionSettings.navigationVolume, 0.0)
+        ProjectionSettings.navigationVolume = 1.1
+        XCTAssertEqual(ProjectionSettings.navigationVolume, 1.0)
+
+        ProjectionSettings.phoneSystemVolume = -0.3
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 0.0)
+        ProjectionSettings.phoneSystemVolume = 1.3
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 1.0)
+
+        ProjectionSettings.navigationDuckingAmount = -0.2
+        XCTAssertEqual(ProjectionSettings.navigationDuckingAmount, 0.0)
+        ProjectionSettings.navigationDuckingAmount = 1.5
+        XCTAssertEqual(ProjectionSettings.navigationDuckingAmount, 1.0)
+
+        // Summary text tests
+        ProjectionSettings.mediaVolume = 0.8
+        ProjectionSettings.navigationVolume = 0.5
+        ProjectionSettings.phoneSystemVolume = 1.0
+        ProjectionSettings.navigationDuckingAmount = 0.0
+        XCTAssertTrue(ProjectionSettings.audioChannelsSummaryText.contains("No Duck"))
+        XCTAssertTrue(ProjectionSettings.audioChannelsSummaryText.contains("80%/50%/100%"))
+
+        ProjectionSettings.isMediaChannelEnabled = false
+        XCTAssertTrue(ProjectionSettings.audioChannelsSummaryText.contains("Off/50%/100%"))
+
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.0)
+        XCTAssertEqual(ProjectionSettings.navigationDuckingAmount, 0.70, accuracy: 0.001)
+    }
+
+    func testNavigationDuckingPresetProperties() {
+        XCTAssertEqual(NavigationDuckingPreset.off.rawValue, 0)
+        XCTAssertEqual(NavigationDuckingPreset.off.dropPercentage, 0)
+        XCTAssertEqual(NavigationDuckingPreset.off.reductionAmount, 0.0, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.off.retainedGain, 1.0, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.off.shortTitle, "Off (0%)")
+
+        XCTAssertEqual(NavigationDuckingPreset.light.rawValue, 25)
+        XCTAssertEqual(NavigationDuckingPreset.light.dropPercentage, 25)
+        XCTAssertEqual(NavigationDuckingPreset.light.reductionAmount, 0.25, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.light.retainedGain, 0.75, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.light.shortTitle, "-25%")
+
+        XCTAssertEqual(NavigationDuckingPreset.medium.rawValue, 50)
+        XCTAssertEqual(NavigationDuckingPreset.medium.dropPercentage, 50)
+        XCTAssertEqual(NavigationDuckingPreset.medium.reductionAmount, 0.50, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.medium.retainedGain, 0.50, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.medium.shortTitle, "-50%")
+
+        XCTAssertEqual(NavigationDuckingPreset.standard.rawValue, 70)
+        XCTAssertEqual(NavigationDuckingPreset.standard.dropPercentage, 70)
+        XCTAssertEqual(NavigationDuckingPreset.standard.reductionAmount, 0.70, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.standard.retainedGain, 0.30, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.standard.shortTitle, "-70%")
+
+        XCTAssertEqual(NavigationDuckingPreset.deep.rawValue, 85)
+        XCTAssertEqual(NavigationDuckingPreset.deep.dropPercentage, 85)
+        XCTAssertEqual(NavigationDuckingPreset.deep.reductionAmount, 0.85, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.deep.retainedGain, 0.15, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.deep.shortTitle, "-85%")
+
+        XCTAssertEqual(NavigationDuckingPreset.mute.rawValue, 100)
+        XCTAssertEqual(NavigationDuckingPreset.mute.dropPercentage, 100)
+        XCTAssertEqual(NavigationDuckingPreset.mute.reductionAmount, 1.0, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.mute.retainedGain, 0.0, accuracy: 0.001)
+        XCTAssertEqual(NavigationDuckingPreset.mute.shortTitle, "-100%")
+    }
+
+    func testSettingsBackupManagerAudioVolumesAndDucking() throws {
+        ProjectionSettings.resetToDefaults()
+
+        ProjectionSettings.mediaVolume = 0.75
+        ProjectionSettings.navigationVolume = 0.60
+        ProjectionSettings.phoneSystemVolume = 0.45
+        ProjectionSettings.isMediaChannelEnabled = true
+        ProjectionSettings.isNavigationChannelEnabled = false
+        ProjectionSettings.isSystemChannelEnabled = true
+        ProjectionSettings.navigationDuckingAmount = 0.85
+
+        let json = SettingsBackupManager.exportToJson()
+        XCTAssertTrue(json.contains("\"mediaVolume\""))
+        XCTAssertTrue(json.contains("\"navigationDuckingAmount\""))
+        XCTAssertTrue(json.contains("\"isNavigationChannelEnabled\" : false"))
+
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.0)
+        XCTAssertTrue(ProjectionSettings.isNavigationChannelEnabled)
+
+        try SettingsBackupManager.importFromJson(json)
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 0.75, accuracy: 0.01)
+        XCTAssertEqual(ProjectionSettings.navigationVolume, 0.60, accuracy: 0.01)
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 0.45, accuracy: 0.01)
+        XCTAssertFalse(ProjectionSettings.isNavigationChannelEnabled)
+        XCTAssertEqual(ProjectionSettings.navigationDuckingAmount, 0.85, accuracy: 0.01)
+
+        // Test backward compatibility with json lacking audio fields
+        let v1Json = """
+        {
+          "format" : "carautopad-settings",
+          "version" : 1,
+          "exportedAt" : "2026-11-01T00:00:00Z",
+          "settings" : {
+            "resolution" : 0,
+            "fpsLimit" : 60,
+            "dpi" : 160,
+            "fitMode" : 0,
+            "rightHandDrive" : false,
+            "gpsSource" : 0,
+            "orientation" : 0,
+            "autoReconnect" : true,
+            "autoResumePlayback" : true,
+            "videoCodecPreference" : "H264",
+            "audioCodecPreference" : 1,
+            "audioOutputTarget" : 0,
+            "nightMode" : 0,
+            "showPerformanceOverlay" : false
+          }
+        }
+        """
+        XCTAssertNoThrow(try SettingsBackupManager.importFromJson(v1Json))
+
+        ProjectionSettings.resetToDefaults()
+    }
+
+    func testMixerDuckingEnvelopeUpdateGainAndClamping() {
+        let envelope = MixerDuckingEnvelope(sampleRate: 48000, duckedGain: 1.5)
+        XCTAssertEqual(envelope.duckedGain, 1.0, accuracy: 0.001)
+
+        envelope.updateDuckedGain(-0.5, isSpeechActive: false)
+        XCTAssertEqual(envelope.duckedGain, 0.0, accuracy: 0.001)
+
+        envelope.updateDuckedGain(0.35, isSpeechActive: false)
+        XCTAssertEqual(envelope.duckedGain, 0.35, accuracy: 0.001)
+
+        envelope.setSpeechActive(true)
+        envelope.updateDuckedGain(0.20, isSpeechActive: true)
+        XCTAssertEqual(envelope.duckedGain, 0.20, accuracy: 0.001)
+        XCTAssertEqual(envelope.currentGain, 0.20, accuracy: 0.001)
+    }
+
+    func testPCMAudioPlayerIndependentVolumesAndMuteGuards() {
+        let player = PCMAudioPlayer()
+        ProjectionSettings.resetToDefaults()
+
+        ProjectionSettings.mediaVolume = 0.8
+        ProjectionSettings.navigationVolume = 0.5
+        ProjectionSettings.phoneSystemVolume = 0.3
+        ProjectionSettings.navigationDuckingAmount = 0.70
+
+        player.refreshVolumes()
+
+        // When speech is inactive, media volume should be 0.8
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 0.8, accuracy: 0.01)
+
+        // When navigation channel is disabled, media should not be ducked
+        ProjectionSettings.isNavigationChannelEnabled = false
+        player.refreshVolumes()
+        XCTAssertFalse(ProjectionSettings.isNavigationChannelEnabled)
+
+        ProjectionSettings.resetToDefaults()
+    }
 }

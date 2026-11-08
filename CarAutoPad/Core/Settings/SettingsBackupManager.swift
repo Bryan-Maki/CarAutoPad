@@ -35,6 +35,13 @@ public struct SettingsPayload: Codable, Equatable {
     public var isAutoDpi: Bool?
     public var microphoneSource: Int?
     public var motionBlurMode: Int?
+    public var mediaVolume: Float?
+    public var navigationVolume: Float?
+    public var phoneSystemVolume: Float?
+    public var isMediaChannelEnabled: Bool?
+    public var isNavigationChannelEnabled: Bool?
+    public var isSystemChannelEnabled: Bool?
+    public var navigationDuckingAmount: Float?
 
     public init(
         resolution: Int,
@@ -53,7 +60,14 @@ public struct SettingsPayload: Codable, Equatable {
         showPerformanceOverlay: Bool,
         isAutoDpi: Bool? = nil,
         microphoneSource: Int? = nil,
-        motionBlurMode: Int? = nil
+        motionBlurMode: Int? = nil,
+        mediaVolume: Float? = nil,
+        navigationVolume: Float? = nil,
+        phoneSystemVolume: Float? = nil,
+        isMediaChannelEnabled: Bool? = nil,
+        isNavigationChannelEnabled: Bool? = nil,
+        isSystemChannelEnabled: Bool? = nil,
+        navigationDuckingAmount: Float? = nil
     ) {
         self.resolution = resolution
         self.fpsLimit = fpsLimit
@@ -72,6 +86,13 @@ public struct SettingsPayload: Codable, Equatable {
         self.isAutoDpi = isAutoDpi
         self.microphoneSource = microphoneSource
         self.motionBlurMode = motionBlurMode
+        self.mediaVolume = mediaVolume
+        self.navigationVolume = navigationVolume
+        self.phoneSystemVolume = phoneSystemVolume
+        self.isMediaChannelEnabled = isMediaChannelEnabled
+        self.isNavigationChannelEnabled = isNavigationChannelEnabled
+        self.isSystemChannelEnabled = isSystemChannelEnabled
+        self.navigationDuckingAmount = navigationDuckingAmount
     }
 }
 
@@ -111,7 +132,14 @@ public enum SettingsBackupManager {
             showPerformanceOverlay: ProjectionSettings.showPerformanceOverlay,
             isAutoDpi: ProjectionSettings.isAutoDpi,
             microphoneSource: ProjectionSettings.microphoneSource.rawValue,
-            motionBlurMode: ProjectionSettings.motionBlurMode.rawValue
+            motionBlurMode: ProjectionSettings.motionBlurMode.rawValue,
+            mediaVolume: ProjectionSettings.mediaVolume,
+            navigationVolume: ProjectionSettings.navigationVolume,
+            phoneSystemVolume: ProjectionSettings.phoneSystemVolume,
+            isMediaChannelEnabled: ProjectionSettings.isMediaChannelEnabled,
+            isNavigationChannelEnabled: ProjectionSettings.isNavigationChannelEnabled,
+            isSystemChannelEnabled: ProjectionSettings.isSystemChannelEnabled,
+            navigationDuckingAmount: ProjectionSettings.navigationDuckingAmount
         )
     }
 
@@ -197,10 +225,32 @@ public enum SettingsBackupManager {
         if let blurRaw = s.motionBlurMode, let blurMode = MotionBlurMode(rawValue: blurRaw) {
             ProjectionSettings.motionBlurMode = blurMode
         }
+        if let mv = s.mediaVolume {
+            ProjectionSettings.mediaVolume = mv
+        }
+        if let nv = s.navigationVolume {
+            ProjectionSettings.navigationVolume = nv
+        }
+        if let pv = s.phoneSystemVolume {
+            ProjectionSettings.phoneSystemVolume = pv
+        }
+        if let mEn = s.isMediaChannelEnabled {
+            ProjectionSettings.isMediaChannelEnabled = mEn
+        }
+        if let nEn = s.isNavigationChannelEnabled {
+            ProjectionSettings.isNavigationChannelEnabled = nEn
+        }
+        if let sEn = s.isSystemChannelEnabled {
+            ProjectionSettings.isSystemChannelEnabled = sEn
+        }
+        if let duck = s.navigationDuckingAmount {
+            ProjectionSettings.navigationDuckingAmount = duck
+        }
 
+        PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: ProjectionSettings.resolution)
 
-        return 14
+        return 21
     }
 
     public static func resetToDefaults() {
@@ -221,7 +271,15 @@ public enum SettingsBackupManager {
         ProjectionSettings.isAutoDpi = true
         ProjectionSettings.nightMode = .system
         ProjectionSettings.showPerformanceOverlay = false
+        ProjectionSettings.mediaVolume = ProjectionSettings.defaultChannelVolume
+        ProjectionSettings.navigationVolume = ProjectionSettings.defaultChannelVolume
+        ProjectionSettings.phoneSystemVolume = ProjectionSettings.defaultChannelVolume
+        ProjectionSettings.isMediaChannelEnabled = true
+        ProjectionSettings.isNavigationChannelEnabled = true
+        ProjectionSettings.isSystemChannelEnabled = true
+        ProjectionSettings.navigationDuckingAmount = ProjectionSettings.defaultNavigationDuckingAmount
 
+        PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: .auto)
     }
 }

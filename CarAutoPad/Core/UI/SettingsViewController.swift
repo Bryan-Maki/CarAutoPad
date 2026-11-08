@@ -8,6 +8,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case geometryChanged
         case requiresReconnect
         case motionBlurChanged
+        case audioVolumeOrDuckingChanged
     }
 
     enum SettingsSection: Int, CaseIterable {
@@ -106,7 +107,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .displayLayout:
             return 7
         case .videoAudio:
-            return 5
+            return 6
         case .smartSensors:
             return 2
         case .connectionAutomation:
@@ -379,6 +380,13 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             return cell
 
         case 4:
+            let cell = AudioChannelMixerCell()
+            cell.onSettingsChanged = { [weak self] impact in
+                self?.onSettingsChanged?(impact)
+            }
+            return cell
+
+        case 5:
             let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
             cell.textLabel?.text = "Audio Stream Tester"
             cell.detailTextLabel?.text = "Test tones & ducking"
@@ -552,7 +560,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }
 
         case .videoAudio:
-            if indexPath.row == 4 {
+            if indexPath.row == 5 {
                 presentAudioStreamTester(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
             }
 
@@ -991,5 +999,394 @@ final class DebugLogCategoriesViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         return "Enabled categories emit structured telemetry to AppLog. Disabling unnecessary categories saves CPU overhead."
+    }
+}
+
+final class AudioChannelMixerCell: UITableViewCell {
+
+    var onSettingsChanged: ((SettingsViewController.ChangeImpact) -> Void)?
+
+    private let mainStackView: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 14
+        stack.alignment = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private let mediaSwitch = UISwitch()
+    private let mediaSlider = UISlider()
+    private let mediaValueLabel = UILabel()
+
+    private let navSwitch = UISwitch()
+    private let navSlider = UISlider()
+    private let navValueLabel = UILabel()
+
+    private let sysSwitch = UISwitch()
+    private let sysSlider = UISlider()
+    private let sysValueLabel = UILabel()
+
+    private let duckingStatusLabel = UILabel()
+    private let duckingSlider = UISlider()
+    private let presetStackView = UIStackView()
+    private var presetButtons: [NavigationDuckingPreset: UIButton] = [:]
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        selectionStyle = .none
+        setupViews()
+        syncWithCurrentSettings()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        selectionStyle = .none
+        setupViews()
+        syncWithCurrentSettings()
+    }
+
+    private func setupViews() {
+        contentView.addSubview(mainStackView)
+        NSLayoutConstraint.activate([
+            mainStackView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            mainStackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            mainStackView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            mainStackView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -14)
+        ])
+
+        // 1) Media Channel
+        let mediaBlock = makeChannelRow(
+            iconName: "music.note",
+            iconColor: .systemBlue,
+            title: "Media Audio",
+            toggle: mediaSwitch,
+            slider: mediaSlider,
+            valueLabel: mediaValueLabel,
+            onTone: { AudioStreamTester.shared.playMediaTestTone() }
+        )
+        mainStackView.addArrangedSubview(mediaBlock)
+
+        // 2) Navigation Channel
+        let navBlock = makeChannelRow(
+            iconName: "location.fill",
+            iconColor: .systemGreen,
+            title: "Navigation / Guidance",
+            toggle: navSwitch,
+            slider: navSlider,
+            valueLabel: navValueLabel,
+            onTone: { AudioStreamTester.shared.playGuidanceTestTone() }
+        )
+        mainStackView.addArrangedSubview(navBlock)
+
+        // 3) Phone & System Channel
+        let sysBlock = makeChannelRow(
+            iconName: "bell.fill",
+            iconColor: .systemOrange,
+            title: "Phone & System Alerts",
+            toggle: sysSwitch,
+            slider: sysSlider,
+            valueLabel: sysValueLabel,
+            onTone: { AudioStreamTester.shared.playSystemTestTone() }
+        )
+        mainStackView.addArrangedSubview(sysBlock)
+
+        // 4) Navigation Ducking Section
+        let duckingSection = makeDuckingSection()
+        mainStackView.addArrangedSubview(duckingSection)
+
+        wireActions()
+    }
+
+    private func makeChannelRow(
+        iconName: String,
+        iconColor: UIColor,
+        title: String,
+        toggle: UISwitch,
+        slider: UISlider,
+        valueLabel: UILabel,
+        onTone: @escaping () -> Void
+    ) -> UIView {
+        let container = UIStackView()
+        container.axis = .vertical
+        container.spacing = 6
+
+        let topRow = UIStackView()
+        topRow.axis = .horizontal
+        topRow.spacing = 8
+        topRow.alignment = .center
+
+        let iconView = UIImageView(image: UIImage(systemName: iconName))
+        iconView.tintColor = iconColor
+        iconView.contentMode = .scaleAspectFit
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 20).isActive = true
+
+        let titleLabel = UILabel()
+        titleLabel.text = title
+        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = .label
+        titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        var toneConfig = UIButton.Configuration.tinted()
+        toneConfig.title = "♫"
+        toneConfig.cornerStyle = .capsule
+        toneConfig.buttonSize = .mini
+        let toneButton = UIButton(configuration: toneConfig)
+        toneButton.setContentHuggingPriority(.required, for: .horizontal)
+        toneButton.addAction(UIAction { _ in onTone() }, for: .touchUpInside)
+
+        topRow.addArrangedSubview(iconView)
+        topRow.addArrangedSubview(titleLabel)
+        topRow.addArrangedSubview(toneButton)
+        topRow.addArrangedSubview(toggle)
+
+        let sliderRow = UIStackView()
+        sliderRow.axis = .horizontal
+        sliderRow.spacing = 10
+        sliderRow.alignment = .center
+
+        slider.minimumValue = 0.0
+        slider.maximumValue = 1.0
+
+        valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
+        valueLabel.textColor = .secondaryLabel
+        valueLabel.textAlignment = .right
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        valueLabel.widthAnchor.constraint(equalToConstant: 44).isActive = true
+
+        sliderRow.addArrangedSubview(slider)
+        sliderRow.addArrangedSubview(valueLabel)
+
+        container.addArrangedSubview(topRow)
+        container.addArrangedSubview(sliderRow)
+        return container
+    }
+
+    private func makeDuckingSection() -> UIView {
+        let container = UIStackView()
+        container.axis = .vertical
+        container.spacing = 8
+
+        let sep = UIView()
+        sep.backgroundColor = .separator
+        sep.translatesAutoresizingMaskIntoConstraints = false
+        sep.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+        container.addArrangedSubview(sep)
+
+        let headerRow = UIStackView()
+        headerRow.axis = .horizontal
+        headerRow.alignment = .center
+        headerRow.distribution = .equalSpacing
+
+        let titleLabel = UILabel()
+        titleLabel.text = "Navigation Ducking Drop"
+        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = .label
+
+        duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        duckingStatusLabel.textColor = .systemBlue
+        duckingStatusLabel.textAlignment = .right
+
+        headerRow.addArrangedSubview(titleLabel)
+        headerRow.addArrangedSubview(duckingStatusLabel)
+        container.addArrangedSubview(headerRow)
+
+        let subLabel = UILabel()
+        subLabel.text = "Reduces media music volume during navigation speech guidance."
+        subLabel.font = .systemFont(ofSize: 12)
+        subLabel.textColor = .secondaryLabel
+        subLabel.numberOfLines = 0
+        container.addArrangedSubview(subLabel)
+
+        duckingSlider.minimumValue = 0.0
+        duckingSlider.maximumValue = 1.0
+        container.addArrangedSubview(duckingSlider)
+
+        presetStackView.axis = .horizontal
+        presetStackView.spacing = 6
+        presetStackView.distribution = .fillEqually
+
+        for preset in NavigationDuckingPreset.allCases {
+            var config = UIButton.Configuration.tinted()
+            config.title = preset.shortTitle
+            config.cornerStyle = .capsule
+            config.buttonSize = .mini
+            let btn = UIButton(configuration: config)
+            btn.addAction(UIAction { [weak self] _ in
+                self?.applyDucking(preset.reductionAmount)
+            }, for: .touchUpInside)
+            presetButtons[preset] = btn
+            presetStackView.addArrangedSubview(btn)
+        }
+        container.addArrangedSubview(presetStackView)
+
+        let actionsRow = UIStackView()
+        actionsRow.axis = .horizontal
+        actionsRow.spacing = 10
+        actionsRow.distribution = .fillEqually
+
+        var testConfig = UIButton.Configuration.tinted()
+        testConfig.title = "Test Nav Ducking"
+        testConfig.image = UIImage(systemName: "play.fill")
+        testConfig.imagePadding = 4
+        testConfig.buttonSize = .small
+        testConfig.cornerStyle = .medium
+        let testDuckingButton = UIButton(configuration: testConfig)
+        testDuckingButton.addAction(UIAction { _ in
+            AudioStreamTester.shared.playDuckingTestSequence()
+        }, for: .touchUpInside)
+
+        var resetConfig = UIButton.Configuration.gray()
+        resetConfig.title = "Reset Audio"
+        resetConfig.image = UIImage(systemName: "arrow.counterclockwise")
+        resetConfig.imagePadding = 4
+        resetConfig.buttonSize = .small
+        resetConfig.cornerStyle = .medium
+        let resetAudioButton = UIButton(configuration: resetConfig)
+        resetAudioButton.addAction(UIAction { [weak self] _ in
+            self?.resetAudioVolumes()
+        }, for: .touchUpInside)
+
+        actionsRow.addArrangedSubview(testDuckingButton)
+        actionsRow.addArrangedSubview(resetAudioButton)
+        container.addArrangedSubview(actionsRow)
+
+        return container
+    }
+
+    private func wireActions() {
+        mediaSwitch.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            ProjectionSettings.isMediaChannelEnabled = self.mediaSwitch.isOn
+            self.mediaSlider.isEnabled = self.mediaSwitch.isOn
+            self.mediaValueLabel.text = self.mediaSwitch.isOn ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off"
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+
+        mediaSlider.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            let val = (self.mediaSlider.value * 100).rounded() / 100.0
+            ProjectionSettings.mediaVolume = val
+            self.mediaValueLabel.text = "\(Int((val * 100).rounded()))%"
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+
+        navSwitch.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            ProjectionSettings.isNavigationChannelEnabled = self.navSwitch.isOn
+            self.navSlider.isEnabled = self.navSwitch.isOn
+            self.navValueLabel.text = self.navSwitch.isOn ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off"
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+
+        navSlider.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            let val = (self.navSlider.value * 100).rounded() / 100.0
+            ProjectionSettings.navigationVolume = val
+            self.navValueLabel.text = "\(Int((val * 100).rounded()))%"
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+
+        sysSwitch.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            ProjectionSettings.isSystemChannelEnabled = self.sysSwitch.isOn
+            self.sysSlider.isEnabled = self.sysSwitch.isOn
+            self.sysValueLabel.text = self.sysSwitch.isOn ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off"
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+
+        sysSlider.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            let val = (self.sysSlider.value * 100).rounded() / 100.0
+            ProjectionSettings.phoneSystemVolume = val
+            self.sysValueLabel.text = "\(Int((val * 100).rounded()))%"
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+
+        duckingSlider.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            let val = (self.duckingSlider.value * 100).rounded() / 100.0
+            ProjectionSettings.navigationDuckingAmount = val
+            self.updateDuckingStatusLabel(amount: val)
+            self.updatePresetButtonSelection(amount: val)
+            PCMAudioPlayer.shared.refreshVolumes()
+            self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
+        }, for: .valueChanged)
+    }
+
+    private func applyDucking(_ amount: Float) {
+        let rounded = (amount * 100).rounded() / 100.0
+        ProjectionSettings.navigationDuckingAmount = rounded
+        duckingSlider.value = rounded
+        updateDuckingStatusLabel(amount: rounded)
+        updatePresetButtonSelection(amount: rounded)
+        PCMAudioPlayer.shared.refreshVolumes()
+        onSettingsChanged?(.audioVolumeOrDuckingChanged)
+    }
+
+    private func resetAudioVolumes() {
+        ProjectionSettings.mediaVolume = ProjectionSettings.defaultChannelVolume
+        ProjectionSettings.navigationVolume = ProjectionSettings.defaultChannelVolume
+        ProjectionSettings.phoneSystemVolume = ProjectionSettings.defaultChannelVolume
+        ProjectionSettings.isMediaChannelEnabled = true
+        ProjectionSettings.isNavigationChannelEnabled = true
+        ProjectionSettings.isSystemChannelEnabled = true
+        ProjectionSettings.navigationDuckingAmount = ProjectionSettings.defaultNavigationDuckingAmount
+        PCMAudioPlayer.shared.refreshVolumes()
+        syncWithCurrentSettings()
+        onSettingsChanged?(.audioVolumeOrDuckingChanged)
+    }
+
+    func syncWithCurrentSettings() {
+        mediaSwitch.isOn = ProjectionSettings.isMediaChannelEnabled
+        mediaSlider.value = ProjectionSettings.mediaVolume
+        mediaSlider.isEnabled = ProjectionSettings.isMediaChannelEnabled
+        mediaValueLabel.text = ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off"
+
+        navSwitch.isOn = ProjectionSettings.isNavigationChannelEnabled
+        navSlider.value = ProjectionSettings.navigationVolume
+        navSlider.isEnabled = ProjectionSettings.isNavigationChannelEnabled
+        navValueLabel.text = ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off"
+
+        sysSwitch.isOn = ProjectionSettings.isSystemChannelEnabled
+        sysSlider.value = ProjectionSettings.phoneSystemVolume
+        sysSlider.isEnabled = ProjectionSettings.isSystemChannelEnabled
+        sysValueLabel.text = ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off"
+
+        let duckAmount = ProjectionSettings.navigationDuckingAmount
+        duckingSlider.value = duckAmount
+        updateDuckingStatusLabel(amount: duckAmount)
+        updatePresetButtonSelection(amount: duckAmount)
+    }
+
+    private func updateDuckingStatusLabel(amount: Float) {
+        let pct = Int((amount * 100).rounded())
+        if pct == 0 {
+            duckingStatusLabel.text = "0% (No Ducking)"
+        } else if pct == 100 {
+            duckingStatusLabel.text = "-100% (Mute Media)"
+        } else {
+            let retained = 100 - pct
+            duckingStatusLabel.text = "-\(pct)% (Media at \(retained)%)"
+        }
+    }
+
+    private func updatePresetButtonSelection(amount: Float) {
+        let pct = Int((amount * 100).rounded())
+        for (preset, btn) in presetButtons {
+            let isSelected = (preset.dropPercentage == pct)
+            btn.configuration = isSelected ? .filled() : .tinted()
+            btn.configuration?.title = preset.shortTitle
+            btn.configuration?.cornerStyle = .capsule
+            btn.configuration?.buttonSize = .mini
+        }
     }
 }

@@ -2,7 +2,11 @@ import Foundation
 
 public final class MixerDuckingEnvelope {
     public let sampleRate: Int
-    public var duckedGain: Float
+    public var duckedGain: Float {
+        didSet {
+            duckedGain = min(max(duckedGain, 0.0), 1.0)
+        }
+    }
 
     private var gain: Float = 1.0
     private var target: Float = 1.0
@@ -20,7 +24,17 @@ public final class MixerDuckingEnvelope {
         self.sampleRate = sampleRate
         self.attackMs = attackMs
         self.releaseMs = releaseMs
-        self.duckedGain = duckedGain
+        self.duckedGain = min(max(duckedGain, 0.0), 1.0)
+    }
+
+    public func updateDuckedGain(_ newGain: Float, isSpeechActive: Bool) {
+        duckedGain = min(max(newGain, 0.0), 1.0)
+        if isSpeechActive {
+            target = duckedGain
+            gain = duckedGain
+            step = 0
+            remaining = 0
+        }
     }
 
     public func setSpeechActive(_ active: Bool) {

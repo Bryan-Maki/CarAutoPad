@@ -45,7 +45,9 @@ public final class AudioStreamTester {
     }
 
     public func playMediaTestTone() {
-        AudioDiagnostics.shared.record("AudioStreamTester: Playing 440Hz Media test tone (48kHz stereo, 1.0s)")
+        let vol = Int((ProjectionSettings.mediaVolume * 100).rounded())
+        let enabled = ProjectionSettings.isMediaChannelEnabled ? "enabled" : "disabled"
+        AudioDiagnostics.shared.record("AudioStreamTester: Playing 440Hz Media test tone (48kHz stereo, 1.0s, vol=\(vol)%, \(enabled))")
         let data = Self.generateSineWavePCM(
             sampleRate: 48000,
             channelCount: 2,
@@ -56,7 +58,9 @@ public final class AudioStreamTester {
     }
 
     public func playGuidanceTestTone() {
-        AudioDiagnostics.shared.record("AudioStreamTester: Playing 587Hz Guidance test tone (16kHz mono, 1.0s)")
+        let vol = Int((ProjectionSettings.navigationVolume * 100).rounded())
+        let enabled = ProjectionSettings.isNavigationChannelEnabled ? "enabled" : "disabled"
+        AudioDiagnostics.shared.record("AudioStreamTester: Playing 587Hz Guidance test tone (16kHz mono, 1.0s, vol=\(vol)%, \(enabled))")
         let data = Self.generateSineWavePCM(
             sampleRate: 16000,
             channelCount: 1,
@@ -67,7 +71,9 @@ public final class AudioStreamTester {
     }
 
     public func playSystemTestTone() {
-        AudioDiagnostics.shared.record("AudioStreamTester: Playing 880Hz System test tone (16kHz mono, 0.8s)")
+        let vol = Int((ProjectionSettings.phoneSystemVolume * 100).rounded())
+        let enabled = ProjectionSettings.isSystemChannelEnabled ? "enabled" : "disabled"
+        AudioDiagnostics.shared.record("AudioStreamTester: Playing 880Hz System test tone (16kHz mono, 0.8s, vol=\(vol)%, \(enabled))")
         let data = Self.generateSineWavePCM(
             sampleRate: 16000,
             channelCount: 1,
@@ -78,7 +84,10 @@ public final class AudioStreamTester {
     }
 
     public func playDuckingTestSequence() {
-        AudioDiagnostics.shared.record("AudioStreamTester: Starting ducking test sequence (Media + Guidance overlay)")
+        let duckPct = Int((ProjectionSettings.navigationDuckingAmount * 100).rounded())
+        let medVol = Int((ProjectionSettings.mediaVolume * 100).rounded())
+        let navVol = Int((ProjectionSettings.navigationVolume * 100).rounded())
+        AudioDiagnostics.shared.record("AudioStreamTester: Starting ducking test sequence (Media=\(medVol)%, Nav=\(navVol)%, Ducking=-\(duckPct)%)")
         let mediaData = Self.generateSineWavePCM(
             sampleRate: 48000,
             channelCount: 2,
@@ -88,7 +97,7 @@ public final class AudioStreamTester {
         PCMAudioPlayer.shared.playPCM(mediaData, on: Channel.ID_AUD)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            AudioDiagnostics.shared.record("AudioStreamTester: Overlaying Guidance speech tone (triggering ducking)")
+            AudioDiagnostics.shared.record("AudioStreamTester: Overlaying Guidance speech tone (triggering ducking -\(duckPct)%)")
             let guidanceData = Self.generateSineWavePCM(
                 sampleRate: 16000,
                 channelCount: 1,

@@ -35,7 +35,10 @@ final class PCMAudioPlayer {
     private var isRebuilding = false
 
     private var aacDecoders: [UInt8: AacAudioDecoder] = [:]
-    private let duckingEnvelope = MixerDuckingEnvelope(sampleRate: 48000, duckedGain: 0.3)
+    private let duckingEnvelope = MixerDuckingEnvelope(
+        sampleRate: 48000,
+        duckedGain: max(0.0, min(1.0, 1.0 - ProjectionSettings.navigationDuckingAmount))
+    )
     private var speechActiveTimer: DispatchSourceTimer?
     private var isSpeechActive = false
 
@@ -243,6 +246,16 @@ final class PCMAudioPlayer {
     }
 
     private func enqueuePreparedBuffer(_ buffer: AVAudioPCMBuffer, rawPCMData: Data, sampleRate: Int, channels: Int, on channel: UInt8) {
+        if channel == Channel.ID_AUD && (!ProjectionSettings.isMediaChannelEnabled || ProjectionSettings.mediaVolume <= 0.001) {
+            return
+        }
+        if channel == Channel.ID_AU1 && (!ProjectionSettings.isNavigationChannelEnabled || ProjectionSettings.navigationVolume <= 0.001) {
+            return
+        }
+        if channel == Channel.ID_AU2 && (!ProjectionSettings.isSystemChannelEnabled || ProjectionSettings.phoneSystemVolume <= 0.001) {
+            return
+        }
+
         ensureSessionConfigured()
         guard let stream = ensureStream(for: channel, sampleRate: sampleRate, channels: channels) else { return }
         guard startEngineIfNeeded() else { return }
@@ -325,10 +338,34 @@ final class PCMAudioPlayer {
         return depth
     }
 
+    public func refreshVolumes() {
+        let block = { [self] in
+            self.applyVolumesAndDuckingLocked()
+        }
+        if DispatchQueue.getSpecific(key: Self.audioQueueKey) != nil {
+            block()
+        } else {
+            audioQueue.async(execute: block)
+        }
+    }
+
+    public func volume(for channel: UInt8) -> Float? {
+        var vol: Float?
+        let block = { [self] in
+            vol = streams[channel]?.player.volume
+        }
+        if DispatchQueue.getSpecific(key: Self.audioQueueKey) != nil {
+            block()
+        } else {
+            audioQueue.sync(execute: block)
+        }
+        return vol
+    }
+
     public func noteSpeechActivity() {
         isSpeechActive = true
         duckingEnvelope.setSpeechActive(true)
-        applyDuckingToMediaStream()
+        applyVolumesAndDuckingLocked()
 
         speechActiveTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: audioQueue)
@@ -337,19 +374,37 @@ final class PCMAudioPlayer {
             guard let self = self else { return }
             self.isSpeechActive = false
             self.duckingEnvelope.setSpeechActive(false)
-            self.applyDuckingToMediaStream()
+            self.applyVolumesAndDuckingLocked()
         }
         timer.resume()
         speechActiveTimer = timer
     }
 
-    private func applyDuckingToMediaStream() {
-        let mediaChannel = Channel.ID_AUD
-        if let mediaStream = streams[mediaChannel] {
-            let targetVolume: Float = isSpeechActive ? duckingEnvelope.duckedGain : 1.0
-            mediaStream.player.volume = targetVolume
-            AppLog.category(.audioMic, "[AUDIO] Media stream ducking volume=\(targetVolume) (speechActive=\(isSpeechActive))", tag: "PCMAudioPlayer")
+    private func applyVolumesAndDuckingLocked() {
+        let mediaVol = ProjectionSettings.isMediaChannelEnabled ? ProjectionSettings.mediaVolume : 0.0
+        let navVol = ProjectionSettings.isNavigationChannelEnabled ? ProjectionSettings.navigationVolume : 0.0
+        let sysVol = ProjectionSettings.isSystemChannelEnabled ? ProjectionSettings.phoneSystemVolume : 0.0
+        let duckReduction = max(0.0, min(1.0, ProjectionSettings.navigationDuckingAmount))
+        let duckedGain = 1.0 - duckReduction
+        duckingEnvelope.updateDuckedGain(duckedGain, isSpeechActive: isSpeechActive)
+
+        let effectiveDucking = isSpeechActive && ((navVol > 0.001) || (sysVol > 0.001))
+        let targetMediaVolume = mediaVol * (effectiveDucking ? duckedGain : 1.0)
+
+        if let mediaStream = streams[Channel.ID_AUD] {
+            mediaStream.player.volume = targetMediaVolume
         }
+        if let guidanceStream = streams[Channel.ID_AU1] {
+            guidanceStream.player.volume = navVol
+        }
+        if let systemStream = streams[Channel.ID_AU2] {
+            systemStream.player.volume = sysVol
+        }
+        AppLog.category(
+            .audioMic,
+            "[AUDIO] Volumes applied: media=\(String(format: "%.2f", targetMediaVolume)) (base=\(String(format: "%.2f", mediaVol)), ducked=\(effectiveDucking), drop=-\(Int((duckReduction * 100).rounded()))%), nav=\(String(format: "%.2f", navVol)), sys=\(String(format: "%.2f", sysVol))",
+            tag: "PCMAudioPlayer"
+        )
     }
 
     private func ensureAacDecoder(for channel: UInt8) -> AacAudioDecoder {
@@ -481,7 +536,7 @@ final class PCMAudioPlayer {
             player: playerNode
         )
         streams[channel] = stream
-        applyDuckingToMediaStream()
+        applyVolumesAndDuckingLocked()
         return stream
     }
 

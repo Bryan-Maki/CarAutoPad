@@ -137,4 +137,20 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertEqual(previewView.virtualHeightDp, 1920)
         XCTAssertTrue(previewView.isCoolwalkSplitScreen)
     }
+
+    @MainActor
+    func testQuickAudioConfigViewControllerLaunchesWithoutCrash() {
+        let vc = QuickAudioConfigViewController()
+        vc.loadViewIfNeeded()
+        vc.view.layoutIfNeeded()
+        XCTAssertNotNil(vc.view)
+        XCTAssertEqual(vc.preferredContentSize, CGSize(width: 580, height: 620))
+    }
+
+    @MainActor
+    func testAudioChannelMixerCellInitializesWithoutCrash() {
+        let cell = AudioChannelMixerCell()
+        cell.layoutIfNeeded()
+        XCTAssertNotNil(cell.contentView)
+    }
 }

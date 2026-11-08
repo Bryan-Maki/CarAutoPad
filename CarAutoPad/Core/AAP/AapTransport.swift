@@ -1667,6 +1667,10 @@ class AapTransport {
             focusState = 1
         }
 
+        if requestType == 3 && ProjectionSettings.isAudioSinkEnabled && ProjectionSettings.isNavigationChannelEnabled && ProjectionSettings.navigationVolume > 0.001 {
+            PCMAudioPlayer.shared.noteSpeechActivity()
+        }
+
         let payload = Data([0x08, UInt8(focusState & 0x7F)])
         let message = AapMessage(
             channel: channel,
