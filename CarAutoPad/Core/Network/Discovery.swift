@@ -68,6 +68,9 @@ public final class Discovery {
     public init() {}
 
     public static func triggerLocalNetworkPermission() {
+        #if targetEnvironment(simulator)
+        return
+        #else
         guard permissionTriggerBrowser == nil else { return }
         let descriptor = NWBrowser.Descriptor.bonjour(type: "_aap._tcp", domain: nil)
         let params = NWParameters()
@@ -81,6 +84,7 @@ public final class Discovery {
             permissionTriggerBrowser?.cancel()
             permissionTriggerBrowser = nil
         }
+        #endif
     }
 
     public func startScan(
