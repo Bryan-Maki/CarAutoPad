@@ -58,6 +58,7 @@ conversations/
 
 # 个人本地草稿、笔记与临时任务文件
 scratch/
+monitor_ci.py
 scratchpad/
 drafts/
 notes/
