@@ -82,6 +82,7 @@ class ConnectionManager {
     private var backgroundEnteredUptime: TimeInterval = 0
     private var foregroundWatchdogWorkItem: DispatchWorkItem?
     private var delayedDisconnectWorkItem: DispatchWorkItem?
+    private var pendingReconnectWorkItem: DispatchWorkItem?
 
     public private(set) var reconnectAttempt: Int = 0
     public let maxReconnectAttempts: Int = 3
@@ -221,6 +222,8 @@ class ConnectionManager {
         foregroundWatchdogWorkItem = nil
         delayedDisconnectWorkItem?.cancel()
         delayedDisconnectWorkItem = nil
+        pendingReconnectWorkItem?.cancel()
+        pendingReconnectWorkItem = nil
         backgroundEnteredUptime = 0
         AppLog.i("ConnectionManager: connect(to:) called with device: \(device.displayName), userInitiated: \(userInitiated)", tag: "ConnectionManager")
         hasHandledDisconnectForCurrentAttempt = false
@@ -296,6 +299,8 @@ class ConnectionManager {
         autoReconnect.cancel()
         foregroundWatchdogWorkItem?.cancel()
         foregroundWatchdogWorkItem = nil
+        pendingReconnectWorkItem?.cancel()
+        pendingReconnectWorkItem = nil
         backgroundEnteredUptime = 0
 
         NowPlayingCoordinator.shared.deactivate()
@@ -335,10 +340,14 @@ class ConnectionManager {
         let ip = device.ip
         let port = device.port
         AppLog.i("ConnectionManager: Reconnecting for settings change to \(ip):\(port)", tag: "ConnectionManager")
+        pendingReconnectWorkItem?.cancel()
         disconnect()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+        let item = DispatchWorkItem { [weak self] in
             self?.connect(to: ip, port: port)
+            self?.pendingReconnectWorkItem = nil
         }
+        pendingReconnectWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: item)
     }
 
     public func updateNightMode(userInterfaceStyle: UIUserInterfaceStyle? = nil, force: Bool = false) {

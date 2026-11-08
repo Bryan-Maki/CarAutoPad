@@ -54,6 +54,10 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
     private var dpiPreviewCell: DpiPreviewCell?
 
+    private var isHandshakeSettingsLocked: Bool {
+        return connectionManager.state != .disconnected
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
@@ -125,8 +129,14 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         guard let sec = SettingsSection(rawValue: section) else { return nil }
         switch sec {
         case .displayLayout:
+            if isHandshakeSettingsLocked {
+                return "Handshake parameters (DPI, Resolution, FPS, Driving Position) are locked during active session. Disconnect to modify. Fit mode and smoothing remain adjustable."
+            }
             return "Adjust DPI to scale Android Auto UI elements. Virtual width ≥ 800 dp enables Coolwalk split-screen cards. Touch, resolution and margins adapt dynamically."
         case .videoAudio:
+            if isHandshakeSettingsLocked {
+                return "Video/Audio codecs, output routing and mic source are locked during active session. Disconnect to modify. Live audio channel mixer remains adjustable."
+            }
             return "Hardware decoding and microphone routing preferences. Vehicle identity remains permanent Car (CAR 1) for seamless multi-device coexistence."
         case .connectionAutomation:
             return "Auto Reconnect retries failed or interrupted wireless connections silently."
@@ -175,10 +185,11 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     }
 
     private func makeDisplayLayoutCell(for row: Int) -> UITableViewCell {
+        let locked = isHandshakeSettingsLocked
         switch row {
         case 0:
             let cell = DpiPreviewCell()
-            cell.configure(with: HeadUnitScreenConfig.shared)
+            cell.configure(with: HeadUnitScreenConfig.shared, isLocked: locked)
             cell.onDpiChanged = { [weak self] impact in
                 self?.onSettingsChanged?(impact)
             }
@@ -189,15 +200,19 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
             cell.textLabel?.text = "Resolution"
             let currentRes = ProjectionSettings.resolution
-            cell.detailTextLabel?.text = currentRes.title
-            cell.accessoryType = .disclosureIndicator
+            cell.detailTextLabel?.text = locked ? "\(currentRes.title) (Locked)" : currentRes.title
+            cell.accessoryType = locked ? .none : .disclosureIndicator
+            cell.selectionStyle = locked ? .none : .default
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             return cell
 
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Frame Rate"
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["60 FPS", "30 FPS"])
             seg.selectedSegmentIndex = (ProjectionSettings.fpsLimit == .fps60) ? 0 : 1
+            seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
                 let selected: ProjectionFpsLimit = (seg.selectedSegmentIndex == 0) ? .fps60 : .fps30
                 ProjectionSettings.fpsLimit = selected
@@ -227,7 +242,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 HeadUnitScreenConfig.shared.videoFitMode = mode
                 HeadUnitScreenConfig.shared.recalculate()
                 HeadUnitScreenConfig.shared.checkAndNotifyMarginDivergence()
-                self?.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared)
+                self?.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared, isLocked: self?.isHandshakeSettingsLocked ?? false)
                 self?.onSettingsChanged?(.geometryChanged)
             }, for: .valueChanged)
             cell.accessoryView = seg
@@ -256,8 +271,10 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case 5:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Driving Position"
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["LHD (Left)", "RHD (Right)"])
             seg.selectedSegmentIndex = (ProjectionSettings.driverPosition == .right) ? 1 : 0
+            seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
                 let isRhd = (seg.selectedSegmentIndex == 1)
                 ProjectionSettings.driverPosition = isRhd ? .right : .left
@@ -295,15 +312,18 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     }
 
     private func makeVideoAudioCell(for row: Int) -> UITableViewCell {
+        let locked = isHandshakeSettingsLocked
         switch row {
         case 0:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Video Codec"
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["H.264", "HEVC"])
             switch ProjectionSettings.videoCodecPreference {
             case .h264: seg.selectedSegmentIndex = 0
             case .hevc: seg.selectedSegmentIndex = 1
             }
+            seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
                 let codecs: [VideoCodecPreference] = [.h264, .hevc]
                 ProjectionSettings.videoCodecPreference = codecs[seg.selectedSegmentIndex]
@@ -320,8 +340,10 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case 1:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Audio Codec"
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["AAC-LC", "PCM"])
             seg.selectedSegmentIndex = (ProjectionSettings.audioCodecPreference == .aac) ? 0 : 1
+            seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
                 let codecs: [AudioCodecPreference] = [.aac, .pcm]
                 ProjectionSettings.audioCodecPreference = codecs[seg.selectedSegmentIndex]
@@ -338,8 +360,10 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Audio Output"
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["iPad", "Phone"])
             seg.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
+            seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
                 let targets: [AudioOutputTarget] = [.ipad, .phone]
                 let target = targets[seg.selectedSegmentIndex]
@@ -360,12 +384,14 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = "Microphone Source"
+            cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["Follow", "iPad", "Phone"])
             switch ProjectionSettings.microphoneSource {
             case .followAudioOutput: seg.selectedSegmentIndex = 0
             case .ipad: seg.selectedSegmentIndex = 1
             case .phone: seg.selectedSegmentIndex = 2
             }
+            seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
                 let sources: [MicrophoneSource] = [.followAudioOutput, .ipad, .phone]
                 ProjectionSettings.microphoneSource = sources[seg.selectedSegmentIndex]
@@ -548,7 +574,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }
 
         case .displayLayout:
-            if indexPath.row == 1 {
+            if indexPath.row == 1 && !isHandshakeSettingsLocked {
                 presentResolutionPicker(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
             }
 
@@ -856,7 +882,7 @@ final class DpiPreviewCell: UITableViewCell {
         ])
     }
 
-    func configure(with screenConfig: HeadUnitScreenConfig) {
+    func configure(with screenConfig: HeadUnitScreenConfig, isLocked: Bool = false) {
         previewView.dpi = ProjectionSettings.effectiveDpi
         previewView.panelWidthPx = screenConfig.screenWidthPx > 0 ? screenConfig.screenWidthPx : 1920
         previewView.panelHeightPx = screenConfig.screenHeightPx > 0 ? screenConfig.screenHeightPx : 1080
@@ -873,6 +899,15 @@ final class DpiPreviewCell: UITableViewCell {
         dpiSlider.value = Float(ProjectionSettings.effectiveDpi)
         updateDpiLabel()
         previewView.setNeedsDisplay()
+
+        autoDpiSwitch.isEnabled = !isLocked
+        dpiSlider.isEnabled = !isLocked
+        for subview in presetStackView.arrangedSubviews {
+            if let btn = subview as? UIButton {
+                btn.isEnabled = !isLocked
+            }
+        }
+        presetStackView.alpha = isLocked ? 0.5 : 1.0
     }
 
     func updateRightHandDrive(_ isRhd: Bool) {

@@ -29,10 +29,14 @@ class OpenSslTlsHandler {
     private var certPath: String?
     private var keyPath: String?
     private var decryptScratchBuffer = [UInt8](repeating: 0, count: 65536)
+    private let lock = NSRecursiveLock()
 
     init() {}
 
     func setup() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
         OPENSSL_init_ssl(0, nil)
 
         sslContext = SSL_CTX_new(TLS_client_method())
@@ -51,6 +55,9 @@ class OpenSslTlsHandler {
     }
 
     func loadCertificate(certPath: String, keyPath: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard sslContext != nil else { return false }
 
         let result = SSL_CTX_use_certificate_file(sslContext, certPath, SSL_FILETYPE_PEM)
@@ -109,6 +116,9 @@ class OpenSslTlsHandler {
     }
 
     func startHandshakeSession() throws -> OpenSslHandshakeStep {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard sslContext != nil else {
             throw OpenSslTlsError.contextCreationFailed
         }
@@ -155,6 +165,9 @@ class OpenSslTlsHandler {
     }
 
     func continueHandshake(with incomingTlsData: Data) throws -> OpenSslHandshakeStep {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard !isHandshakeComplete else {
             return OpenSslHandshakeStep(outgoingData: Data(), isComplete: true)
         }
@@ -227,6 +240,9 @@ class OpenSslTlsHandler {
     }
 
     func encrypt(data: Data) -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard let ssl = ssl, isHandshakeComplete else { return nil }
         guard !data.isEmpty else { return nil }
 
@@ -243,6 +259,9 @@ class OpenSslTlsHandler {
     }
 
     func decrypt(data: Data) -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+
         guard let ssl = ssl, isHandshakeComplete else { return nil }
         guard !data.isEmpty else { return nil }
 
@@ -277,6 +296,9 @@ class OpenSslTlsHandler {
     }
 
     func release() {
+        lock.lock()
+        defer { lock.unlock() }
+
         releaseSessionOnly()
         isHandshakeComplete = false
 
@@ -287,6 +309,9 @@ class OpenSslTlsHandler {
     }
 
     func releaseSessionOnly() {
+        lock.lock()
+        defer { lock.unlock() }
+
         if let ssl = ssl {
             SSL_free(ssl)
         }

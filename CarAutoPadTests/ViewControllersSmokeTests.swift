@@ -185,10 +185,10 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertEqual(mvc.debugBubbleButton.accessibilityIdentifier, "debugBubbleButton")
         XCTAssertEqual(mvc.debugBubbleButton.layer.cornerRadius, 24)
 
-        // Toggle debug mode on
+        // When disconnected on home screen, debugBubbleButton should remain hidden even if debug mode is enabled
         ProjectionSettings.isDebugModeEnabled = true
         mvc.updatePerformanceOverlayState()
-        XCTAssertFalse(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be visible when debug mode is enabled")
+        XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should remain hidden when disconnected even if debug mode is enabled")
 
         // Toggle debug mode off
         ProjectionSettings.isDebugModeEnabled = false
@@ -219,5 +219,27 @@ final class ViewControllersSmokeTests: XCTestCase {
         mvc.isPanningDebugBubble = false
         mvc.clampDebugBubbleToSafeBounds(animated: false)
         XCTAssertFalse(mvc.isPanningDebugBubble)
+    }
+
+    @MainActor
+    func testDpiPreviewCellConfigureWithIsLocked() {
+        let cell = DpiPreviewCell()
+        cell.configure(with: HeadUnitScreenConfig.shared, isLocked: true)
+        let switches = cell.contentView.subviews.compactMap { $0 as? UISwitch }
+        for s in switches {
+            XCTAssertFalse(s.isEnabled, "UISwitch in DpiPreviewCell should be disabled when isLocked is true")
+        }
+        let sliders = cell.contentView.subviews.compactMap { $0 as? UISlider }
+        for sl in sliders {
+            XCTAssertFalse(sl.isEnabled, "UISlider in DpiPreviewCell should be disabled when isLocked is true")
+        }
+
+        cell.configure(with: HeadUnitScreenConfig.shared, isLocked: false)
+        for s in switches {
+            XCTAssertTrue(s.isEnabled, "UISwitch in DpiPreviewCell should be enabled when isLocked is false")
+        }
+        for sl in sliders {
+            XCTAssertTrue(sl.isEnabled, "UISlider in DpiPreviewCell should be enabled when isLocked is false")
+        }
     }
 }

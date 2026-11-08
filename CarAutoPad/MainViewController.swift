@@ -1661,15 +1661,12 @@ final class MainViewController: UIViewController {
     }
 
     func updatePerformanceOverlayState() {
-        let isDebug = ProjectionSettings.isDebugModeEnabled
-        debugBubbleButton.isHidden = !isDebug
-        if isDebug {
+        let shouldShow = ProjectionSettings.isDebugModeEnabled && connectionManager.state == .running
+        performanceOverlayView.isHidden = !shouldShow
+        debugBubbleButton.isHidden = !shouldShow
+        if shouldShow {
             view.bringSubviewToFront(debugBubbleButton)
-        }
-
-        let shouldShowHud = isDebug && connectionManager.state == .running
-        performanceOverlayView.isHidden = !shouldShowHud
-        if shouldShowHud {
+            videoContainerView.bringSubviewToFront(performanceOverlayView)
             if performanceTimer == nil {
                 performanceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                     self?.refreshPerformanceOverlay()
@@ -2169,9 +2166,6 @@ final class QuickLayoutDpiViewController: UIViewController {
             HeadUnitScreenConfig.shared.checkAndNotifyMarginDivergence()
             self.previewView.fitMode = chosen
             self.onSettingsChanged?()
-            if self.connectionManager.state == .running {
-                self.connectionManager.reconnectForSettingsChange()
-            }
         }, for: .valueChanged)
 
         driverPositionSegmentedControl.addAction(UIAction { [weak self] _ in
