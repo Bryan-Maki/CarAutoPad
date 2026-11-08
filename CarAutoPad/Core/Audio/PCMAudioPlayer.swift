@@ -45,10 +45,6 @@ final class PCMAudioPlayer {
     public init() {
         audioQueue.setSpecific(key: Self.audioQueueKey, value: ())
 
-        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
-            return
-        }
-
         microphoneStateObserver = NotificationCenter.default.addObserver(
             forName: .carAutoPadMicrophoneCaptureStateChanged,
             object: nil,
@@ -366,25 +362,46 @@ final class PCMAudioPlayer {
         return vol
     }
 
-    public func noteSpeechActivity() {
-        isSpeechActive = true
-        duckingEnvelope.setSpeechActive(true)
-        applyVolumesAndDuckingLocked()
-
-        speechActiveTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(queue: audioQueue)
-        timer.schedule(deadline: .now() + 0.8)
-        timer.setEventHandler { [weak self] in
-            guard let self = self else { return }
-            self.isSpeechActive = false
-            self.duckingEnvelope.setSpeechActive(false)
-            self.applyVolumesAndDuckingLocked()
+    public var speechActive: Bool {
+        if DispatchQueue.getSpecific(key: Self.audioQueueKey) != nil {
+            return isSpeechActive
+        } else {
+            var active = false
+            audioQueue.sync { active = self.isSpeechActive }
+            return active
         }
-        timer.resume()
-        speechActiveTimer = timer
+    }
+
+    public func noteSpeechActivity() {
+        let block = { [self] in
+            self.isSpeechActive = true
+            self.duckingEnvelope.setSpeechActive(true)
+            self.applyVolumesAndDuckingLocked()
+
+            self.speechActiveTimer?.cancel()
+            let timer = DispatchSource.makeTimerSource(queue: self.audioQueue)
+            timer.schedule(deadline: .now() + 0.8)
+            timer.setEventHandler { [weak self] in
+                guard let self = self else { return }
+                self.isSpeechActive = false
+                self.duckingEnvelope.setSpeechActive(false)
+                self.applyVolumesAndDuckingLocked()
+            }
+            timer.resume()
+            self.speechActiveTimer = timer
+        }
+
+        if DispatchQueue.getSpecific(key: Self.audioQueueKey) != nil {
+            block()
+        } else {
+            audioQueue.async(execute: block)
+        }
     }
 
     public static func computeEffectiveVolumes(isSpeechActive: Bool) -> (media: Float, navigation: Float, system: Float, effectiveDucked: Bool) {
+        guard ProjectionSettings.isAudioSinkEnabled else {
+            return (0.0, 0.0, 0.0, false)
+        }
         let mediaVol = ProjectionSettings.isMediaChannelEnabled ? ProjectionSettings.mediaVolume : 0.0
         let navVol = ProjectionSettings.isNavigationChannelEnabled ? ProjectionSettings.navigationVolume : 0.0
         let sysVol = ProjectionSettings.isSystemChannelEnabled ? ProjectionSettings.phoneSystemVolume : 0.0
@@ -400,8 +417,6 @@ final class PCMAudioPlayer {
         let duckReduction = max(0.0, min(1.0, ProjectionSettings.navigationDuckingAmount))
         let duckedGain = 1.0 - duckReduction
         duckingEnvelope.updateDuckedGain(duckedGain, isSpeechActive: isSpeechActive)
-
-        guard !streams.isEmpty else { return }
 
         if let mediaStream = streams[Channel.ID_AUD] {
             mediaStream.player.volume = volumes.media
@@ -429,7 +444,6 @@ final class PCMAudioPlayer {
 
     private func ensureSessionConfigured() {
         guard !sessionConfigured else { return }
-        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         let session = AVAudioSession.sharedInstance()
         do {
             if !isMicrophoneActive {
@@ -451,7 +465,6 @@ final class PCMAudioPlayer {
     }
 
     private func startEngineIfNeeded() -> Bool {
-        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return false }
         if !engine.isRunning {
             do {
                 try engine.start()
@@ -464,7 +477,6 @@ final class PCMAudioPlayer {
     }
 
     func rebuildEngineAndStreams(reason: String) {
-        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         let block = { [self] in
             guard !self.isRebuilding else { return }
             self.isRebuilding = true

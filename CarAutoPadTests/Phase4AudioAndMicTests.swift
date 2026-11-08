@@ -138,6 +138,18 @@ final class Phase4AudioAndMicTests: XCTestCase {
         XCTAssertTrue(ipadChannelIds.contains(UInt32(Channel.ID_AU1)), "Speech sink must be announced when enableAudioSink is true")
     }
 
+    func testPCMAudioPlayerRouteRebuildResetsStreamsCleanly() {
+        let player = PCMAudioPlayer()
+        player.reset()
+        XCTAssertEqual(player.streamCount, 0)
+        XCTAssertNil(player.isPrebuffering(channel: Channel.ID_AUD))
+
+        player.rebuildEngineAndStreams(reason: "unit-test-route-change")
+        XCTAssertEqual(player.streamCount, 0)
+
+        player.stop()
+        XCTAssertEqual(player.streamCount, 0)
+    }
 
     func testChannelVolumesAndTogglesDefaultsAndClamping() {
         ProjectionSettings.resetToDefaults()
@@ -350,6 +362,38 @@ final class Phase4AudioAndMicTests: XCTestCase {
         let noDucking = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
         XCTAssertEqual(noDucking.media, 0.8, accuracy: 0.001)
         XCTAssertTrue(noDucking.effectiveDucked)
+
+        // 7. Test audio sink disabled (output to phone): all effective volumes should be 0.0
+        ProjectionSettings.audioOutputTarget = .phone
+        let phoneSinkVolumes = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(phoneSinkVolumes.media, 0.0)
+        XCTAssertEqual(phoneSinkVolumes.navigation, 0.0)
+        XCTAssertEqual(phoneSinkVolumes.system, 0.0)
+        XCTAssertFalse(phoneSinkVolumes.effectiveDucked)
+        ProjectionSettings.audioOutputTarget = .ipad
+
+        ProjectionSettings.resetToDefaults()
+    }
+
+    func testPCMAudioPlayerInstanceRefreshVolumesAndNoteSpeechActivity() {
+        let player = PCMAudioPlayer()
+        ProjectionSettings.resetToDefaults()
+
+        ProjectionSettings.mediaVolume = 0.8
+        ProjectionSettings.navigationVolume = 0.5
+        ProjectionSettings.phoneSystemVolume = 0.3
+        ProjectionSettings.navigationDuckingAmount = 0.70
+
+        player.refreshVolumes()
+        XCTAssertFalse(player.speechActive)
+
+        // Note speech activity triggers ducking envelope
+        player.noteSpeechActivity()
+        XCTAssertTrue(player.speechActive)
+
+        // Reset clears speech active and envelope
+        player.reset()
+        XCTAssertFalse(player.speechActive)
 
         ProjectionSettings.resetToDefaults()
     }
