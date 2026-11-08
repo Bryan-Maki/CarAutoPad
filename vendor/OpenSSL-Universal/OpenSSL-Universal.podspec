@@ -4,6 +4,7 @@ Pod::Spec.new do |s|
   s.summary      = "OpenSSL for iOS, macOS, tvOS, visionOS, watchOS"
   s.homepage     = "https://github.com/krzyzanowskim/OpenSSL"
   s.license      = { :type => 'Apache License, Version 2.0' }
+  s.source       = { :git => "https://github.com/krzyzanowskim/OpenSSL.git", :tag => s.version.to_s }
   s.authors      = { 'OpenSSL' => 'openssl@openssl.org' }
   s.requires_arc = true
   s.cocoapods_version = '>= 1.9'
