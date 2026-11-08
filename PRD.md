@@ -542,13 +542,13 @@ The overall port is considered complete only when all of the following criteria 
      - `phone-ringing-sample.mp3`（Phone/System 通话与系统通道 `ID_AU2 = 5`，16kHz 单声道）。
    - 通过 `AudioStreamTester.decodeAudioFileToInt16PCM` 结合 `AVAudioFile` + `AVAudioConverter` 实现 Interleaved 16-bit LE PCM 解码与重采样，并配备内存级数据缓存与正弦波自愈兜底机制。
 2. **语音帧长动态感知与导航压音时长自愈**：
-   - 升级 `PCMAudioPlayer.noteSpeechActivity(duration: TimeInterval = 0.8)`，内部支持任意时长的语音活动保活。
+   - 升级 `PCMAudioPlayer.noteSpeechActivity(duration: TimeInterval = 0.8)`，内部支持任意时长的语音活动保活与 `speechEndDeadline` 延期防截断机制，避免后续短促音频包过早释放压音。
    - 在 `enqueuePreparedBuffer` 中动态根据导航/语音音频帧长计算 `clipDuration = Double(buffer.frameLength) / Double(sampleRate)`，并在整段导航播报结束前维持媒体音乐平滑压音状态（持续 `clipDuration + 0.25s`），播报完毕后无缝平滑回弹。
 3. **设置中心 UI 精简**：
    - 移除 `SettingsViewController` 中 `Video & Audio Pipeline` 分组内冗余独立的 `"Audio Stream Tester"` 行（行数精简为 5 行），所有试听与压音测试功能统一收口至内嵌的 `AudioChannelMixerCell` 原生调音台卡片。
 4. **Debug 模式（HUD & 悬浮球）与无缝交互**：
    - 在设置中心 `Diagnostics & Session Backup` 分组首行新增 `"Debug Mode (HUD & Floating Bubble)"` 统一开关（双向兼容 `ProjectionSettings.isDebugModeEnabled` 与 `showPerformanceOverlay`）。
-   - 主界面引入 `debugBubbleButton`（48x48pt 深色半透明毛玻璃、细白边框、`wrench.and.screwdriver.fill` 图标），支持平滑手势拖拽与左右安全边距智能吸附；投屏运行或主页状态下点击即可原位弹出 `SettingsViewController` 原生设置中心。
+   - 主界面引入 `debugBubbleButton`（48x48pt 深色半透明毛玻璃、细白边框、`wrench.and.screwdriver.fill` 图标），支持平滑手势拖拽（拖拽中自由移动，松手后弹性吸附至左右安全边距）与设备旋转自适应吸附；投屏运行或主页状态下点击即可原位弹出 `SettingsViewController` 原生设置中心。
 
 
 

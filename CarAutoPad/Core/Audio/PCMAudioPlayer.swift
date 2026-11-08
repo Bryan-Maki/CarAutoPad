@@ -40,6 +40,7 @@ final class PCMAudioPlayer {
         duckedGain: max(0.0, min(1.0, 1.0 - ProjectionSettings.navigationDuckingAmount))
     )
     private var speechActiveTimer: DispatchSourceTimer?
+    private var speechEndDeadline: DispatchTime = .distantPast
     private var isSpeechActive = false
 
     public init() {
@@ -139,6 +140,7 @@ final class PCMAudioPlayer {
             self.sessionConfigured = false
             self.speechActiveTimer?.cancel()
             self.speechActiveTimer = nil
+            self.speechEndDeadline = .distantPast
             self.isSpeechActive = false
             self.aacDecoders.values.forEach { $0.reset() }
             self.duckingEnvelope.reset()
@@ -377,18 +379,26 @@ final class PCMAudioPlayer {
     }
 
     public func noteSpeechActivity(duration: TimeInterval = 0.8) {
-        let deadline = max(0.8, duration)
+        let deadlineOffset = max(0.8, duration)
         let block = { [self] in
+            let newDeadline = DispatchTime.now() + deadlineOffset
+            if self.isSpeechActive && newDeadline < self.speechEndDeadline {
+                // A speech timer is already running with a later expiration; do not truncate it.
+                return
+            }
+
             self.isSpeechActive = true
+            self.speechEndDeadline = newDeadline
             self.duckingEnvelope.setSpeechActive(true)
             self.applyVolumesAndDuckingLocked()
 
             self.speechActiveTimer?.cancel()
             let timer = DispatchSource.makeTimerSource(queue: self.audioQueue)
-            timer.schedule(deadline: .now() + deadline)
+            timer.schedule(deadline: newDeadline)
             timer.setEventHandler { [weak self] in
                 guard let self = self else { return }
                 self.isSpeechActive = false
+                self.speechEndDeadline = .distantPast
                 self.duckingEnvelope.setSpeechActive(false)
                 self.applyVolumesAndDuckingLocked()
             }

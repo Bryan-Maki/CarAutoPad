@@ -754,7 +754,9 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         XCTAssertEqual(AudioStreamTester.SampleAsset.system.channelId, Channel.ID_AU2)
 
         for asset in AudioStreamTester.SampleAsset.allCases {
-            if let url = AudioStreamTester.locateResourceURL(name: asset.filename, ext: asset.fileExtension) {
+            let url = AudioStreamTester.locateResourceURL(name: asset.filename, ext: asset.fileExtension)
+            XCTAssertNotNil(url, "locateResourceURL must find \(asset.filename).\(asset.fileExtension) bundled in app")
+            if let url = url {
                 XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
                 let decoded = AudioStreamTester.decodeAudioFileToInt16PCM(
                     url: url,
@@ -770,12 +772,14 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
 
     func testAudioStreamTesterLoadPCMDataFallbackAndCache() {
         let tester = AudioStreamTester()
+        tester.clearCache()
         let pcm = tester.loadPCMData(for: .media, maxDurationSeconds: 0.1)
         XCTAssertFalse(pcm.isEmpty)
 
         // Check in-memory cache hit
         let pcmCached = tester.loadPCMData(for: .media, maxDurationSeconds: 0.1)
         XCTAssertEqual(pcm, pcmCached)
+        tester.clearCache()
     }
 
     func testProjectionSettingsDebugModeAliases() {
@@ -791,6 +795,24 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         XCTAssertFalse(ProjectionSettings.isDebugModeEnabled)
         XCTAssertFalse(ProjectionSettings.showPerformanceOverlay)
         XCTAssertFalse(ProjectionSettings.isPerformanceHudEnabled)
+    }
+
+    func testPCMAudioPlayerSpeechActivityDeadlineRetention() {
+        let player = PCMAudioPlayer.shared
+        player.reset()
+        XCTAssertFalse(player.speechActive)
+
+        // Request a long speech duration
+        player.noteSpeechActivity(duration: 3.0)
+        XCTAssertTrue(player.speechActive)
+
+        // Request a shorter duration; it should not truncate the active speech state
+        player.noteSpeechActivity(duration: 0.8)
+        XCTAssertTrue(player.speechActive)
+
+        // Reset clears speech active immediately
+        player.reset()
+        XCTAssertFalse(player.speechActive)
     }
 }
 

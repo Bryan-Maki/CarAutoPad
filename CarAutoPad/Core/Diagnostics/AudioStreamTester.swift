@@ -100,6 +100,9 @@ public final class AudioStreamTester {
     }
 
     public static func locateResourceURL(name: String, ext: String) -> URL? {
+        let cleanExt = ext.hasPrefix(".") ? String(ext.dropFirst()) : ext
+        let cleanName = name.hasSuffix("." + cleanExt) ? String(name.dropLast(cleanExt.count + 1)) : name
+
         var bundles = [Bundle.main, Bundle(for: AudioStreamTester.self)]
         for b in Bundle.allBundles where !bundles.contains(b) {
             bundles.append(b)
@@ -107,11 +110,11 @@ public final class AudioStreamTester {
         let subpaths: [String?] = [nil, "Audio", "Resources/Audio", "Resources"]
         for bundle in bundles {
             for subpath in subpaths {
-                if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subpath) {
+                if let url = bundle.url(forResource: cleanName, withExtension: cleanExt, subdirectory: subpath) {
                     return url
                 }
             }
-            if let url = bundle.url(forResource: name, withExtension: ext) {
+            if let url = bundle.url(forResource: cleanName, withExtension: cleanExt) {
                 return url
             }
         }
@@ -188,15 +191,18 @@ public final class AudioStreamTester {
             let framesConverted = Int(dstBuffer.frameLength)
             if framesConverted > 0, let floatChannels = dstBuffer.floatChannelData {
                 let channels = Int(dstFormat.channelCount)
+                let sampleCount = framesConverted * channels
+                var chunkInt16 = [Int16](repeating: 0, count: sampleCount)
+                var idx = 0
                 for f in 0..<framesConverted {
                     for ch in 0..<channels {
                         let sample = floatChannels[ch][f]
-                        let clamped = Int16(clamping: Int((sample * 32767.0).rounded()))
-                        var le = clamped.littleEndian
-                        withUnsafeBytes(of: &le) { bytes in
-                            outData.append(contentsOf: bytes)
-                        }
+                        chunkInt16[idx] = Int16(clamping: Int((sample * 32767.0).rounded())).littleEndian
+                        idx += 1
                     }
+                }
+                chunkInt16.withUnsafeBytes { rawBytes in
+                    outData.append(contentsOf: rawBytes)
                 }
             }
 
@@ -241,6 +247,12 @@ public final class AudioStreamTester {
             durationSeconds: fallbackDuration
         )
         return fallback
+    }
+
+    public func clearCache() {
+        cacheLock.lock()
+        sampleCache.removeAll()
+        cacheLock.unlock()
     }
 
     public func playMediaTestTone() {

@@ -33,6 +33,8 @@ final class MainViewController: UIViewController {
     private var debugBubbleCenterXConstraint: NSLayoutConstraint?
     private var debugBubbleCenterYConstraint: NSLayoutConstraint?
     private var debugBubblePanStartCenter: CGPoint = .zero
+    var isPanningDebugBubble = false
+    private var debugBubbleSnappedToRight: Bool = true
 
     public private(set) lazy var debugBubbleButton: UIButton = {
         let button = UIButton(type: .system)
@@ -65,28 +67,36 @@ final class MainViewController: UIViewController {
         presentSettingsMenu()
     }
 
-    @objc private func handleDebugBubblePan(_ gesture: UIPanGestureRecognizer) {
+    @objc func handleDebugBubblePan(_ gesture: UIPanGestureRecognizer) {
         let translation = gesture.translation(in: view)
         switch gesture.state {
         case .began:
+            isPanningDebugBubble = true
             debugBubblePanStartCenter = CGPoint(
                 x: debugBubbleCenterXConstraint?.constant ?? debugBubbleButton.center.x,
                 y: debugBubbleCenterYConstraint?.constant ?? debugBubbleButton.center.y
             )
         case .changed:
-            let newX = debugBubblePanStartCenter.x + translation.x
-            let newY = debugBubblePanStartCenter.y + translation.y
-            debugBubbleCenterXConstraint?.constant = newX
-            debugBubbleCenterYConstraint?.constant = newY
+            guard view.bounds.width > 0 && view.bounds.height > 0 else { return }
+            let bubbleRadius: CGFloat = 24.0
+            let rawX = debugBubblePanStartCenter.x + translation.x
+            let rawY = debugBubblePanStartCenter.y + translation.y
+            let boundedX = min(view.bounds.width - bubbleRadius, max(bubbleRadius, rawX))
+            let boundedY = min(view.bounds.height - bubbleRadius, max(bubbleRadius, rawY))
+            debugBubbleCenterXConstraint?.constant = boundedX
+            debugBubbleCenterYConstraint?.constant = boundedY
             view.layoutIfNeeded()
         case .ended, .cancelled:
+            isPanningDebugBubble = false
             clampDebugBubbleToSafeBounds(animated: true)
         default:
+            isPanningDebugBubble = false
             break
         }
     }
 
-    private func clampDebugBubbleToSafeBounds(animated: Bool) {
+    func clampDebugBubbleToSafeBounds(animated: Bool) {
+        guard !isPanningDebugBubble else { return }
         guard view.bounds.width > 0 && view.bounds.height > 0 else { return }
         let safeArea = view.safeAreaInsets
         let bubbleRadius: CGFloat = 24.0
@@ -100,8 +110,17 @@ final class MainViewController: UIViewController {
         let currentX = debugBubbleCenterXConstraint?.constant ?? maxX
         let currentY = debugBubbleCenterYConstraint?.constant ?? (minY + 60)
 
-        let snapX: CGFloat = (currentX < (view.bounds.width / 2.0)) ? minX : maxX
+        let snapToRight = (currentX >= (view.bounds.width / 2.0))
+        debugBubbleSnappedToRight = snapToRight
+
+        let snapX: CGFloat = snapToRight ? maxX : minX
         let clampedY = min(maxY, max(minY, currentY))
+
+        let diffX = abs((debugBubbleCenterXConstraint?.constant ?? snapX) - snapX)
+        let diffY = abs((debugBubbleCenterYConstraint?.constant ?? clampedY) - clampedY)
+        if diffX < 0.5 && diffY < 0.5 && !animated {
+            return
+        }
 
         debugBubbleCenterXConstraint?.constant = snapX
         debugBubbleCenterYConstraint?.constant = clampedY
@@ -1363,6 +1382,7 @@ final class MainViewController: UIViewController {
     }
 
     func presentSettingsMenu() {
+        guard presentedViewController == nil else { return }
         let settingsVC = SettingsViewController()
         settingsVC.connectionManager = connectionManager
         settingsVC.onSettingsChanged = { [weak self] impact in

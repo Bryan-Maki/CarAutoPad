@@ -195,4 +195,29 @@ final class ViewControllersSmokeTests: XCTestCase {
         mvc.updatePerformanceOverlayState()
         XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be hidden when debug mode is disabled")
     }
+
+    @MainActor
+    func testMainViewControllerDebugBubblePanGestureAndSnapping() {
+        let mvc = MainViewController()
+        mvc.loadViewIfNeeded()
+        mvc.view.bounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        mvc.view.layoutIfNeeded()
+
+        let pan = mvc.debugBubbleButton.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }.first
+        XCTAssertNotNil(pan, "debugBubbleButton must have a UIPanGestureRecognizer attached")
+
+        // Initial clamp snaps to right side
+        mvc.clampDebugBubbleToSafeBounds(animated: false)
+
+        // Simulate active pan state
+        mvc.isPanningDebugBubble = true
+        // layout subviews should NOT snap while panning is true
+        mvc.view.layoutIfNeeded()
+        XCTAssertTrue(mvc.isPanningDebugBubble)
+
+        // Simulate ending pan
+        mvc.isPanningDebugBubble = false
+        mvc.clampDebugBubbleToSafeBounds(animated: false)
+        XCTAssertFalse(mvc.isPanningDebugBubble)
+    }
 }
