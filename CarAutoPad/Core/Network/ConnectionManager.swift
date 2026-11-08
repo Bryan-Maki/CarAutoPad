@@ -112,6 +112,10 @@ class ConnectionManager {
         return aapTransport?.currentRxMbps ?? 0.0
     }
 
+    func setStateForTesting(_ newState: ConnectionState) {
+        state = newState
+    }
+
     private func setState(_ newState: ConnectionState) {
         state = newState
     }
@@ -336,7 +340,7 @@ class ConnectionManager {
     }
 
     public func reconnectForSettingsChange() {
-        guard let device = connectedDevice else { return }
+        guard let device = connectedDevice ?? lastConnectedDevice else { return }
         let ip = device.ip
         let port = device.port
         AppLog.i("ConnectionManager: Reconnecting for settings change to \(ip):\(port)", tag: "ConnectionManager")

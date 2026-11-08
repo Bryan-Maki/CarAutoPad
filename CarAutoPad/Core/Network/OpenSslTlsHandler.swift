@@ -86,11 +86,16 @@ class OpenSslTlsHandler {
     }
 
     func hasClientIdentity() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         return certPath != nil && keyPath != nil
     }
 
     @discardableResult
     func loadDefaultBundleCertificate() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
         if hasClientIdentity() { return true }
         let bundles = [Bundle.main, Bundle(for: OpenSslTlsHandler.self)]
         let candidateSubdirs: [String?] = [

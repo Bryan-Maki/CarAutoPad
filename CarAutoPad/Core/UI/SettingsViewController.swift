@@ -902,6 +902,8 @@ final class DpiPreviewCell: UITableViewCell {
 
         autoDpiSwitch.isEnabled = !isLocked
         dpiSlider.isEnabled = !isLocked
+        autoDpiLabel.alpha = isLocked ? 0.5 : 1.0
+        dpiValueLabel.alpha = isLocked ? 0.5 : 1.0
         for subview in presetStackView.arrangedSubviews {
             if let btn = subview as? UIButton {
                 btn.isEnabled = !isLocked

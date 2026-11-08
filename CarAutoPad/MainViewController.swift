@@ -2225,6 +2225,19 @@ final class QuickLayoutDpiViewController: UIViewController {
         let currentDpi = ProjectionSettings.effectiveDpi
         dpiSlider.value = Float(currentDpi)
         updateDpiLabel(val: currentDpi, isAuto: ProjectionSettings.isAutoDpi)
+
+        let isLocked = connectionManager.state != .disconnected
+        driverPositionSegmentedControl.isEnabled = !isLocked
+        autoDpiSwitch.isEnabled = !isLocked
+        dpiSlider.isEnabled = !isLocked
+        for subview in presetStackView.arrangedSubviews {
+            if let btn = subview as? UIButton {
+                btn.isEnabled = !isLocked
+            }
+        }
+        presetStackView.alpha = isLocked ? 0.5 : 1.0
+        autoDpiLabel.alpha = isLocked ? 0.5 : 1.0
+        dpiValueLabel.alpha = isLocked ? 0.5 : 1.0
     }
 
     private func applyDpi(val: Int, isAuto: Bool) {
