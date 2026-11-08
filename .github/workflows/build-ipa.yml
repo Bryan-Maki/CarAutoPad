@@ -65,7 +65,12 @@ jobs:
             -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" || {
+              echo "=== Diagnostic Reports ==="
+              ls -la ~/Library/Logs/DiagnosticReports/ || true
+              head -n 200 ~/Library/Logs/DiagnosticReports/* || true
+              exit 1
+            }
 
       - name: Build and Package Unsigned IPA
         run: |
