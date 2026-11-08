@@ -40,7 +40,7 @@ final class PCMAudioPlayer {
         duckedGain: max(0.0, min(1.0, 1.0 - ProjectionSettings.navigationDuckingAmount))
     )
     private var speechActiveTimer: DispatchSourceTimer?
-    private var speechEndDeadline: DispatchTime = .distantPast
+    private var speechEndDeadline: DispatchTime?
     private var isSpeechActive = false
 
     public init() {
@@ -140,7 +140,7 @@ final class PCMAudioPlayer {
             self.sessionConfigured = false
             self.speechActiveTimer?.cancel()
             self.speechActiveTimer = nil
-            self.speechEndDeadline = .distantPast
+            self.speechEndDeadline = nil
             self.isSpeechActive = false
             self.aacDecoders.values.forEach { $0.reset() }
             self.duckingEnvelope.reset()
@@ -382,7 +382,7 @@ final class PCMAudioPlayer {
         let deadlineOffset = max(0.8, duration)
         let block = { [self] in
             let newDeadline = DispatchTime.now() + deadlineOffset
-            if self.isSpeechActive && newDeadline < self.speechEndDeadline {
+            if self.isSpeechActive, let existing = self.speechEndDeadline, newDeadline < existing {
                 // A speech timer is already running with a later expiration; do not truncate it.
                 return
             }
@@ -398,7 +398,7 @@ final class PCMAudioPlayer {
             timer.setEventHandler { [weak self] in
                 guard let self = self else { return }
                 self.isSpeechActive = false
-                self.speechEndDeadline = .distantPast
+                self.speechEndDeadline = nil
                 self.duckingEnvelope.setSpeechActive(false)
                 self.applyVolumesAndDuckingLocked()
             }
