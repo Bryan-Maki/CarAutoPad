@@ -353,15 +353,13 @@ class OpenSslTlsHandler {
         }
         defer { BIO_free(keyBio) }
 
-        var certOut: OpaquePointer?
-        let cert = PEM_read_bio_X509_AUX(certBio, &certOut, nil, nil)
+        let cert = PEM_read_bio_X509_AUX(certBio, nil, nil, nil)
         guard cert != nil else {
             AppLog.e("PEM_read_bio_X509_AUX failed", tag: "OpenSslTls")
             return
         }
 
-        var keyOut: OpaquePointer?
-        let pkey = PEM_read_bio_PrivateKey(keyBio, &keyOut, nil, nil)
+        let pkey = PEM_read_bio_PrivateKey(keyBio, nil, nil, nil)
         guard pkey != nil else {
             AppLog.e("PEM_read_bio_PrivateKey failed", tag: "OpenSslTls")
             X509_free(cert)
