@@ -250,7 +250,7 @@ public enum SettingsBackupManager {
         PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: ProjectionSettings.resolution)
 
-        return 21
+        return 14
     }
 
     public static func resetToDefaults() {

@@ -65,6 +65,7 @@ jobs:
             -workspace CarAutoPad.xcworkspace \
             -scheme CarAutoPad \
             -destination "platform=iOS Simulator,id=$SIM_ID" \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
