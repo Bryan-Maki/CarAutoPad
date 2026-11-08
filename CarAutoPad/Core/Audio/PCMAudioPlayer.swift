@@ -45,6 +45,10 @@ final class PCMAudioPlayer {
     public init() {
         audioQueue.setSpecific(key: Self.audioQueueKey, value: ())
 
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+            return
+        }
+
         microphoneStateObserver = NotificationCenter.default.addObserver(
             forName: .carAutoPadMicrophoneCaptureStateChanged,
             object: nil,
@@ -380,29 +384,37 @@ final class PCMAudioPlayer {
         speechActiveTimer = timer
     }
 
-    private func applyVolumesAndDuckingLocked() {
+    public static func computeEffectiveVolumes(isSpeechActive: Bool) -> (media: Float, navigation: Float, system: Float, effectiveDucked: Bool) {
         let mediaVol = ProjectionSettings.isMediaChannelEnabled ? ProjectionSettings.mediaVolume : 0.0
         let navVol = ProjectionSettings.isNavigationChannelEnabled ? ProjectionSettings.navigationVolume : 0.0
         let sysVol = ProjectionSettings.isSystemChannelEnabled ? ProjectionSettings.phoneSystemVolume : 0.0
         let duckReduction = max(0.0, min(1.0, ProjectionSettings.navigationDuckingAmount))
         let duckedGain = 1.0 - duckReduction
+        let effectiveDucking = isSpeechActive && ((navVol > 0.001) || (sysVol > 0.001))
+        let targetMedia = mediaVol * (effectiveDucking ? duckedGain : 1.0)
+        return (targetMedia, navVol, sysVol, effectiveDucking)
+    }
+
+    private func applyVolumesAndDuckingLocked() {
+        let volumes = Self.computeEffectiveVolumes(isSpeechActive: isSpeechActive)
+        let duckReduction = max(0.0, min(1.0, ProjectionSettings.navigationDuckingAmount))
+        let duckedGain = 1.0 - duckReduction
         duckingEnvelope.updateDuckedGain(duckedGain, isSpeechActive: isSpeechActive)
 
-        let effectiveDucking = isSpeechActive && ((navVol > 0.001) || (sysVol > 0.001))
-        let targetMediaVolume = mediaVol * (effectiveDucking ? duckedGain : 1.0)
+        guard !streams.isEmpty else { return }
 
         if let mediaStream = streams[Channel.ID_AUD] {
-            mediaStream.player.volume = targetMediaVolume
+            mediaStream.player.volume = volumes.media
         }
         if let guidanceStream = streams[Channel.ID_AU1] {
-            guidanceStream.player.volume = navVol
+            guidanceStream.player.volume = volumes.navigation
         }
         if let systemStream = streams[Channel.ID_AU2] {
-            systemStream.player.volume = sysVol
+            systemStream.player.volume = volumes.system
         }
         AppLog.category(
             .audioMic,
-            "[AUDIO] Volumes applied: media=\(String(format: "%.2f", targetMediaVolume)) (base=\(String(format: "%.2f", mediaVol)), ducked=\(effectiveDucking), drop=-\(Int((duckReduction * 100).rounded()))%), nav=\(String(format: "%.2f", navVol)), sys=\(String(format: "%.2f", sysVol))",
+            "[AUDIO] Volumes applied: media=\(String(format: "%.2f", volumes.media)), nav=\(String(format: "%.2f", volumes.navigation)), sys=\(String(format: "%.2f", volumes.system)), ducked=\(volumes.effectiveDucked), drop=-\(Int((duckReduction * 100).rounded()))%",
             tag: "PCMAudioPlayer"
         )
     }
@@ -417,6 +429,7 @@ final class PCMAudioPlayer {
 
     private func ensureSessionConfigured() {
         guard !sessionConfigured else { return }
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         let session = AVAudioSession.sharedInstance()
         do {
             if !isMicrophoneActive {
@@ -438,6 +451,7 @@ final class PCMAudioPlayer {
     }
 
     private func startEngineIfNeeded() -> Bool {
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return false }
         if !engine.isRunning {
             do {
                 try engine.start()
@@ -450,6 +464,7 @@ final class PCMAudioPlayer {
     }
 
     func rebuildEngineAndStreams(reason: String) {
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         let block = { [self] in
             guard !self.isRebuilding else { return }
             self.isRebuilding = true

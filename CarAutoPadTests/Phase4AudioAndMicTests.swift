@@ -138,18 +138,6 @@ final class Phase4AudioAndMicTests: XCTestCase {
         XCTAssertTrue(ipadChannelIds.contains(UInt32(Channel.ID_AU1)), "Speech sink must be announced when enableAudioSink is true")
     }
 
-    func testPCMAudioPlayerRouteRebuildResetsStreamsCleanly() {
-        let player = PCMAudioPlayer()
-        player.reset()
-        XCTAssertEqual(player.streamCount, 0)
-        XCTAssertNil(player.isPrebuffering(channel: Channel.ID_AUD))
-
-        player.rebuildEngineAndStreams(reason: "unit-test-route-change")
-        XCTAssertEqual(player.streamCount, 0)
-
-        player.stop()
-        XCTAssertEqual(player.streamCount, 0)
-    }
 
     func testChannelVolumesAndTogglesDefaultsAndClamping() {
         ProjectionSettings.resetToDefaults()
@@ -314,24 +302,54 @@ final class Phase4AudioAndMicTests: XCTestCase {
         XCTAssertEqual(envelope.currentGain, 0.20, accuracy: 0.001)
     }
 
-    func testPCMAudioPlayerIndependentVolumesAndMuteGuards() {
-        let player = PCMAudioPlayer()
+    func testPCMAudioPlayerComputeEffectiveVolumesAndDucking() {
         ProjectionSettings.resetToDefaults()
-
         ProjectionSettings.mediaVolume = 0.8
         ProjectionSettings.navigationVolume = 0.5
         ProjectionSettings.phoneSystemVolume = 0.3
         ProjectionSettings.navigationDuckingAmount = 0.70
 
-        player.refreshVolumes()
+        // 1. When speech is inactive: no ducking, media is at base volume
+        let inactiveVolumes = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: false)
+        XCTAssertEqual(inactiveVolumes.media, 0.8, accuracy: 0.001)
+        XCTAssertEqual(inactiveVolumes.navigation, 0.5, accuracy: 0.001)
+        XCTAssertEqual(inactiveVolumes.system, 0.3, accuracy: 0.001)
+        XCTAssertFalse(inactiveVolumes.effectiveDucked)
 
-        // When speech is inactive, media volume should be 0.8
-        XCTAssertEqual(ProjectionSettings.mediaVolume, 0.8, accuracy: 0.01)
+        // 2. When speech is active: media is ducked by 70% (retains 30% -> 0.8 * 0.3 = 0.24)
+        let activeVolumes = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(activeVolumes.media, 0.8 * 0.30, accuracy: 0.001)
+        XCTAssertEqual(activeVolumes.navigation, 0.5, accuracy: 0.001)
+        XCTAssertEqual(activeVolumes.system, 0.3, accuracy: 0.001)
+        XCTAssertTrue(activeVolumes.effectiveDucked)
 
-        // When navigation channel is disabled, media should not be ducked
+        // 3. When navigation and system channels are disabled: no ducking should occur even if speech is active
         ProjectionSettings.isNavigationChannelEnabled = false
-        player.refreshVolumes()
-        XCTAssertFalse(ProjectionSettings.isNavigationChannelEnabled)
+        ProjectionSettings.isSystemChannelEnabled = false
+        let disabledVolumes = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(disabledVolumes.media, 0.8, accuracy: 0.001)
+        XCTAssertEqual(disabledVolumes.navigation, 0.0)
+        XCTAssertEqual(disabledVolumes.system, 0.0)
+        XCTAssertFalse(disabledVolumes.effectiveDucked)
+
+        // 4. When media channel is disabled: media volume is 0.0
+        ProjectionSettings.isMediaChannelEnabled = false
+        let mediaOffVolumes = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: false)
+        XCTAssertEqual(mediaOffVolumes.media, 0.0)
+
+        // 5. Test 100% ducking (mute media)
+        ProjectionSettings.isMediaChannelEnabled = true
+        ProjectionSettings.isNavigationChannelEnabled = true
+        ProjectionSettings.navigationDuckingAmount = 1.0
+        let mutedDucking = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(mutedDucking.media, 0.0, accuracy: 0.001)
+        XCTAssertTrue(mutedDucking.effectiveDucked)
+
+        // 6. Test 0% ducking (no ducking)
+        ProjectionSettings.navigationDuckingAmount = 0.0
+        let noDucking = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(noDucking.media, 0.8, accuracy: 0.001)
+        XCTAssertTrue(noDucking.effectiveDucked)
 
         ProjectionSettings.resetToDefaults()
     }

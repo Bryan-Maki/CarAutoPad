@@ -204,8 +204,7 @@ final class Phase5SystemIntegrationTests: XCTestCase {
             withUnsafeBytes(of: &le) { pcmData.append(contentsOf: $0) }
         }
 
-        let player = PCMAudioPlayer()
-        guard let buffer = player.enqueuePCMData(pcmData, sampleRate: 48000, channels: 2) else {
+        guard let buffer = PCMAudioPlayer.convertInt16PCMToFloat32Buffer(pcmData, sampleRate: 48000, channels: 2) else {
             XCTFail("Expected non-nil Float32 AVAudioPCMBuffer")
             return
         }

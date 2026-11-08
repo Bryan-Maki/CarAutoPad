@@ -3,6 +3,10 @@ name: Build CarAutoPad IPA
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -52,6 +56,7 @@ jobs:
             -workspace CarAutoPad.xcworkspace \
             -scheme CarAutoPad \
             -destination "platform=iOS Simulator,id=$SIM_ID" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             ContinueBuildingAfterErrors=YES \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -63,6 +68,7 @@ jobs:
             -scheme CarAutoPad \
             -destination "platform=iOS Simulator,id=$SIM_ID" \
             -parallel-testing-enabled NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" || {
