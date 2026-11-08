@@ -8,4 +8,8 @@ target 'CarAutoPad' do
   else
     pod 'OpenSSL-Universal', '~> 3.6'
   end
+
+  target 'CarAutoPadTests' do
+    inherit! :search_paths
+  end
 end
