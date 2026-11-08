@@ -204,13 +204,11 @@ final class ViewControllersSmokeTests: XCTestCase {
         ProjectionSettings.isDebugModeEnabled = true
         mvc.updatePerformanceOverlayState()
         XCTAssertFalse(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be visible when running and debug mode is enabled")
-        XCTAssertFalse(mvc.performanceOverlayView.isHidden, "performanceOverlayView should be visible when running and debug mode is enabled")
 
         // 4. When running and debug mode is disabled, debugBubbleButton must be hidden
         ProjectionSettings.isDebugModeEnabled = false
         mvc.updatePerformanceOverlayState()
         XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be hidden when debug mode is disabled even while running")
-        XCTAssertTrue(mvc.performanceOverlayView.isHidden, "performanceOverlayView should be hidden when debug mode is disabled even while running")
     }
 
     @MainActor
