@@ -164,6 +164,8 @@ xcuserdata/
 # CocoaPods
 Pods/
 Podfile.lock
+vendor/**/*.xcframework
+vendor/**/*.zip
 
 # Swift Package Manager
 .swiftpm/

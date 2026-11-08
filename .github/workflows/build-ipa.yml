@@ -19,6 +19,27 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Prepare OpenSSL dependency
+        run: |
+          mkdir -p vendor/OpenSSL-Universal
+          echo "Resolving OpenSSL asset via GitHub API..."
+          ASSET_URL=$(curl -sS -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/krzyzanowskim/OpenSSL/releases/tags/3.6.2000" \
+            | grep -o 'https://api.github.com/repos/krzyzanowskim/OpenSSL/releases/assets/[0-9]*' | head -n 1 || true)
+          if [ -z "$ASSET_URL" ]; then
+            ASSET_URL="https://api.github.com/repos/krzyzanowskim/OpenSSL/releases/assets/426003225"
+          fi
+          echo "Downloading OpenSSL.xcframework from $ASSET_URL..."
+          curl -sS -L \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/octet-stream" \
+            "$ASSET_URL" \
+            -o OpenSSL.xcframework.zip
+          unzip -q OpenSSL.xcframework.zip -d vendor/OpenSSL-Universal/
+          rm OpenSSL.xcframework.zip
+          test -d vendor/OpenSSL-Universal/OpenSSL.xcframework
+          echo "OpenSSL.xcframework successfully prepared."
+
       - name: Install CocoaPods dependencies
         run: pod install
 
