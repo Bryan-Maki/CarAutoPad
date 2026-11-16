@@ -2475,13 +2475,13 @@ final class QuickAudioConfigViewController: UIViewController {
         sliderRow.alignment = .center
 
         slider.minimumValue = 0.0
-        slider.maximumValue = 1.0
+        slider.maximumValue = ProjectionSettings.maxChannelVolume
 
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
         valueLabel.textColor = .secondaryLabel
         valueLabel.textAlignment = .right
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        valueLabel.widthAnchor.constraint(equalToConstant: 48).isActive = true
 
         sliderRow.addArrangedSubview(slider)
         sliderRow.addArrangedSubview(valueLabel)
@@ -2707,7 +2707,7 @@ final class QuickAudioConfigViewController: UIViewController {
 
     private func updateDuckingStatusLabel(amount: Float) {
         guard ProjectionSettings.isAudioSinkEnabled else {
-            duckingStatusLabel.text = "Disabled (Phone Audio)"
+            duckingStatusLabel.text = "Disabled (Audio plays on Phone / Car BT)"
             return
         }
         let pct = Int((amount * 100).rounded())

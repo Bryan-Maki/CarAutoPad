@@ -533,30 +533,31 @@ public enum ProjectionSettings {
     }
 
     public static let defaultChannelVolume: Float = 1.0
+    public static let maxChannelVolume: Float = 1.5
     public static let defaultNavigationDuckingAmount: Float = 0.70
 
     public static var mediaVolume: Float {
         get {
             guard defaults.object(forKey: mediaVolumeKey) != nil else { return defaultChannelVolume }
-            return min(max(defaults.float(forKey: mediaVolumeKey), 0.0), 1.0)
+            return min(max(defaults.float(forKey: mediaVolumeKey), 0.0), maxChannelVolume)
         }
-        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: mediaVolumeKey) }
+        set { defaults.set(min(max(newValue, 0.0), maxChannelVolume), forKey: mediaVolumeKey) }
     }
 
     public static var navigationVolume: Float {
         get {
             guard defaults.object(forKey: navigationVolumeKey) != nil else { return defaultChannelVolume }
-            return min(max(defaults.float(forKey: navigationVolumeKey), 0.0), 1.0)
+            return min(max(defaults.float(forKey: navigationVolumeKey), 0.0), maxChannelVolume)
         }
-        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: navigationVolumeKey) }
+        set { defaults.set(min(max(newValue, 0.0), maxChannelVolume), forKey: navigationVolumeKey) }
     }
 
     public static var phoneSystemVolume: Float {
         get {
             guard defaults.object(forKey: phoneSystemVolumeKey) != nil else { return defaultChannelVolume }
-            return min(max(defaults.float(forKey: phoneSystemVolumeKey), 0.0), 1.0)
+            return min(max(defaults.float(forKey: phoneSystemVolumeKey), 0.0), maxChannelVolume)
         }
-        set { defaults.set(min(max(newValue, 0.0), 1.0), forKey: phoneSystemVolumeKey) }
+        set { defaults.set(min(max(newValue, 0.0), maxChannelVolume), forKey: phoneSystemVolumeKey) }
     }
 
     public static var isMediaChannelEnabled: Bool {

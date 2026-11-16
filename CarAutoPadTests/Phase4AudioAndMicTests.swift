@@ -167,21 +167,29 @@ final class Phase4AudioAndMicTests: XCTestCase {
         XCTAssertEqual(ProjectionSettings.audioChannelsSummaryText, "Phone (Original Device)")
         ProjectionSettings.audioOutputTarget = .ipad
 
-        // Test clamping
+        // Test clamping & 150% boost support
         ProjectionSettings.mediaVolume = -0.5
         XCTAssertEqual(ProjectionSettings.mediaVolume, 0.0)
+        ProjectionSettings.mediaVolume = 1.1
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.1, accuracy: 0.001)
+        ProjectionSettings.mediaVolume = 1.5
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.5, accuracy: 0.001)
         ProjectionSettings.mediaVolume = 1.8
-        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.0)
+        XCTAssertEqual(ProjectionSettings.mediaVolume, ProjectionSettings.maxChannelVolume, accuracy: 0.001)
 
         ProjectionSettings.navigationVolume = -0.1
         XCTAssertEqual(ProjectionSettings.navigationVolume, 0.0)
-        ProjectionSettings.navigationVolume = 1.1
-        XCTAssertEqual(ProjectionSettings.navigationVolume, 1.0)
+        ProjectionSettings.navigationVolume = 1.35
+        XCTAssertEqual(ProjectionSettings.navigationVolume, 1.35, accuracy: 0.001)
+        ProjectionSettings.navigationVolume = 2.0
+        XCTAssertEqual(ProjectionSettings.navigationVolume, ProjectionSettings.maxChannelVolume, accuracy: 0.001)
 
         ProjectionSettings.phoneSystemVolume = -0.3
         XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 0.0)
         ProjectionSettings.phoneSystemVolume = 1.3
-        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 1.0)
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 1.3, accuracy: 0.001)
+        ProjectionSettings.phoneSystemVolume = 1.9
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, ProjectionSettings.maxChannelVolume, accuracy: 0.001)
 
         ProjectionSettings.navigationDuckingAmount = -0.2
         XCTAssertEqual(ProjectionSettings.navigationDuckingAmount, 0.0)
@@ -396,5 +404,76 @@ final class Phase4AudioAndMicTests: XCTestCase {
         XCTAssertFalse(player.speechActive)
 
         ProjectionSettings.resetToDefaults()
+    }
+
+    func testPCMAudioPlayerComputeEffectiveVolumesWithBoostAndDucking() {
+        ProjectionSettings.resetToDefaults()
+        defer { ProjectionSettings.resetToDefaults() }
+
+        ProjectionSettings.mediaVolume = 1.5
+        ProjectionSettings.navigationVolume = 1.5
+        ProjectionSettings.phoneSystemVolume = 1.25
+        ProjectionSettings.navigationDuckingAmount = 0.50
+
+        let inactive = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: false)
+        XCTAssertEqual(inactive.media, 1.5, accuracy: 0.001)
+        XCTAssertEqual(inactive.navigation, 1.5, accuracy: 0.001)
+        XCTAssertEqual(inactive.system, 1.25, accuracy: 0.001)
+        XCTAssertFalse(inactive.effectiveDucked)
+
+        let active = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(active.media, 0.75, accuracy: 0.001)
+        XCTAssertEqual(active.navigation, 1.5, accuracy: 0.001)
+        XCTAssertEqual(active.system, 1.25, accuracy: 0.001)
+        XCTAssertTrue(active.effectiveDucked)
+
+        ProjectionSettings.navigationDuckingAmount = 0.0
+        let activeNoDuck = PCMAudioPlayer.computeEffectiveVolumes(isSpeechActive: true)
+        XCTAssertEqual(activeNoDuck.media, 1.5, accuracy: 0.001)
+        XCTAssertTrue(activeNoDuck.effectiveDucked)
+    }
+
+    func testPCMAudioPlayerSoftClipSampleLinearRegionAndSaturation() {
+        // Completely linear inside [-0.625, 0.625]
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(0.0), 0.0, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(0.5), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(-0.5), -0.5, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(0.625), 0.625, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(-0.625), -0.625, accuracy: 0.0001)
+
+        // Smooth saturation strictly inside (-1.0, 1.0) for overdriven inputs
+        let posOverdrive = PCMAudioPlayer.softClipSample(1.5)
+        XCTAssertGreaterThan(posOverdrive, 0.625)
+        XCTAssertLessThan(posOverdrive, 1.0)
+        XCTAssertEqual(posOverdrive, 0.625 + (0.875 * 0.375) / (0.875 + 0.75), accuracy: 0.0001)
+
+        let negOverdrive = PCMAudioPlayer.softClipSample(-1.5)
+        XCTAssertLessThan(negOverdrive, -0.625)
+        XCTAssertGreaterThan(negOverdrive, -1.0)
+        XCTAssertEqual(negOverdrive, -posOverdrive, accuracy: 0.0001)
+
+        // Extreme peaks clamped smoothly below 1.0
+        XCTAssertLessThan(PCMAudioPlayer.softClipSample(3.0), 1.0)
+        XCTAssertLessThan(PCMAudioPlayer.softClipSample(5.0), 1.0)
+        XCTAssertGreaterThan(PCMAudioPlayer.softClipSample(-5.0), -1.0)
+
+        // Pure in-memory buffer conversion with gain > 1.0 applies headroom soft-clipping without touching AVAudioEngine
+        let samples: [Int16] = [8192, -8192, 32767, -32768]
+        var pcmData = Data(capacity: samples.count * MemoryLayout<Int16>.size)
+        for sample in samples {
+            var le = sample.littleEndian
+            withUnsafeBytes(of: &le) { pcmData.append(contentsOf: $0) }
+        }
+        guard let boostedBuffer = PCMAudioPlayer.convertInt16PCMToFloat32Buffer(pcmData, sampleRate: 48000, channels: 2, gain: 1.5),
+              let floatData = boostedBuffer.floatChannelData else {
+            XCTFail("Expected non-nil boosted buffer")
+            return
+        }
+        // 8192/32768 = 0.25 -> 0.25 * 1.5 = 0.375 <= 0.625 (stays linear)
+        XCTAssertEqual(floatData[0][0], 0.25, accuracy: 0.0001)
+        XCTAssertEqual(floatData[1][0], -0.25, accuracy: 0.0001)
+        // Full-scale samples are compressed so that sample * 1.5 stays strictly < 1.0
+        XCTAssertLessThan(floatData[0][1] * 1.5, 1.0)
+        XCTAssertGreaterThan(floatData[1][1] * 1.5, -1.0)
     }
 }

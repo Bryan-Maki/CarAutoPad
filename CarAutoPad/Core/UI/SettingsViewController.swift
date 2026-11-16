@@ -371,6 +371,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 if !target.isAudioSinkEnabled {
                     PCMAudioPlayer.shared.reset()
                 }
+                self?.tableView.reloadSections(IndexSet(integer: SettingsSection.videoAudio.rawValue), with: .none)
                 if self?.connectionManager.state == .running {
                     self?.onSettingsChanged?(.requiresReconnect)
                 } else {
@@ -1146,13 +1147,13 @@ final class AudioChannelMixerCell: UITableViewCell {
         sliderRow.alignment = .center
 
         slider.minimumValue = 0.0
-        slider.maximumValue = 1.0
+        slider.maximumValue = ProjectionSettings.maxChannelVolume
 
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
         valueLabel.textColor = .secondaryLabel
         valueLabel.textAlignment = .right
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        valueLabel.widthAnchor.constraint(equalToConstant: 48).isActive = true
 
         sliderRow.addArrangedSubview(slider)
         sliderRow.addArrangedSubview(valueLabel)
@@ -1344,20 +1345,29 @@ final class AudioChannelMixerCell: UITableViewCell {
     }
 
     func syncWithCurrentSettings() {
+        let isSink = ProjectionSettings.isAudioSinkEnabled
+        mediaSwitch.isEnabled = isSink
+        mediaSlider.isEnabled = isSink && ProjectionSettings.isMediaChannelEnabled
+        navSwitch.isEnabled = isSink
+        navSlider.isEnabled = isSink && ProjectionSettings.isNavigationChannelEnabled
+        sysSwitch.isEnabled = isSink
+        sysSlider.isEnabled = isSink && ProjectionSettings.isSystemChannelEnabled
+        duckingSlider.isEnabled = isSink
+        for (_, btn) in presetButtons {
+            btn.isEnabled = isSink
+        }
+
         mediaSwitch.isOn = ProjectionSettings.isMediaChannelEnabled
         mediaSlider.value = ProjectionSettings.mediaVolume
-        mediaSlider.isEnabled = ProjectionSettings.isMediaChannelEnabled
-        mediaValueLabel.text = ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off"
+        mediaValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off")
 
         navSwitch.isOn = ProjectionSettings.isNavigationChannelEnabled
         navSlider.value = ProjectionSettings.navigationVolume
-        navSlider.isEnabled = ProjectionSettings.isNavigationChannelEnabled
-        navValueLabel.text = ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off"
+        navValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off")
 
         sysSwitch.isOn = ProjectionSettings.isSystemChannelEnabled
         sysSlider.value = ProjectionSettings.phoneSystemVolume
-        sysSlider.isEnabled = ProjectionSettings.isSystemChannelEnabled
-        sysValueLabel.text = ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off"
+        sysValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off")
 
         let duckAmount = ProjectionSettings.navigationDuckingAmount
         duckingSlider.value = duckAmount
@@ -1366,6 +1376,10 @@ final class AudioChannelMixerCell: UITableViewCell {
     }
 
     private func updateDuckingStatusLabel(amount: Float) {
+        guard ProjectionSettings.isAudioSinkEnabled else {
+            duckingStatusLabel.text = "Disabled (Audio plays on Phone / Car BT)"
+            return
+        }
         let pct = Int((amount * 100).rounded())
         if pct == 0 {
             duckingStatusLabel.text = "0% (No Ducking)"

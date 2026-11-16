@@ -10,16 +10,19 @@ final class PCMAudioPlayer {
         let channels: Int
         let format: AVAudioFormat
         let player: AVAudioPlayerNode
+        let eqNode: AVAudioUnitEQ
+        var effectiveVolume: Float = 1.0
         var queuedFrames: Int = 0
         var prebufferQueue: [AVAudioPCMBuffer] = []
         var isPrebuffering: Bool = true
         var needsFadeIn: Bool = true
 
-        init(sampleRate: Int, channels: Int, format: AVAudioFormat, player: AVAudioPlayerNode) {
+        init(sampleRate: Int, channels: Int, format: AVAudioFormat, player: AVAudioPlayerNode, eqNode: AVAudioUnitEQ) {
             self.sampleRate = sampleRate
             self.channels = channels
             self.format = format
             self.player = player
+            self.eqNode = eqNode
         }
     }
 
@@ -201,7 +204,20 @@ final class PCMAudioPlayer {
         return buffer
     }
 
-    public static func convertInt16PCMToFloat32Buffer(_ data: Data, sampleRate: Int, channels: Int) -> AVAudioPCMBuffer? {
+    public static func softClipSample(_ x: Float32) -> Float32 {
+        let s = max(-3.0, min(3.0, x))
+        if s > 0.625 {
+            let d = s - 0.625
+            return 0.625 + (d * 0.375) / (d + 0.75)
+        } else if s < -0.625 {
+            let d = -s - 0.625
+            return -(0.625 + (d * 0.375) / (d + 0.75))
+        } else {
+            return s
+        }
+    }
+
+    public static func convertInt16PCMToFloat32Buffer(_ data: Data, sampleRate: Int, channels: Int, gain: Float = 1.0) -> AVAudioPCMBuffer? {
         guard sampleRate > 0, channels > 0 else { return nil }
         let bytesPerSample = MemoryLayout<Int16>.size
         let bytesPerFrame = channels * bytesPerSample
@@ -227,6 +243,7 @@ final class PCMAudioPlayer {
             return nil
         }
 
+        let applySoftClip = gain > 1.0
         data.withUnsafeBytes { rawBuffer in
             guard let baseAddress = rawBuffer.baseAddress else { return }
             let int16Ptr = baseAddress.assumingMemoryBound(to: Int16.self)
@@ -235,7 +252,11 @@ final class PCMAudioPlayer {
                 for ch in 0..<channels {
                     let sample = Int16(littleEndian: int16Ptr[frameBase + ch])
                     let floatVal = Float32(sample) / 32768.0
-                    floatChannelData[ch][frame] = max(-1.0, min(1.0, floatVal))
+                    if applySoftClip {
+                        floatChannelData[ch][frame] = Self.softClipSample(floatVal * gain) / gain
+                    } else {
+                        floatChannelData[ch][frame] = max(-1.0, min(1.0, floatVal))
+                    }
                 }
             }
         }
@@ -244,7 +265,25 @@ final class PCMAudioPlayer {
     }
 
     private func enqueuePCMDataInternal(_ data: Data, sampleRate: Int, channels: Int, on channel: UInt8) {
-        guard let buffer = Self.convertInt16PCMToFloat32Buffer(data, sampleRate: sampleRate, channels: channels) else {
+        let volumes = Self.computeEffectiveVolumes(isSpeechActive: isSpeechActive)
+        let targetGain: Float
+        switch channel {
+        case Channel.ID_AUD:
+            targetGain = volumes.media
+        case Channel.ID_AU1:
+            targetGain = volumes.navigation
+        case Channel.ID_AU2:
+            targetGain = volumes.system
+        default:
+            targetGain = 1.0
+        }
+        let conversionGain: Float = targetGain > 1.0 ? targetGain : 1.0
+        guard let buffer = Self.convertInt16PCMToFloat32Buffer(
+            data,
+            sampleRate: sampleRate,
+            channels: channels,
+            gain: conversionGain
+        ) else {
             return
         }
         enqueuePreparedBuffer(buffer, rawPCMData: data, sampleRate: sampleRate, channels: channels, on: channel)
@@ -358,7 +397,7 @@ final class PCMAudioPlayer {
     public func volume(for channel: UInt8) -> Float? {
         var vol: Float?
         let block = { [self] in
-            vol = streams[channel]?.player.volume
+            vol = streams[channel]?.effectiveVolume
         }
         if DispatchQueue.getSpecific(key: Self.audioQueueKey) != nil {
             block()
@@ -427,6 +466,18 @@ final class PCMAudioPlayer {
         return (targetMedia, navVol, sysVol, effectiveDucking)
     }
 
+    private func applyStreamGain(_ stream: StreamContext, gain: Float) {
+        let clamped = max(0.0, min(ProjectionSettings.maxChannelVolume, gain))
+        stream.effectiveVolume = clamped
+        if clamped <= 1.0 {
+            stream.player.volume = clamped
+            stream.eqNode.globalGain = 0.0
+        } else {
+            stream.player.volume = 1.0
+            stream.eqNode.globalGain = 20.0 * log10(clamped)
+        }
+    }
+
     private func applyVolumesAndDuckingLocked() {
         let volumes = Self.computeEffectiveVolumes(isSpeechActive: isSpeechActive)
         let duckReduction = max(0.0, min(1.0, ProjectionSettings.navigationDuckingAmount))
@@ -434,13 +485,13 @@ final class PCMAudioPlayer {
         duckingEnvelope.updateDuckedGain(duckedGain, isSpeechActive: isSpeechActive)
 
         if let mediaStream = streams[Channel.ID_AUD] {
-            mediaStream.player.volume = volumes.media
+            applyStreamGain(mediaStream, gain: volumes.media)
         }
         if let guidanceStream = streams[Channel.ID_AU1] {
-            guidanceStream.player.volume = volumes.navigation
+            applyStreamGain(guidanceStream, gain: volumes.navigation)
         }
         if let systemStream = streams[Channel.ID_AU2] {
-            systemStream.player.volume = volumes.system
+            applyStreamGain(systemStream, gain: volumes.system)
         }
         AppLog.category(
             .audioMic,
@@ -501,6 +552,9 @@ final class PCMAudioPlayer {
                 stream.player.stop()
                 if stream.player.engine != nil {
                     self.engine.detach(stream.player)
+                }
+                if stream.eqNode.engine != nil {
+                    self.engine.detach(stream.eqNode)
                 }
                 stream.prebufferQueue.removeAll()
                 stream.queuedFrames = 0
@@ -568,8 +622,11 @@ final class PCMAudioPlayer {
         }
 
         let playerNode = AVAudioPlayerNode()
+        let eqNode = AVAudioUnitEQ(numberOfBands: 0)
         engine.attach(playerNode)
-        engine.connect(playerNode, to: engine.mainMixerNode, format: floatFormat)
+        engine.attach(eqNode)
+        engine.connect(playerNode, to: eqNode, format: floatFormat)
+        engine.connect(eqNode, to: engine.mainMixerNode, format: floatFormat)
         if !engine.isRunning {
             try? engine.start()
         }
@@ -579,7 +636,8 @@ final class PCMAudioPlayer {
             sampleRate: sampleRate,
             channels: channels,
             format: floatFormat,
-            player: playerNode
+            player: playerNode,
+            eqNode: eqNode
         )
         streams[channel] = stream
         applyVolumesAndDuckingLocked()
