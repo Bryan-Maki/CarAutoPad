@@ -130,6 +130,12 @@ final class PCMAudioPlayer {
         let block = { [self] in
             self.streams.values.forEach {
                 $0.player.stop()
+                if $0.player.engine != nil {
+                    self.engine.detach($0.player)
+                }
+                if $0.eqNode.engine != nil {
+                    self.engine.detach($0.eqNode)
+                }
                 $0.prebufferQueue.removeAll()
                 $0.queuedFrames = 0
                 $0.isPrebuffering = true
@@ -243,7 +249,7 @@ final class PCMAudioPlayer {
             return nil
         }
 
-        let applySoftClip = gain > 1.0
+        let applySoftClip = gain.isFinite && gain > 1.0
         data.withUnsafeBytes { rawBuffer in
             guard let baseAddress = rawBuffer.baseAddress else { return }
             let int16Ptr = baseAddress.assumingMemoryBound(to: Int16.self)
@@ -466,16 +472,21 @@ final class PCMAudioPlayer {
         return (targetMedia, navVol, sysVol, effectiveDucking)
     }
 
-    private func applyStreamGain(_ stream: StreamContext, gain: Float) {
+    public static func splitChannelGain(_ gain: Float) -> (playerVolume: Float, eqGlobalGainDb: Float, effectiveGain: Float) {
+        guard gain.isFinite else { return (0.0, 0.0, 0.0) }
         let clamped = max(0.0, min(ProjectionSettings.maxChannelVolume, gain))
-        stream.effectiveVolume = clamped
         if clamped <= 1.0 {
-            stream.player.volume = clamped
-            stream.eqNode.globalGain = 0.0
+            return (clamped, 0.0, clamped)
         } else {
-            stream.player.volume = 1.0
-            stream.eqNode.globalGain = 20.0 * log10(clamped)
+            return (1.0, 20.0 * log10(clamped), clamped)
         }
+    }
+
+    private func applyStreamGain(_ stream: StreamContext, gain: Float) {
+        let split = Self.splitChannelGain(gain)
+        stream.effectiveVolume = split.effectiveGain
+        stream.player.volume = split.playerVolume
+        stream.eqNode.globalGain = split.eqGlobalGainDb
     }
 
     private func applyVolumesAndDuckingLocked() {
@@ -608,10 +619,18 @@ final class PCMAudioPlayer {
     }
 
     private func ensureStream(for channel: UInt8, sampleRate: Int, channels: Int) -> StreamContext? {
-        if let existing = streams[channel],
-           existing.sampleRate == sampleRate,
-           existing.channels == channels {
-            return existing
+        if let existing = streams[channel] {
+            if existing.sampleRate == sampleRate && existing.channels == channels {
+                return existing
+            }
+            existing.player.stop()
+            if existing.player.engine != nil {
+                engine.detach(existing.player)
+            }
+            if existing.eqNode.engine != nil {
+                engine.detach(existing.eqNode)
+            }
+            streams.removeValue(forKey: channel)
         }
 
         guard let floatFormat = AVAudioFormat(

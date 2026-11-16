@@ -475,5 +475,71 @@ final class Phase4AudioAndMicTests: XCTestCase {
         // Full-scale samples are compressed so that sample * 1.5 stays strictly < 1.0
         XCTAssertLessThan(floatData[0][1] * 1.5, 1.0)
         XCTAssertGreaterThan(floatData[1][1] * 1.5, -1.0)
+
+        // At unity gain (default 1.0), samples > 0.625 remain 100% lossless (no soft-clipping)
+        let unitySamples: [Int16] = [26214, -26214] // ~0.8 > 0.625
+        var unityData = Data(capacity: unitySamples.count * MemoryLayout<Int16>.size)
+        for sample in unitySamples {
+            var le = sample.littleEndian
+            withUnsafeBytes(of: &le) { unityData.append(contentsOf: $0) }
+        }
+        guard let unityBuffer = PCMAudioPlayer.convertInt16PCMToFloat32Buffer(unityData, sampleRate: 48000, channels: 2),
+              let unityFloat = unityBuffer.floatChannelData else {
+            XCTFail("Expected non-nil unity buffer")
+            return
+        }
+        XCTAssertEqual(unityFloat[0][0], Float(26214.0 / 32768.0), accuracy: 0.0001)
+        XCTAssertEqual(unityFloat[1][0], Float(-26214.0 / 32768.0), accuracy: 0.0001)
+    }
+
+    func testPCMAudioPlayerSplitChannelGainAndBoostDb() {
+        let negative = PCMAudioPlayer.splitChannelGain(-0.5)
+        XCTAssertEqual(negative.effectiveGain, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(negative.playerVolume, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(negative.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+
+        let attenuated = PCMAudioPlayer.splitChannelGain(0.5)
+        XCTAssertEqual(attenuated.effectiveGain, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(attenuated.playerVolume, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(attenuated.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+
+        let unity = PCMAudioPlayer.splitChannelGain(1.0)
+        XCTAssertEqual(unity.effectiveGain, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(unity.playerVolume, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(unity.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+
+        let maxBoost = PCMAudioPlayer.splitChannelGain(1.5)
+        XCTAssertEqual(maxBoost.effectiveGain, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(maxBoost.playerVolume, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(maxBoost.eqGlobalGainDb, 20.0 * log10(Float(1.5)), accuracy: 0.001)
+
+        let overClamped = PCMAudioPlayer.splitChannelGain(2.5)
+        XCTAssertEqual(overClamped.effectiveGain, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(overClamped.playerVolume, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(overClamped.eqGlobalGainDb, 20.0 * log10(Float(1.5)), accuracy: 0.001)
+
+        let nanGain = PCMAudioPlayer.splitChannelGain(.nan)
+        XCTAssertEqual(nanGain.effectiveGain, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(nanGain.playerVolume, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(nanGain.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+    }
+
+    func testSettingsBackupManagerPreserves150PercentBoost() throws {
+        ProjectionSettings.resetToDefaults()
+        defer { ProjectionSettings.resetToDefaults() }
+
+        ProjectionSettings.mediaVolume = 1.5
+        ProjectionSettings.navigationVolume = 1.35
+        ProjectionSettings.phoneSystemVolume = 1.25
+
+        let json = SettingsBackupManager.exportToJson()
+        ProjectionSettings.resetToDefaults()
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.0, accuracy: 0.001)
+
+        try SettingsBackupManager.importFromJson(json)
+        XCTAssertEqual(ProjectionSettings.mediaVolume, 1.5, accuracy: 0.001)
+        XCTAssertEqual(ProjectionSettings.navigationVolume, 1.35, accuracy: 0.001)
+        XCTAssertEqual(ProjectionSettings.phoneSystemVolume, 1.25, accuracy: 0.001)
+        XCTAssertEqual(ProjectionSettings.audioChannelsSummaryText, "iPad (150%/135%/125% • Duck -70%)")
     }
 }

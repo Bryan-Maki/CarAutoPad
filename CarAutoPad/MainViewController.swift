@@ -2511,10 +2511,13 @@ final class QuickAudioConfigViewController: UIViewController {
         titleLabel.text = "Navigation Ducking Drop"
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.textColor = .label
+        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         duckingStatusLabel.textColor = .systemBlue
         duckingStatusLabel.textAlignment = .right
+        duckingStatusLabel.adjustsFontSizeToFitWidth = true
+        duckingStatusLabel.minimumScaleFactor = 0.75
 
         headerRow.addArrangedSubview(titleLabel)
         headerRow.addArrangedSubview(duckingStatusLabel)

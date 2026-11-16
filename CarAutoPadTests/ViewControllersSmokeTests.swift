@@ -138,6 +138,17 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertTrue(previewView.isCoolwalkSplitScreen)
     }
 
+    private func collectSubviews<T: UIView>(of type: T.Type, in root: UIView) -> [T] {
+        var result: [T] = []
+        for subview in root.subviews {
+            if let match = subview as? T {
+                result.append(match)
+            }
+            result.append(contentsOf: collectSubviews(of: type, in: subview))
+        }
+        return result
+    }
+
     @MainActor
     func testQuickAudioConfigViewControllerLaunchesWithoutCrash() {
         let vc = QuickAudioConfigViewController()
@@ -152,6 +163,115 @@ final class ViewControllersSmokeTests: XCTestCase {
         let cell = AudioChannelMixerCell()
         cell.layoutIfNeeded()
         XCTAssertNotNil(cell.contentView)
+    }
+
+    @MainActor
+    func testAudioChannelMixerCellBoostSliderAndPhoneOutputSync() {
+        ProjectionSettings.resetToDefaults()
+        defer { ProjectionSettings.resetToDefaults() }
+
+        ProjectionSettings.mediaVolume = 1.5
+        ProjectionSettings.audioOutputTarget = .ipad
+
+        let cell = AudioChannelMixerCell()
+        cell.layoutIfNeeded()
+
+        let sliders = collectSubviews(of: UISlider.self, in: cell.contentView)
+        XCTAssertEqual(sliders.count, 4)
+        let boostSliders = sliders.filter { abs($0.maximumValue - ProjectionSettings.maxChannelVolume) < 0.001 }
+        XCTAssertEqual(boostSliders.count, 3)
+
+        let switches = collectSubviews(of: UISwitch.self, in: cell.contentView)
+        XCTAssertEqual(switches.count, 3)
+        XCTAssertTrue(switches.allSatisfy { $0.isEnabled })
+
+        let labelsBefore = collectSubviews(of: UILabel.self, in: cell.contentView).compactMap { $0.text }
+        XCTAssertTrue(labelsBefore.contains("150%"))
+
+        // Switch to Phone output and sync
+        ProjectionSettings.audioOutputTarget = .phone
+        cell.syncWithCurrentSettings()
+
+        XCTAssertTrue(switches.allSatisfy { !$0.isEnabled })
+        XCTAssertTrue(sliders.allSatisfy { !$0.isEnabled })
+        let labelsPhone = collectSubviews(of: UILabel.self, in: cell.contentView).compactMap { $0.text }
+        XCTAssertEqual(labelsPhone.filter { $0 == "N/A" }.count, 3)
+        XCTAssertTrue(labelsPhone.contains("Disabled (Audio plays on Phone / Car BT)"))
+    }
+
+    @MainActor
+    func testQuickAudioConfigViewControllerBoostSliderAndPhoneOutputSync() {
+        ProjectionSettings.resetToDefaults()
+        defer { ProjectionSettings.resetToDefaults() }
+
+        ProjectionSettings.mediaVolume = 1.5
+        ProjectionSettings.audioOutputTarget = .ipad
+
+        let vc = QuickAudioConfigViewController()
+        vc.loadViewIfNeeded()
+        vc.view.layoutIfNeeded()
+
+        let sliders = collectSubviews(of: UISlider.self, in: vc.view)
+        XCTAssertEqual(sliders.count, 4)
+        XCTAssertEqual(sliders.filter { abs($0.maximumValue - ProjectionSettings.maxChannelVolume) < 0.001 }.count, 3)
+
+        let switches = collectSubviews(of: UISwitch.self, in: vc.view)
+        XCTAssertEqual(switches.count, 3)
+        XCTAssertTrue(switches.allSatisfy { $0.isEnabled })
+
+        let labelsBefore = collectSubviews(of: UILabel.self, in: vc.view).compactMap { $0.text }
+        XCTAssertTrue(labelsBefore.contains("150%"))
+
+        ProjectionSettings.audioOutputTarget = .phone
+        vc.syncWithCurrentSettings()
+
+        XCTAssertTrue(switches.allSatisfy { !$0.isEnabled })
+        XCTAssertTrue(sliders.allSatisfy { !$0.isEnabled })
+        let labelsPhone = collectSubviews(of: UILabel.self, in: vc.view).compactMap { $0.text }
+        XCTAssertEqual(labelsPhone.filter { $0 == "N/A" }.count, 3)
+        XCTAssertTrue(labelsPhone.contains("Disabled (Audio plays on Phone / Car BT)"))
+    }
+
+    @MainActor
+    func testSettingsViewControllerAudioOutputToggleReloadsMixerCell() {
+        ProjectionSettings.resetToDefaults()
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        defer {
+            ProjectionSettings.resetToDefaults()
+            ConnectionManager.shared.setStateForTesting(.disconnected)
+        }
+
+        let settingsVC = SettingsViewController()
+        settingsVC.loadViewIfNeeded()
+        settingsVC.view.frame = CGRect(x: 0, y: 0, width: 640, height: 740)
+        settingsVC.view.layoutIfNeeded()
+
+        guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView else {
+            XCTFail("SettingsViewController must contain a UITableView")
+            return
+        }
+
+        let vaSec = SettingsViewController.SettingsSection.videoAudio.rawValue
+        let audioOutCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: vaSec))
+        guard let seg = audioOutCell.accessoryView as? UISegmentedControl else {
+            XCTFail("Audio Output row must use a UISegmentedControl")
+            return
+        }
+
+        seg.selectedSegmentIndex = 1
+        seg.sendActions(for: .valueChanged)
+        XCTAssertEqual(ProjectionSettings.audioOutputTarget, .phone)
+
+        let mixerCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 4, section: vaSec))
+        let switches = collectSubviews(of: UISwitch.self, in: mixerCell.contentView)
+        let sliders = collectSubviews(of: UISlider.self, in: mixerCell.contentView)
+        let labels = collectSubviews(of: UILabel.self, in: mixerCell.contentView).compactMap { $0.text }
+
+        XCTAssertEqual(switches.count, 3)
+        XCTAssertTrue(switches.allSatisfy { !$0.isEnabled })
+        XCTAssertTrue(sliders.allSatisfy { !$0.isEnabled })
+        XCTAssertEqual(labels.filter { $0 == "N/A" }.count, 3)
+        XCTAssertTrue(labels.contains("Disabled (Audio plays on Phone / Car BT)"))
     }
 
     @MainActor
