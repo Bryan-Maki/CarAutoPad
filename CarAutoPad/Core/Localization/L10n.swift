@@ -31,6 +31,9 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
                 }
                 return .simplifiedChinese
             }
+            if lower.hasPrefix("yue") {
+                return lower.contains("hans") ? .simplifiedChinese : .traditionalChinese
+            }
             if lower.hasPrefix("ja") {
                 return .japanese
             }

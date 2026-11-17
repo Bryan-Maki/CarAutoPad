@@ -1238,6 +1238,10 @@ final class MainViewController: UIViewController {
                     statusDotView.backgroundColor = .systemOrange
                     statusLabel.text = connectionManager.statusDetail
                     statusLabel.textColor = .systemOrange
+                } else if connectionManager.statusKind == .disconnectedFromSession {
+                    statusDotView.backgroundColor = .systemGreen
+                    statusLabel.text = connectionManager.statusDetail
+                    statusLabel.textColor = .secondaryLabel
                 } else {
                     statusDotView.backgroundColor = .systemGreen
                     statusLabel.text = L10n.statusIpadIpReady(currentIp)
@@ -2636,8 +2640,10 @@ final class QuickAudioConfigViewController: UIViewController {
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
         valueLabel.textColor = .secondaryLabel
         valueLabel.textAlignment = .right
+        valueLabel.adjustsFontSizeToFitWidth = true
+        valueLabel.minimumScaleFactor = 0.75
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        valueLabel.widthAnchor.constraint(equalToConstant: 52).isActive = true
 
         sliderRow.addArrangedSubview(slider)
         sliderRow.addArrangedSubview(valueLabel)

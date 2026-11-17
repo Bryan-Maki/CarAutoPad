@@ -627,8 +627,8 @@ class ConnectionManager {
         } else {
             autoReconnect.cancel()
             ConnectionIssueStore.shared.raise(issue: .headunitServerStuckAfterRetries)
-            state = .error(L10n.errorFailedAfterRetries(maxReconnectAttempts))
             updateStatus(.failedAfterRetries(maxAttempts: maxReconnectAttempts))
+            state = .error(L10n.errorFailedAfterRetries(maxReconnectAttempts))
         }
     }
 

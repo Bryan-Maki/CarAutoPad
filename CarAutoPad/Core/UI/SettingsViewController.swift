@@ -747,7 +747,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
             do {
                 try SettingsBackupManager.importFromJson(json)
-                self.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared)
+                self.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared, isLocked: self.isHandshakeSettingsLocked)
                 self.tableView.reloadData()
                 self.onSettingsChanged?(.uiOnly)
                 let ok = UIAlertController(title: L10n.settingsRestoredTitle, message: L10n.settingsRestoredMessage, preferredStyle: .alert)
@@ -772,7 +772,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         )
         alert.addAction(UIAlertAction(title: L10n.reset, style: .destructive) { [weak self] _ in
             SettingsBackupManager.resetToDefaults()
-            self?.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared)
+            self?.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared, isLocked: self?.isHandshakeSettingsLocked ?? false)
             self?.tableView.reloadData()
             self?.onSettingsChanged?(.uiOnly)
         })
@@ -1222,8 +1222,10 @@ final class AudioChannelMixerCell: UITableViewCell {
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
         valueLabel.textColor = .secondaryLabel
         valueLabel.textAlignment = .right
+        valueLabel.adjustsFontSizeToFitWidth = true
+        valueLabel.minimumScaleFactor = 0.75
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        valueLabel.widthAnchor.constraint(equalToConstant: 52).isActive = true
 
         sliderRow.addArrangedSubview(slider)
         sliderRow.addArrangedSubview(valueLabel)

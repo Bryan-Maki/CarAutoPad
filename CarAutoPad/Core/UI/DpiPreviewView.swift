@@ -144,6 +144,22 @@ public final class DpiPreviewView: UIView {
         contentMode = .redraw
         layer.masksToBounds = true
         layer.cornerRadius = 14
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppLanguageDidChange),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func handleAppLanguageDidChange() {
+        if Thread.isMainThread {
+            setNeedsDisplay()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.setNeedsDisplay()
+            }
+        }
     }
 
     @discardableResult

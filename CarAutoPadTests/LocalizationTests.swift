@@ -25,6 +25,9 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-Hant-TW"]), .traditionalChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-HK"]), .traditionalChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-MO"]), .traditionalChinese)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["yue-Hant-HK"]), .traditionalChinese)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["yue-HK"]), .traditionalChinese)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["yue-Hans-CN"]), .simplifiedChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ja-JP"]), .japanese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ms-MY"]), .malay)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["id-ID"]), .malay)
@@ -198,5 +201,81 @@ final class LocalizationTests: XCTestCase {
         let langCellEn = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: smartSec))
         XCTAssertEqual(langCellEn.textLabel?.text, "Language")
         XCTAssertEqual(langCellEn.detailTextLabel?.text, "English")
+    }
+
+    @MainActor
+    func testDisconnectedFromSessionStatusPreservedAcrossLanguageSwitch() {
+        let mainVC = MainViewController()
+        mainVC.loadViewIfNeeded()
+        mainVC.view.layoutIfNeeded()
+
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        ConnectionManager.shared.setStatusKindForTesting(.disconnectedFromSession)
+        mainVC.applyLocalization()
+        XCTAssertEqual(mainVC.statusLabel.text, L10n.statusDisconnectedFromSession)
+        XCTAssertEqual(mainVC.statusDotView.backgroundColor, .systemGreen)
+
+        ProjectionSettings.appLanguage = .japanese
+        XCTAssertEqual(mainVC.statusLabel.text, L10n.statusDisconnectedFromSession)
+        XCTAssertEqual(mainVC.statusLabel.text, "Android Auto が切断されました")
+    }
+
+    @MainActor
+    func testQuickModalsAndDebugLogCategoriesLiveLanguageSwitching() {
+        let layoutVC = QuickLayoutDpiViewController()
+        layoutVC.loadViewIfNeeded()
+        layoutVC.view.layoutIfNeeded()
+
+        let audioVC = QuickAudioConfigViewController()
+        audioVC.loadViewIfNeeded()
+        audioVC.view.layoutIfNeeded()
+
+        let logCatsVC = DebugLogCategoriesViewController()
+        logCatsVC.loadViewIfNeeded()
+        logCatsVC.view.layoutIfNeeded()
+
+        ProjectionSettings.appLanguage = .simplifiedChinese
+        XCTAssertEqual(layoutVC.title, L10n.layoutDpiModalTitle)
+        XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
+        XCTAssertEqual(logCatsVC.title, L10n.debugLogCategoriesTitle)
+        XCTAssertEqual(logCatsVC.navigationItem.rightBarButtonItem?.title, L10n.enableAll)
+
+        let catCell = logCatsVC.tableView(logCatsVC.tableView, cellForRowAt: IndexPath(row: 0, section: 0))
+        XCTAssertTrue(catCell.textLabel?.text?.contains(DebugLogCategory.connectionHandshake.title) ?? false)
+        XCTAssertEqual(catCell.detailTextLabel?.text, DebugLogCategory.connectionHandshake.subtitle)
+
+        ProjectionSettings.appLanguage = .malay
+        XCTAssertEqual(layoutVC.title, "Konfigurasi Susun Atur & DPI")
+        XCTAssertEqual(audioVC.title, "Konfigurasi Audio & Pengurangan")
+        XCTAssertEqual(logCatsVC.title, "Kategori Log Nyahpepijat")
+        XCTAssertEqual(logCatsVC.navigationItem.rightBarButtonItem?.title, "Aktifkan Semua")
+    }
+
+    func testConnectionStatusKindLocalizedTextAllCases() {
+        ProjectionSettings.appLanguage = .simplifiedChinese
+        let kinds: [ConnectionStatusKind] = [
+            .ready,
+            .searchFailedNoWifi,
+            .scanning(stationIp: "192.168.43.5"),
+            .connecting(deviceName: "Pixel 9"),
+            .retrying(attempt: 2, maxAttempts: 3),
+            .failedAfterRetries(maxAttempts: 3),
+            .noDeviceFound,
+            .searchFailed(reason: "timeout"),
+            .waitingForHeadunitServer,
+            .handshakingTls,
+            .runningWireless,
+            .disconnectedFromSession,
+            .customError("custom")
+        ]
+        for kind in kinds {
+            XCTAssertFalse(kind.localizedText.isEmpty)
+        }
+        XCTAssertTrue(ConnectionStatusKind.searchFailedNoWifi.isDisconnectedWarning)
+        XCTAssertTrue(ConnectionStatusKind.noDeviceFound.isDisconnectedWarning)
+        XCTAssertTrue(ConnectionStatusKind.searchFailed(reason: "x").isDisconnectedWarning)
+        XCTAssertTrue(ConnectionStatusKind.failedAfterRetries(maxAttempts: 3).isDisconnectedWarning)
+        XCTAssertFalse(ConnectionStatusKind.ready.isDisconnectedWarning)
+        XCTAssertFalse(ConnectionStatusKind.disconnectedFromSession.isDisconnectedWarning)
     }
 }
