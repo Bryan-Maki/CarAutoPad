@@ -309,6 +309,8 @@ final class MainViewController: UIViewController {
         let b = UIButton(type: .system)
         b.setTitle(L10n.dismiss, for: .normal)
         b.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        b.setContentCompressionResistancePriority(.required, for: .horizontal)
+        b.setContentHuggingPriority(.required, for: .horizontal)
         b.translatesAutoresizingMaskIntoConstraints = false
         b.addTarget(self, action: #selector(dismissConnectionIssueBanner), for: .touchUpInside)
         return b
@@ -525,6 +527,8 @@ final class MainViewController: UIViewController {
         label.text = L10n.currentConfigurationHeader
         label.font = .systemFont(ofSize: 12, weight: .bold)
         label.textColor = .secondaryLabel
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -2151,6 +2155,8 @@ final class QuickLayoutDpiViewController: UIViewController {
         l.text = L10n.displayFitMode
         l.font = .systemFont(ofSize: 12, weight: .semibold)
         l.textColor = .secondaryLabel
+        l.adjustsFontSizeToFitWidth = true
+        l.minimumScaleFactor = 0.75
         return l
     }()
 
@@ -2159,6 +2165,8 @@ final class QuickLayoutDpiViewController: UIViewController {
         l.text = L10n.drivingPosition
         l.font = .systemFont(ofSize: 12, weight: .semibold)
         l.textColor = .secondaryLabel
+        l.adjustsFontSizeToFitWidth = true
+        l.minimumScaleFactor = 0.75
         return l
     }()
 
@@ -2198,6 +2206,8 @@ final class QuickLayoutDpiViewController: UIViewController {
         l.font = .monospacedDigitSystemFont(ofSize: 14, weight: .bold)
         l.textColor = .label
         l.textAlignment = .center
+        l.adjustsFontSizeToFitWidth = true
+        l.minimumScaleFactor = 0.75
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
     }()
@@ -2284,8 +2294,10 @@ final class QuickLayoutDpiViewController: UIViewController {
 
         let autoDpiRow = UIStackView(arrangedSubviews: [autoDpiLabel, autoDpiSwitch])
         autoDpiRow.axis = .horizontal
+        autoDpiRow.spacing = 8
         autoDpiRow.alignment = .center
         autoDpiRow.distribution = .equalSpacing
+        autoDpiSwitch.setContentCompressionResistancePriority(.required, for: .horizontal)
         contentStack.addArrangedSubview(autoDpiRow)
 
         contentStack.addArrangedSubview(dpiValueLabel)
@@ -2540,6 +2552,8 @@ final class QuickAudioConfigViewController: UIViewController {
         destLabel.text = L10n.audioOutputDestination
         destLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         destLabel.textColor = .secondaryLabel
+        destLabel.adjustsFontSizeToFitWidth = true
+        destLabel.minimumScaleFactor = 0.75
         contentStack.addArrangedSubview(destLabel)
         contentStack.addArrangedSubview(destinationSegmentedControl)
 
@@ -2566,6 +2580,8 @@ final class QuickAudioConfigViewController: UIViewController {
         chanHeader.text = L10n.independentChannelVolumes
         chanHeader.font = .systemFont(ofSize: 12, weight: .semibold)
         chanHeader.textColor = .secondaryLabel
+        chanHeader.adjustsFontSizeToFitWidth = true
+        chanHeader.minimumScaleFactor = 0.75
         contentStack.addArrangedSubview(chanHeader)
 
         // 1) Media Channel
@@ -2735,11 +2751,13 @@ final class QuickAudioConfigViewController: UIViewController {
         for preset in NavigationDuckingPreset.allCases {
             var config = UIButton.Configuration.tinted()
             config.title = preset.shortTitle
+            config.titleLineBreakMode = .byClipping
             config.cornerStyle = .capsule
             config.buttonSize = .mini
             let btn = UIButton(configuration: config)
+            btn.titleLabel?.numberOfLines = 1
             btn.titleLabel?.adjustsFontSizeToFitWidth = true
-            btn.titleLabel?.minimumScaleFactor = 0.75
+            btn.titleLabel?.minimumScaleFactor = 0.65
             btn.addAction(UIAction { [weak self] _ in
                 self?.applyDucking(preset.reductionAmount)
             }, for: .touchUpInside)
@@ -2930,10 +2948,15 @@ final class QuickAudioConfigViewController: UIViewController {
         let pct = Int((amount * 100).rounded())
         for (preset, btn) in presetButtons {
             let isSelected = (preset.dropPercentage == pct)
-            btn.configuration = isSelected ? .filled() : .tinted()
-            btn.configuration?.title = preset.shortTitle
-            btn.configuration?.cornerStyle = .capsule
-            btn.configuration?.buttonSize = .mini
+            var config: UIButton.Configuration = isSelected ? .filled() : .tinted()
+            config.title = preset.shortTitle
+            config.titleLineBreakMode = .byClipping
+            config.cornerStyle = .capsule
+            config.buttonSize = .mini
+            btn.configuration = config
+            btn.titleLabel?.numberOfLines = 1
+            btn.titleLabel?.adjustsFontSizeToFitWidth = true
+            btn.titleLabel?.minimumScaleFactor = 0.65
         }
     }
 

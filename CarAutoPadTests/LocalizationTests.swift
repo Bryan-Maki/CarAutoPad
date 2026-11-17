@@ -98,6 +98,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(ProjectionSettings.driverPositionTitle, "இடது கை ஓட்டுநர் (LHD)")
         XCTAssertEqual(MicrophoneSource.ipad.title, "iPad ஒலிவாங்கி")
         XCTAssertEqual(NightModeSetting.twilight.shortTitle, "அந்தி")
+        XCTAssertEqual(MotionBlurMode.light.shortTitle, "மென்")
 
         ProjectionSettings.appLanguage = .english
         XCTAssertEqual(L10n.current, .english)
@@ -402,7 +403,59 @@ final class LocalizationTests: XCTestCase {
             XCTAssertFalse(layoutVC.title?.isEmpty ?? true)
             XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
             XCTAssertFalse(audioVC.title?.isEmpty ?? true)
+
+            XCTAssertTrue(mainVC.quickSpecsHeaderLabel.adjustsFontSizeToFitWidth)
         }
+
+        // Verify Tamil layout bounds & truncation hardening in narrow formSheet / portrait widths
+        ProjectionSettings.appLanguage = .tamil
+        let dpiCell = DpiPreviewCell(style: .default, reuseIdentifier: nil)
+        dpiCell.frame = CGRect(x: 0, y: 0, width: 480, height: 420)
+        dpiCell.configure(with: HeadUnitScreenConfig.shared, isLocked: false)
+        dpiCell.layoutIfNeeded()
+        let dpiLabels = dpiCell.contentView.subviews.compactMap { $0 as? UILabel }
+        XCTAssertEqual(dpiLabels.count, 2)
+        XCTAssertTrue(dpiLabels.allSatisfy { $0.adjustsFontSizeToFitWidth })
+        if let autoSwitch = dpiCell.contentView.subviews.first(where: { $0 is UISwitch }),
+           let autoLabel = dpiLabels.first(where: { $0.text == L10n.autoDpiRecommended }) {
+            XCTAssertLessThanOrEqual(autoLabel.frame.maxX, autoSwitch.frame.minX)
+        } else {
+            XCTFail("Expected autoDpiLabel and autoDpiSwitch in DpiPreviewCell")
+        }
+
+        let mixerCell = AudioChannelMixerCell(style: .default, reuseIdentifier: nil)
+        mixerCell.frame = CGRect(x: 0, y: 0, width: 480, height: 460)
+        mixerCell.layoutIfNeeded()
+        func findButtons(in root: UIView) -> [UIButton] {
+            var res: [UIButton] = []
+            for v in root.subviews {
+                if let b = v as? UIButton { res.append(b) }
+                res.append(contentsOf: findButtons(in: v))
+            }
+            return res
+        }
+        let mixerPresetBtns = findButtons(in: mixerCell.contentView).filter {
+            $0.configuration?.title == L10n.duckingOffShort
+        }
+        XCTAssertEqual(mixerPresetBtns.count, 1)
+        XCTAssertEqual(mixerPresetBtns.first?.configuration?.titleLineBreakMode, .byClipping)
+        XCTAssertTrue(mixerPresetBtns.first?.titleLabel?.adjustsFontSizeToFitWidth ?? false)
+
+        let logCatsVC = DebugLogCategoriesViewController()
+        logCatsVC.loadViewIfNeeded()
+        let logCatCell = logCatsVC.tableView(logCatsVC.tableView, cellForRowAt: IndexPath(row: 0, section: 0))
+        XCTAssertTrue(logCatCell.textLabel?.adjustsFontSizeToFitWidth ?? false)
+
+        // Verify SettingsViewController locked state in Korean and Tamil
+        ConnectionManager.shared.setStateForTesting(.running)
+        for lang in [AppLanguage.korean, AppLanguage.tamil] {
+            ProjectionSettings.appLanguage = lang
+            let activeCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: SettingsViewController.SettingsSection.activeSession.rawValue))
+            XCTAssertEqual(activeCell.textLabel?.text, L10n.connectedDeviceRow)
+            let resCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 1, section: displaySec))
+            XCTAssertEqual(resCell.detailTextLabel?.text, L10n.lockedSuffix(ProjectionSettings.resolution.title))
+        }
+        ConnectionManager.shared.setStateForTesting(.disconnected)
 
         // Verify JSON backup round-trip for Korean and Tamil
         for lang in [AppLanguage.korean, AppLanguage.tamil] {

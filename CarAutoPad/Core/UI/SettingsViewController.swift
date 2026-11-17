@@ -833,12 +833,16 @@ final class DpiPreviewCell: UITableViewCell {
         let label = UILabel()
         label.text = L10n.autoDpiRecommended
         label.font = .systemFont(ofSize: 16, weight: .medium)
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
 
     private let autoDpiSwitch: UISwitch = {
         let s = UISwitch()
+        s.setContentCompressionResistancePriority(.required, for: .horizontal)
+        s.setContentHuggingPriority(.required, for: .horizontal)
         s.translatesAutoresizingMaskIntoConstraints = false
         return s
     }()
@@ -848,6 +852,8 @@ final class DpiPreviewCell: UITableViewCell {
         label.font = .monospacedDigitSystemFont(ofSize: 15, weight: .bold)
         label.textAlignment = .center
         label.textColor = .label
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -928,6 +934,7 @@ final class DpiPreviewCell: UITableViewCell {
 
             autoDpiLabel.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 14),
             autoDpiLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            autoDpiLabel.trailingAnchor.constraint(lessThanOrEqualTo: autoDpiSwitch.leadingAnchor, constant: -12),
 
             autoDpiSwitch.centerYAnchor.constraint(equalTo: autoDpiLabel.centerYAnchor),
             autoDpiSwitch.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
@@ -1059,8 +1066,12 @@ final class DebugLogCategoriesViewController: UITableViewController {
         let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
         cell.textLabel?.text = "[\(cat.rawValue)] \(cat.title)"
         cell.textLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+        cell.textLabel?.adjustsFontSizeToFitWidth = true
+        cell.textLabel?.minimumScaleFactor = 0.75
         cell.detailTextLabel?.text = cat.subtitle
         cell.detailTextLabel?.numberOfLines = 2
+        cell.detailTextLabel?.adjustsFontSizeToFitWidth = true
+        cell.detailTextLabel?.minimumScaleFactor = 0.8
         cell.detailTextLabel?.textColor = .secondaryLabel
 
         let toggle = UISwitch()
@@ -1306,9 +1317,13 @@ final class AudioChannelMixerCell: UITableViewCell {
         for preset in NavigationDuckingPreset.allCases {
             var config = UIButton.Configuration.tinted()
             config.title = preset.shortTitle
+            config.titleLineBreakMode = .byClipping
             config.cornerStyle = .capsule
             config.buttonSize = .mini
             let btn = UIButton(configuration: config)
+            btn.titleLabel?.numberOfLines = 1
+            btn.titleLabel?.adjustsFontSizeToFitWidth = true
+            btn.titleLabel?.minimumScaleFactor = 0.65
             btn.addAction(UIAction { [weak self] _ in
                 self?.applyDucking(preset.reductionAmount)
             }, for: .touchUpInside)
@@ -1511,10 +1526,15 @@ final class AudioChannelMixerCell: UITableViewCell {
         let pct = Int((amount * 100).rounded())
         for (preset, btn) in presetButtons {
             let isSelected = (preset.dropPercentage == pct)
-            btn.configuration = isSelected ? .filled() : .tinted()
-            btn.configuration?.title = preset.shortTitle
-            btn.configuration?.cornerStyle = .capsule
-            btn.configuration?.buttonSize = .mini
+            var config: UIButton.Configuration = isSelected ? .filled() : .tinted()
+            config.title = preset.shortTitle
+            config.titleLineBreakMode = .byClipping
+            config.cornerStyle = .capsule
+            config.buttonSize = .mini
+            btn.configuration = config
+            btn.titleLabel?.numberOfLines = 1
+            btn.titleLabel?.adjustsFontSizeToFitWidth = true
+            btn.titleLabel?.minimumScaleFactor = 0.65
         }
     }
 }

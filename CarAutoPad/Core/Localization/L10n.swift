@@ -536,7 +536,7 @@ public enum L10n {
         tr(en: "Off", zhHans: "关闭", zhHant: "關閉", ja: "オフ", ms: "Mati", ko: "끔", ta: "அணை")
     }
     public static var motionBlurLightShort: String {
-        tr(en: "Subtle", zhHans: "轻柔", zhHant: "輕柔", ja: "弱", ms: "Halus", ko: "약함", ta: "மெது")
+        tr(en: "Subtle", zhHans: "轻柔", zhHant: "輕柔", ja: "弱", ms: "Halus", ko: "약함", ta: "மென்")
     }
     public static var motionBlurMediumShort: String {
         tr(en: "Balanced", zhHans: "均衡", zhHant: "均衡", ja: "バランス", ms: "Seimbang", ko: "균형", ta: "சமம்")
@@ -1682,7 +1682,7 @@ public enum L10n {
             ja: "無効（スマホ / 車載BTから出力中）",
             ms: "Dinyahdayakan (Audio dimainkan di Telefon / BT Kereta)",
             ko: "비활성화됨 (휴대폰 / 차량 BT에서 재생 중)",
-            ta: "முடக்கப்பட்டது (தொலைபேசி / கார் BT-இல் ஒலிக்கிறது)"
+            ta: "முடக்கம் (தொலைபேசி / கார் BT)"
         )
     }
     public static func duckingStatusRetained(pct: Int, retained: Int) -> String {
@@ -1870,7 +1870,7 @@ public enum L10n {
             ja: "デバッグモード（HUD・フローティングボタン）",
             ms: "Mod Nyahpepijat (HUD & Buih Terapung)",
             ko: "디버그 모드 (HUD & 플로팅 버튼)",
-            ta: "பிழைத்திருத்தப் பயன்முறை (HUD & மிதக்கும் குமிழ்)"
+            ta: "பிழைத்திருத்தம் (HUD & மிதக்கும் குமிழ்)"
         )
     }
     public static var debugLogCategoriesRow: String {
