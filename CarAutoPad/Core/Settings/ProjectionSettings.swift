@@ -228,30 +228,6 @@ public enum ProjectionSettings {
     private static let lastKnownLatitudeKey = "projection-last-known-latitude"
     private static let lastKnownLongitudeKey = "projection-last-known-longitude"
     private static let debugCategoriesKey = "projection-debug-log-categories"
-    private static let appLanguageKey = "projection-app-language"
-
-    public static var appLanguage: AppLanguage {
-        get {
-            guard let raw = defaults.string(forKey: appLanguageKey),
-                  let lang = AppLanguage(rawValue: raw) else {
-                return .system
-            }
-            return lang
-        }
-        set {
-            let previous = appLanguage
-            defaults.set(newValue.rawValue, forKey: appLanguageKey)
-            if previous != newValue {
-                if Thread.isMainThread {
-                    NotificationCenter.default.post(name: .appLanguageDidChange, object: newValue)
-                } else {
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .appLanguageDidChange, object: newValue)
-                    }
-                }
-            }
-        }
-    }
 
     public static let defaultDpi = 160
     public static let minDpi = 100
@@ -502,7 +478,8 @@ public enum ProjectionSettings {
         motionBlurMode = .off
         isEdgeSwipeProtectionEnabled = true
         resetDpiToDefault()
-        appLanguage = .system
+        defaults.removeObject(forKey: "projection-app-language")
+        L10n.testOverrideLanguage = nil
     }
 
     public static var motionBlurMode: MotionBlurMode {

@@ -15,9 +15,15 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
     case korean = "ko"
     case tamil = "ta"
 
-    private static var isRunningUnitTests: Bool {
+    fileprivate static var isRunningUnitTests: Bool {
         return ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil
+    }
+
+    public static func currentSystemPreferredLanguages() -> [String] {
+        let cfLanguages = (CFPreferencesCopyAppValue("AppleLanguages" as CFString, kCFPreferencesCurrentApplication) as? [String]) ?? []
+        let udLanguages = UserDefaults.standard.stringArray(forKey: "AppleLanguages") ?? []
+        return cfLanguages + udLanguages + Locale.preferredLanguages
     }
 
     public static func resolveSystemLanguage(from preferredLanguages: [String]) -> AppLanguage {
@@ -61,7 +67,7 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
             if Self.isRunningUnitTests {
                 return .english
             }
-            return Self.resolveSystemLanguage(from: Locale.preferredLanguages)
+            return Self.resolveSystemLanguage(from: Self.currentSystemPreferredLanguages())
         default:
             return self
         }
@@ -109,8 +115,60 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
 }
 
 public enum L10n {
+    private static let cacheLock = NSLock()
+    private static var cachedSystemLanguage: AppLanguage?
+
+    public static var testOverrideLanguage: AppLanguage? = nil {
+        didSet {
+            if oldValue != testOverrideLanguage {
+                let value = testOverrideLanguage
+                if Thread.isMainThread {
+                    NotificationCenter.default.post(name: .appLanguageDidChange, object: value)
+                } else {
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .appLanguageDidChange, object: value)
+                    }
+                }
+            }
+        }
+    }
+
     public static var current: AppLanguage {
-        ProjectionSettings.appLanguage.resolved
+        if let override = testOverrideLanguage {
+            return override.resolved
+        }
+        if AppLanguage.isRunningUnitTests {
+            return .english
+        }
+        cacheLock.lock()
+        if let cached = cachedSystemLanguage {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
+        CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication)
+        let resolved = AppLanguage.resolveSystemLanguage(from: AppLanguage.currentSystemPreferredLanguages())
+        cacheLock.lock()
+        cachedSystemLanguage = resolved
+        cacheLock.unlock()
+        return resolved
+    }
+
+    public static func refreshSystemLanguageOnForeground() {
+        UserDefaults.standard.removeObject(forKey: "projection-app-language")
+        CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication)
+        let updated = AppLanguage.resolveSystemLanguage(from: AppLanguage.currentSystemPreferredLanguages())
+        cacheLock.lock()
+        cachedSystemLanguage = updated
+        cacheLock.unlock()
+        if Thread.isMainThread {
+            NotificationCenter.default.post(name: .appLanguageDidChange, object: updated)
+        } else {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .appLanguageDidChange, object: updated)
+            }
+        }
     }
 
     public static func tr(
@@ -2210,37 +2268,5 @@ public enum L10n {
             ko: "활성: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             ta: "செயல்: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)"
         )
-    }
-}
-
-extension UIViewController {
-    func presentLanguagePicker(from sourceView: UIView) {
-        let alert = UIAlertController(
-            title: L10n.languagePickerTitle,
-            message: L10n.languagePickerMessage,
-            preferredStyle: .actionSheet
-        )
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = sourceView
-            popover.sourceRect = sourceView.bounds
-        }
-
-        let currentLang = ProjectionSettings.appLanguage
-        for lang in AppLanguage.allCases {
-            let isCurrent = (lang == currentLang)
-            let displayTitle: String
-            if lang == .system {
-                displayTitle = "\(lang.title) (\(lang.resolved.shortBadgeTitle))"
-            } else {
-                displayTitle = lang.title
-            }
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(displayTitle)", style: .default) { _ in
-                ProjectionSettings.appLanguage = lang
-            })
-        }
-
-        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
-        present(alert, animated: true)
     }
 }

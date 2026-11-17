@@ -236,26 +236,6 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private(set) lazy var languageButton: UIButton = {
-        var config = UIButton.Configuration.tinted()
-        config.title = ProjectionSettings.appLanguage.shortBadgeTitle
-        config.titleLineBreakMode = .byClipping
-        config.image = UIImage(systemName: "globe")
-        config.imagePadding = 5
-        config.cornerStyle = .capsule
-        config.buttonSize = .medium
-        config.baseBackgroundColor = UIColor.systemGray5
-        config.baseForegroundColor = .label
-
-        let button = UIButton(configuration: config)
-        button.accessibilityIdentifier = "languageButton"
-        button.setContentCompressionResistancePriority(.required, for: .horizontal)
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(languageButtonTapped), for: .touchUpInside)
-        return button
-    }()
-
     private(set) lazy var settingsButton: UIButton = {
         var config = UIButton.Configuration.tinted()
         config.title = L10n.settingsButtonTitle
@@ -820,7 +800,7 @@ final class MainViewController: UIViewController {
             statusLabel.centerYAnchor.constraint(equalTo: statusPillView.centerYAnchor)
         ])
 
-        let rightHeaderStack = UIStackView(arrangedSubviews: [statusPillView, languageButton, settingsButton])
+        let rightHeaderStack = UIStackView(arrangedSubviews: [statusPillView, settingsButton])
         rightHeaderStack.axis = .horizontal
         rightHeaderStack.spacing = 10
         rightHeaderStack.alignment = .center
@@ -1106,7 +1086,6 @@ final class MainViewController: UIViewController {
             appIconImageView.widthAnchor.constraint(equalToConstant: 44),
             appIconImageView.heightAnchor.constraint(equalToConstant: 44),
             statusPillView.heightAnchor.constraint(equalToConstant: 34),
-            languageButton.heightAnchor.constraint(equalToConstant: 34),
             settingsButton.heightAnchor.constraint(equalToConstant: 34),
             settingsButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
 
@@ -1175,10 +1154,6 @@ final class MainViewController: UIViewController {
 
     @objc func applyLocalization() {
         subtitleLabel.text = L10n.appSubtitle
-
-        var langCfg = languageButton.configuration
-        langCfg?.title = ProjectionSettings.appLanguage.shortBadgeTitle
-        languageButton.configuration = langCfg
 
         var settingsCfg = settingsButton.configuration
         settingsCfg?.title = L10n.settingsButtonTitle
@@ -1483,10 +1458,6 @@ final class MainViewController: UIViewController {
     @objc private func disconnectButtonTapped() {
         connectionManager.screenConfig.clearCustomNegotiatedResolution()
         connectionManager.disconnect()
-    }
-
-    @objc func languageButtonTapped() {
-        presentLanguagePicker(from: languageButton)
     }
 
     @objc func settingsButtonTapped() {

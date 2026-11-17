@@ -520,7 +520,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case 2:
             let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.languageRowTitle
-            cell.detailTextLabel?.text = ProjectionSettings.appLanguage.title
+            cell.detailTextLabel?.text = L10n.current.title
             cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
             return cell
@@ -641,7 +641,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case .smartSensors:
             if indexPath.row == 2 {
-                presentLanguagePicker(from: tableView.cellForRow(at: indexPath) ?? tableView)
+                openSystemAppLanguageSettings()
             }
 
         case .diagnosticsBackup:
@@ -665,6 +665,14 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         default:
             break
         }
+    }
+
+    func openSystemAppLanguageSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString),
+              UIApplication.shared.canOpenURL(url) else {
+            return
+        }
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 
     private func presentConnectionDetails() {

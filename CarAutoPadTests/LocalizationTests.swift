@@ -6,20 +6,30 @@ final class LocalizationTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        L10n.testOverrideLanguage = nil
         ProjectionSettings.resetToDefaults()
         ConnectionManager.shared.setStateForTesting(.disconnected)
         ConnectionManager.shared.setStatusKindForTesting(.ready)
     }
 
     override func tearDown() {
+        L10n.testOverrideLanguage = nil
         ProjectionSettings.resetToDefaults()
         ConnectionManager.shared.setStateForTesting(.disconnected)
         ConnectionManager.shared.setStatusKindForTesting(.ready)
         super.tearDown()
     }
 
+    private func containsView(withAccessibilityIdentifier identifier: String, in root: UIView) -> Bool {
+        if root.accessibilityIdentifier == identifier {
+            return true
+        }
+        return root.subviews.contains { containsView(withAccessibilityIdentifier: identifier, in: $0) }
+    }
+
     func testResolveSystemLanguageFromPreferredLanguages() {
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-Hans-MY"]), .simplifiedChinese)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-Hans-MY", "en-MY"]), .simplifiedChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-CN"]), .simplifiedChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-SG"]), .simplifiedChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["zh-Hant-TW"]), .traditionalChinese)
@@ -29,11 +39,14 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["yue-HK"]), .traditionalChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["yue-Hans-CN"]), .simplifiedChinese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ja-JP"]), .japanese)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ja-MY", "en-MY"]), .japanese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ms-MY"]), .malay)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["id-ID"]), .malay)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ko-KR"]), .korean)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ko-KR", "en-US"]), .korean)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ko"]), .korean)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-MY"]), .tamil)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-MY", "en-MY"]), .tamil)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-SG"]), .tamil)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-IN"]), .tamil)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["en-US"]), .english)
@@ -43,8 +56,10 @@ final class LocalizationTests: XCTestCase {
     }
 
     func testSystemLanguageDefaultsToEnglishInUnitTestsAndBadgeTitles() {
-        XCTAssertEqual(ProjectionSettings.appLanguage, .system)
+        XCTAssertNil(L10n.testOverrideLanguage)
+        XCTAssertEqual(L10n.current, .english)
         XCTAssertEqual(AppLanguage.system.resolved, .english)
+        XCTAssertFalse(AppLanguage.currentSystemPreferredLanguages().isEmpty)
         XCTAssertEqual(AppLanguage.english.shortBadgeTitle, "EN")
         XCTAssertEqual(AppLanguage.simplifiedChinese.shortBadgeTitle, "简")
         XCTAssertEqual(AppLanguage.traditionalChinese.shortBadgeTitle, "繁")
@@ -57,7 +72,7 @@ final class LocalizationTests: XCTestCase {
     }
 
     func testExplicitLanguageSwitchingUpdatesL10nAndEnums() {
-        ProjectionSettings.appLanguage = .simplifiedChinese
+        L10n.testOverrideLanguage = .simplifiedChinese
         XCTAssertEqual(L10n.current, .simplifiedChinese)
         XCTAssertEqual(ProjectionSettings.driverPositionTitle, "左舵驾驶 (LHD)")
         XCTAssertEqual(ResolutionPreset.auto.title, "自动（适配 iPad 原生）")
@@ -66,22 +81,22 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(DebugLogCategory.connectionHandshake.title, "连接、握手与生命周期")
         XCTAssertEqual(MicrophoneSource.ipad.title, "iPad 麦克风")
 
-        ProjectionSettings.appLanguage = .traditionalChinese
+        L10n.testOverrideLanguage = .traditionalChinese
         XCTAssertEqual(L10n.current, .traditionalChinese)
         XCTAssertEqual(L10n.settingsButtonTitle, "設定")
         XCTAssertEqual(NightModeSetting.twilight.shortTitle, "晨昏")
 
-        ProjectionSettings.appLanguage = .japanese
+        L10n.testOverrideLanguage = .japanese
         XCTAssertEqual(L10n.current, .japanese)
         XCTAssertEqual(L10n.settingsButtonTitle, "設定")
         XCTAssertEqual(AudioOutputTarget.phone.title, "スマートフォン（車載BT・端末側）")
 
-        ProjectionSettings.appLanguage = .malay
+        L10n.testOverrideLanguage = .malay
         XCTAssertEqual(L10n.current, .malay)
         XCTAssertEqual(L10n.settingsButtonTitle, "Tetapan")
         XCTAssertEqual(NavigationDuckingPreset.off.shortTitle, "Mati (0%)")
 
-        ProjectionSettings.appLanguage = .korean
+        L10n.testOverrideLanguage = .korean
         XCTAssertEqual(L10n.current, .korean)
         XCTAssertEqual(L10n.settingsButtonTitle, "설정")
         XCTAssertEqual(L10n.systemDefaultLanguageTitle, "시스템 기본값")
@@ -90,7 +105,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(MicrophoneSource.ipad.title, "iPad 마이크")
         XCTAssertEqual(NightModeSetting.twilight.shortTitle, "일출몰")
 
-        ProjectionSettings.appLanguage = .tamil
+        L10n.testOverrideLanguage = .tamil
         XCTAssertEqual(L10n.current, .tamil)
         XCTAssertEqual(L10n.settingsButtonTitle, "அமைப்புகள்")
         XCTAssertEqual(L10n.systemDefaultLanguageTitle, "கணினி இயல்புநிலை")
@@ -100,7 +115,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(NightModeSetting.twilight.shortTitle, "அந்தி")
         XCTAssertEqual(MotionBlurMode.light.shortTitle, "மென்")
 
-        ProjectionSettings.appLanguage = .english
+        L10n.testOverrideLanguage = .english
         XCTAssertEqual(L10n.current, .english)
         XCTAssertEqual(L10n.settingsButtonTitle, "Settings")
     }
@@ -109,27 +124,37 @@ final class LocalizationTests: XCTestCase {
         let expectation = expectation(forNotification: .appLanguageDidChange, object: nil) { note in
             return (note.object as? AppLanguage) == .japanese
         }
-        ProjectionSettings.appLanguage = .japanese
+        L10n.testOverrideLanguage = .japanese
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func testRefreshSystemLanguageOnForegroundClearsLegacyKeyAndPostsNotification() {
+        UserDefaults.standard.set("ja", forKey: "projection-app-language")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "projection-app-language"), "ja")
+        let expectation = expectation(forNotification: .appLanguageDidChange, object: nil)
+        L10n.refreshSystemLanguageOnForeground()
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertNil(UserDefaults.standard.object(forKey: "projection-app-language"))
+    }
+
     func testSettingsBackupManagerRoundTripAndLegacyCompatForLanguage() throws {
-        ProjectionSettings.appLanguage = .japanese
+        L10n.testOverrideLanguage = .japanese
         let json = SettingsBackupManager.exportToJson()
-        XCTAssertTrue(json.contains("\"appLanguage\" : \"ja\""))
+        XCTAssertFalse(json.contains("appLanguage"))
 
         ProjectionSettings.resetToDefaults()
-        XCTAssertEqual(ProjectionSettings.appLanguage, .system)
+        XCTAssertNil(L10n.testOverrideLanguage)
+        XCTAssertEqual(L10n.current, .english)
 
         let count = try SettingsBackupManager.importFromJson(json)
         XCTAssertEqual(count, 14)
-        XCTAssertEqual(ProjectionSettings.appLanguage, .japanese)
 
         let legacyJson = """
         {
           "exportedAt" : "2026-10-17T00:00:00Z",
           "format" : "carautopad-settings",
           "settings" : {
+            "appLanguage" : "ja",
             "audioCodecPreference" : 1,
             "audioOutputTarget" : 0,
             "autoReconnect" : true,
@@ -150,7 +175,7 @@ final class LocalizationTests: XCTestCase {
         """
         let legacyCount = try SettingsBackupManager.importFromJson(legacyJson)
         XCTAssertEqual(legacyCount, 14)
-        XCTAssertEqual(ProjectionSettings.appLanguage, .japanese)
+        XCTAssertEqual(L10n.current, .english)
     }
 
     @MainActor
@@ -159,13 +184,11 @@ final class LocalizationTests: XCTestCase {
         mainVC.loadViewIfNeeded()
         mainVC.view.layoutIfNeeded()
 
-        XCTAssertEqual(mainVC.languageButton.accessibilityIdentifier, "languageButton")
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "EN")
+        XCTAssertFalse(containsView(withAccessibilityIdentifier: "languageButton", in: mainVC.view))
         XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
 
         // Switch to Simplified Chinese live
-        ProjectionSettings.appLanguage = .simplifiedChinese
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "简")
+        L10n.testOverrideLanguage = .simplifiedChinese
         XCTAssertEqual(mainVC.settingsButton.configuration?.title, "设置")
         XCTAssertEqual(mainVC.hubTitleLabel.text, "无线连接中心")
         XCTAssertEqual(mainVC.guideTitleLabel.text, "安卓手机开启指南")
@@ -180,27 +203,23 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(mainVC.statusLabel.text, L10n.statusNoDeviceFound)
 
         // Verify Traditional Chinese, Japanese, Malay
-        ProjectionSettings.appLanguage = .traditionalChinese
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "繁")
+        L10n.testOverrideLanguage = .traditionalChinese
         XCTAssertEqual(mainVC.settingsButton.configuration?.title, "設定")
 
-        ProjectionSettings.appLanguage = .japanese
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "JA")
+        L10n.testOverrideLanguage = .japanese
+        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "設定")
         XCTAssertEqual(mainVC.statusDotView.backgroundColor, .systemOrange)
 
-        ProjectionSettings.appLanguage = .malay
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "MS")
+        L10n.testOverrideLanguage = .malay
         XCTAssertEqual(mainVC.settingsButton.configuration?.title, "Tetapan")
 
-        ProjectionSettings.appLanguage = .korean
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "KO")
+        L10n.testOverrideLanguage = .korean
         XCTAssertEqual(mainVC.settingsButton.configuration?.title, "설정")
         XCTAssertEqual(mainVC.hubTitleLabel.text, "무선 연결 허브")
         XCTAssertEqual(mainVC.guideTitleLabel.text, "Android 휴대폰 설정 가이드")
         XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
 
-        ProjectionSettings.appLanguage = .tamil
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "TA")
+        L10n.testOverrideLanguage = .tamil
         XCTAssertEqual(mainVC.settingsButton.configuration?.title, "அமைப்புகள்")
         XCTAssertEqual(mainVC.hubTitleLabel.text, "வயர்லெஸ் இணைப்பு மையம்")
         XCTAssertEqual(mainVC.guideTitleLabel.text, "Android தொலைபேசி அமைப்பு வழிகாட்டி")
@@ -208,9 +227,9 @@ final class LocalizationTests: XCTestCase {
 
         // Verify live switching while running does NOT disconnect session
         ConnectionManager.shared.setStateForTesting(.running)
-        ProjectionSettings.appLanguage = .english
+        L10n.testOverrideLanguage = .english
         XCTAssertEqual(ConnectionManager.shared.state, .running)
-        XCTAssertEqual(mainVC.languageButton.configuration?.title, "EN")
+        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "Settings")
     }
 
     @MainActor
@@ -229,19 +248,21 @@ final class LocalizationTests: XCTestCase {
 
         // Even while running, language row remains selectable and updated
         ConnectionManager.shared.setStateForTesting(.running)
-        ProjectionSettings.appLanguage = .simplifiedChinese
+        L10n.testOverrideLanguage = .simplifiedChinese
 
         XCTAssertEqual(settingsVC.title, "投屏设置")
         let langCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: smartSec))
         XCTAssertEqual(langCell.textLabel?.text, "界面语言")
+        XCTAssertEqual(langCell.detailTextLabel?.text, L10n.current.title)
         XCTAssertEqual(langCell.detailTextLabel?.text, "简体中文")
         XCTAssertEqual(langCell.accessoryType, .disclosureIndicator)
         XCTAssertEqual(langCell.selectionStyle, .default)
 
-        ProjectionSettings.appLanguage = .english
+        L10n.testOverrideLanguage = .english
         XCTAssertEqual(settingsVC.title, "Projection Settings")
         let langCellEn = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: smartSec))
         XCTAssertEqual(langCellEn.textLabel?.text, "Language")
+        XCTAssertEqual(langCellEn.detailTextLabel?.text, L10n.current.title)
         XCTAssertEqual(langCellEn.detailTextLabel?.text, "English")
     }
 
@@ -257,7 +278,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(mainVC.statusLabel.text, L10n.statusDisconnectedFromSession)
         XCTAssertEqual(mainVC.statusDotView.backgroundColor, .systemGreen)
 
-        ProjectionSettings.appLanguage = .japanese
+        L10n.testOverrideLanguage = .japanese
         XCTAssertEqual(mainVC.statusLabel.text, L10n.statusDisconnectedFromSession)
         XCTAssertEqual(mainVC.statusLabel.text, "Android Auto が切断されました")
     }
@@ -276,7 +297,7 @@ final class LocalizationTests: XCTestCase {
         logCatsVC.loadViewIfNeeded()
         logCatsVC.view.layoutIfNeeded()
 
-        ProjectionSettings.appLanguage = .simplifiedChinese
+        L10n.testOverrideLanguage = .simplifiedChinese
         XCTAssertEqual(layoutVC.title, L10n.layoutDpiModalTitle)
         XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
         XCTAssertEqual(logCatsVC.title, L10n.debugLogCategoriesTitle)
@@ -286,7 +307,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertTrue(catCell.textLabel?.text?.contains(DebugLogCategory.connectionHandshake.title) ?? false)
         XCTAssertEqual(catCell.detailTextLabel?.text, DebugLogCategory.connectionHandshake.subtitle)
 
-        ProjectionSettings.appLanguage = .malay
+        L10n.testOverrideLanguage = .malay
         XCTAssertEqual(layoutVC.title, "Konfigurasi Susun Atur & DPI")
         XCTAssertEqual(audioVC.title, "Konfigurasi Audio & Pengurangan")
         XCTAssertEqual(logCatsVC.title, "Kategori Log Nyahpepijat")
@@ -294,7 +315,7 @@ final class LocalizationTests: XCTestCase {
     }
 
     func testConnectionStatusKindLocalizedTextAllCases() {
-        ProjectionSettings.appLanguage = .simplifiedChinese
+        L10n.testOverrideLanguage = .simplifiedChinese
         let kinds: [ConnectionStatusKind] = [
             .ready,
             .searchFailedNoWifi,
@@ -349,13 +370,13 @@ final class LocalizationTests: XCTestCase {
         let audioSec = SettingsViewController.SettingsSection.videoAudio.rawValue
 
         for lang in AppLanguage.allCases {
-            ProjectionSettings.appLanguage = lang
+            L10n.testOverrideLanguage = lang
 
             XCTAssertFalse(lang.title.isEmpty)
             XCTAssertFalse(lang.shortBadgeTitle.isEmpty)
 
             // MainViewController checks
-            XCTAssertEqual(mainVC.languageButton.configuration?.title, lang.shortBadgeTitle)
+            XCTAssertFalse(containsView(withAccessibilityIdentifier: "languageButton", in: mainVC.view))
             XCTAssertEqual(mainVC.settingsButton.configuration?.title, L10n.settingsButtonTitle)
             XCTAssertFalse(mainVC.settingsButton.configuration?.title?.isEmpty ?? true)
             XCTAssertEqual(mainVC.hubTitleLabel.text, L10n.wirelessConnectionHub)
@@ -372,7 +393,7 @@ final class LocalizationTests: XCTestCase {
 
             let langCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: smartSec))
             XCTAssertEqual(langCell.textLabel?.text, L10n.languageRowTitle)
-            XCTAssertEqual(langCell.detailTextLabel?.text, lang.title)
+            XCTAssertEqual(langCell.detailTextLabel?.text, L10n.current.title)
             XCTAssertTrue(langCell.textLabel?.adjustsFontSizeToFitWidth ?? false)
             XCTAssertEqual(Double(langCell.textLabel?.minimumScaleFactor ?? 0), 0.75, accuracy: 0.001)
 
@@ -408,7 +429,7 @@ final class LocalizationTests: XCTestCase {
         }
 
         // Verify Tamil layout bounds & truncation hardening in narrow formSheet / portrait widths
-        ProjectionSettings.appLanguage = .tamil
+        L10n.testOverrideLanguage = .tamil
         let dpiCell = DpiPreviewCell(style: .default, reuseIdentifier: nil)
         dpiCell.frame = CGRect(x: 0, y: 0, width: 480, height: 420)
         dpiCell.configure(with: HeadUnitScreenConfig.shared, isLocked: false)
@@ -449,7 +470,7 @@ final class LocalizationTests: XCTestCase {
         // Verify SettingsViewController locked state in Korean and Tamil
         ConnectionManager.shared.setStateForTesting(.running)
         for lang in [AppLanguage.korean, AppLanguage.tamil] {
-            ProjectionSettings.appLanguage = lang
+            L10n.testOverrideLanguage = lang
             let activeCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: SettingsViewController.SettingsSection.activeSession.rawValue))
             XCTAssertEqual(activeCell.textLabel?.text, L10n.connectedDeviceRow)
             let resCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 1, section: displaySec))
@@ -457,14 +478,15 @@ final class LocalizationTests: XCTestCase {
         }
         ConnectionManager.shared.setStateForTesting(.disconnected)
 
-        // Verify JSON backup round-trip for Korean and Tamil
+        // Verify JSON backup does not include appLanguage and remains valid across languages
         for lang in [AppLanguage.korean, AppLanguage.tamil] {
-            ProjectionSettings.appLanguage = lang
+            L10n.testOverrideLanguage = lang
             let json = SettingsBackupManager.exportToJson()
-            XCTAssertTrue(json.contains("\"appLanguage\" : \"\(lang.rawValue)\""))
+            XCTAssertFalse(json.contains("appLanguage"))
             ProjectionSettings.resetToDefaults()
-            _ = try SettingsBackupManager.importFromJson(json)
-            XCTAssertEqual(ProjectionSettings.appLanguage, lang)
+            let count = try SettingsBackupManager.importFromJson(json)
+            XCTAssertEqual(count, 14)
+            XCTAssertEqual(L10n.current, .english)
         }
     }
 }

@@ -16,6 +16,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
 
+        UserDefaults.standard.removeObject(forKey: "projection-app-language")
         let rootViewController = MainViewController()
 
         window = UIWindow(windowScene: windowScene)
@@ -29,6 +30,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
+        guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        L10n.refreshSystemLanguageOnForeground()
     }
 
     func sceneWillResignActive(_ scene: UIScene) {
@@ -36,6 +39,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneWillEnterForeground(_ scene: UIScene) {
         guard NSClassFromString("XCTestCase") == nil && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        L10n.refreshSystemLanguageOnForeground()
         ConnectionManager.shared.handleWillEnterForeground()
     }
 
