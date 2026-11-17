@@ -286,6 +286,7 @@ public enum SettingsBackupManager {
         ProjectionSettings.isSystemChannelEnabled = true
         ProjectionSettings.navigationDuckingAmount = ProjectionSettings.defaultNavigationDuckingAmount
         ProjectionSettings.isEdgeSwipeProtectionEnabled = true
+        UserDefaults.standard.removeObject(forKey: "projection-app-language")
         L10n.testOverrideLanguage = nil
 
         PCMAudioPlayer.shared.refreshVolumes()

@@ -137,12 +137,39 @@ final class LocalizationTests: XCTestCase {
         XCTAssertNil(UserDefaults.standard.object(forKey: "projection-app-language"))
     }
 
+    func testCurrentSystemPreferredLanguagesReadsCFPreferencesAppleLanguages() {
+        let key = "AppleLanguages" as CFString
+        let previousAppValue = CFPreferencesCopyValue(key, kCFPreferencesCurrentApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        defer {
+            CFPreferencesSetValue(key, previousAppValue, kCFPreferencesCurrentApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            CFPreferencesSynchronize(kCFPreferencesCurrentApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        }
+
+        let cases: [([String], AppLanguage)] = [
+            (["ja-MY", "en-MY"], .japanese),
+            (["ko-KR", "en-US"], .korean),
+            (["ta-MY", "en-MY"], .tamil),
+            (["zh-Hans-MY", "en-MY"], .simplifiedChinese)
+        ]
+
+        for (languages, expected) in cases {
+            CFPreferencesSetValue(key, languages as CFArray, kCFPreferencesCurrentApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            CFPreferencesSynchronize(kCFPreferencesCurrentApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+
+            let merged = AppLanguage.currentSystemPreferredLanguages()
+            XCTAssertEqual(Array(merged.prefix(languages.count)), languages)
+            XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: merged), expected)
+        }
+    }
+
     func testSettingsBackupManagerRoundTripAndLegacyCompatForLanguage() throws {
         L10n.testOverrideLanguage = .japanese
         let json = SettingsBackupManager.exportToJson()
         XCTAssertFalse(json.contains("appLanguage"))
 
-        ProjectionSettings.resetToDefaults()
+        UserDefaults.standard.set("ja", forKey: "projection-app-language")
+        SettingsBackupManager.resetToDefaults()
+        XCTAssertNil(UserDefaults.standard.object(forKey: "projection-app-language"))
         XCTAssertNil(L10n.testOverrideLanguage)
         XCTAssertEqual(L10n.current, .english)
 
@@ -185,6 +212,13 @@ final class LocalizationTests: XCTestCase {
         mainVC.view.layoutIfNeeded()
 
         XCTAssertFalse(containsView(withAccessibilityIdentifier: "languageButton", in: mainVC.view))
+        if let rightHeaderStack = mainVC.settingsButton.superview as? UIStackView {
+            XCTAssertEqual(rightHeaderStack.arrangedSubviews.count, 2)
+            XCTAssertTrue(mainVC.statusDotView.isDescendant(of: rightHeaderStack.arrangedSubviews[0]))
+            XCTAssertTrue(rightHeaderStack.arrangedSubviews.last === mainVC.settingsButton)
+        } else {
+            XCTFail("Expected settingsButton to live inside rightHeaderStack")
+        }
         XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
 
         // Switch to Simplified Chinese live
@@ -264,6 +298,13 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(langCellEn.textLabel?.text, "Language")
         XCTAssertEqual(langCellEn.detailTextLabel?.text, L10n.current.title)
         XCTAssertEqual(langCellEn.detailTextLabel?.text, "English")
+
+        var openedUrl: URL?
+        settingsVC.openSettingsUrlHandler = { url in
+            openedUrl = url
+        }
+        settingsVC.tableView(tableView, didSelectRowAt: IndexPath(row: 2, section: smartSec))
+        XCTAssertEqual(openedUrl?.absoluteString, UIApplication.openSettingsURLString)
     }
 
     @MainActor

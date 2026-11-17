@@ -272,20 +272,6 @@ public enum L10n {
     public static var languageRowTitle: String {
         tr(en: "Language", zhHans: "界面语言", zhHant: "介面語言", ja: "言語", ms: "Bahasa", ko: "언어", ta: "மொழி")
     }
-    public static var languagePickerTitle: String {
-        tr(en: "Language", zhHans: "选择语言", zhHant: "選擇語言", ja: "言語を選択", ms: "Pilih Bahasa", ko: "언어 선택", ta: "மொழியைத் தேர்ந்தெடு")
-    }
-    public static var languagePickerMessage: String {
-        tr(
-            en: "Switch interface language immediately without interrupting projection.",
-            zhHans: "立即切换界面语言，投屏期间不会中断连接。",
-            zhHant: "立即切換介面語言，投影期間不會中斷連線。",
-            ja: "投影を中断せずに画面の表示言語を即座に切り替えます。",
-            ms: "Tukar bahasa antara muka serta-merta tanpa mengganggu unjuran.",
-            ko: "프로젝션 연결을 끊지 않고 즉시 화면 언어를 전환합니다.",
-            ta: "திரை இணைப்பைத் துண்டிக்காமல் இடைமுக மொழியை உடனடியாக மாற்றவும்."
-        )
-    }
 
     // MARK: - Projection Settings Enums
     public static var fps60: String {

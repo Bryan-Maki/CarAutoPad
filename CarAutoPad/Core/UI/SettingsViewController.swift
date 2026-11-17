@@ -39,6 +39,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
     var onSettingsChanged: ((ChangeImpact) -> Void)?
     var onProvideDiagnosticLines: (() -> [String])?
+    var openSettingsUrlHandler: ((URL) -> Void)?
     var connectionManager: ConnectionManager = ConnectionManager.shared
 
     private lazy var tableView: UITableView = {
@@ -668,8 +669,14 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     }
 
     func openSystemAppLanguageSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString),
-              UIApplication.shared.canOpenURL(url) else {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+            return
+        }
+        if let openSettingsUrlHandler = openSettingsUrlHandler {
+            openSettingsUrlHandler(url)
+            return
+        }
+        guard UIApplication.shared.canOpenURL(url) else {
             return
         }
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
