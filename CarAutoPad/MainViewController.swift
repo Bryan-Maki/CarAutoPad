@@ -198,6 +198,8 @@ final class MainViewController: UIViewController {
         label.text = L10n.appSubtitle
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = .secondaryLabel
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -341,7 +343,9 @@ final class MainViewController: UIViewController {
         label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.textColor = .label
         label.textAlignment = .left
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
+        label.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -362,6 +366,7 @@ final class MainViewController: UIViewController {
         label.text = L10n.directConnectLabel
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.textColor = .secondaryLabel
+        label.numberOfLines = 0
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -400,6 +405,8 @@ final class MainViewController: UIViewController {
     private(set) lazy var directConnectButton: UIButton = {
         var config = UIButton.Configuration.filled()
         config.title = L10n.directConnectButton
+        config.titleLineBreakMode = .byWordWrapping
+        config.titleAlignment = .center
         config.image = UIImage(systemName: "arrow.right.circle.fill")
         config.imagePadding = 6
         config.cornerStyle = .large
@@ -407,6 +414,8 @@ final class MainViewController: UIViewController {
         config.baseBackgroundColor = .systemBlue
 
         let button = UIButton(configuration: config)
+        button.titleLabel?.adjustsFontSizeToFitWidth = true
+        button.titleLabel?.minimumScaleFactor = 0.8
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(directConnectButtonTapped), for: .touchUpInside)
         return button
@@ -418,6 +427,8 @@ final class MainViewController: UIViewController {
         label.font = .systemFont(ofSize: 11, weight: .bold)
         label.textColor = .tertiaryLabel
         label.textAlignment = .center
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -425,6 +436,8 @@ final class MainViewController: UIViewController {
     private(set) lazy var connectButton: UIButton = {
         var config = UIButton.Configuration.filled()
         config.title = L10n.scanForHeadunitServer
+        config.titleLineBreakMode = .byWordWrapping
+        config.titleAlignment = .center
         config.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
         config.imagePadding = 8
         config.cornerStyle = .large
@@ -432,6 +445,8 @@ final class MainViewController: UIViewController {
         config.baseBackgroundColor = .systemIndigo
 
         let button = UIButton(configuration: config)
+        button.titleLabel?.adjustsFontSizeToFitWidth = true
+        button.titleLabel?.minimumScaleFactor = 0.8
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(connectButtonTapped), for: .touchUpInside)
         return button
@@ -447,11 +462,15 @@ final class MainViewController: UIViewController {
     private(set) lazy var disconnectButton: UIButton = {
         var config = UIButton.Configuration.filled()
         config.title = L10n.cancelDisconnect
+        config.titleLineBreakMode = .byWordWrapping
+        config.titleAlignment = .center
         config.cornerStyle = .large
         config.buttonSize = .large
         config.baseBackgroundColor = .systemRed
 
         let button = UIButton(configuration: config)
+        button.titleLabel?.adjustsFontSizeToFitWidth = true
+        button.titleLabel?.minimumScaleFactor = 0.8
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(disconnectButtonTapped), for: .touchUpInside)
         button.isHidden = true
@@ -474,7 +493,9 @@ final class MainViewController: UIViewController {
         label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.textColor = .label
         label.textAlignment = .left
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.75
+        label.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -1124,10 +1145,10 @@ final class MainViewController: UIViewController {
 
             directIpTextField.heightAnchor.constraint(equalToConstant: 50),
             resetGatewayIpButton.widthAnchor.constraint(equalToConstant: 50),
-            directConnectButton.heightAnchor.constraint(equalToConstant: 54),
-            connectButton.heightAnchor.constraint(equalToConstant: 54),
-            disconnectButton.heightAnchor.constraint(equalToConstant: 50),
-            disconnectButton.widthAnchor.constraint(equalToConstant: 240),
+            directConnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54),
+            connectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54),
+            disconnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
+            disconnectButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 240),
 
             serverGuideCard.subviews[0].topAnchor.constraint(equalTo: serverGuideCard.topAnchor, constant: 20),
             serverGuideCard.subviews[0].leadingAnchor.constraint(equalTo: serverGuideCard.leadingAnchor, constant: 20),
@@ -2008,6 +2029,8 @@ final class QuickSpecTileView: UIControl {
         let l = UILabel()
         l.font = .systemFont(ofSize: 12, weight: .semibold)
         l.textColor = .secondaryLabel
+        l.adjustsFontSizeToFitWidth = true
+        l.minimumScaleFactor = 0.75
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
     }()
@@ -2016,8 +2039,9 @@ final class QuickSpecTileView: UIControl {
         let l = UILabel()
         l.font = .systemFont(ofSize: 14, weight: .bold)
         l.textColor = .label
+        l.numberOfLines = 2
         l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.8
+        l.minimumScaleFactor = 0.75
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
     }()
@@ -2140,12 +2164,14 @@ final class QuickLayoutDpiViewController: UIViewController {
 
     private let fitModeSegmentedControl: UISegmentedControl = {
         let seg = UISegmentedControl(items: [L10n.fitSegmentFillMargin, L10n.fitSegmentFit, L10n.fitSegmentStretch])
+        seg.apportionsSegmentWidthsByContent = true
         seg.translatesAutoresizingMaskIntoConstraints = false
         return seg
     }()
 
     private let driverPositionSegmentedControl: UISegmentedControl = {
         let seg = UISegmentedControl(items: [L10n.lhdShort, L10n.rhdShort])
+        seg.apportionsSegmentWidthsByContent = true
         seg.translatesAutoresizingMaskIntoConstraints = false
         return seg
     }()
@@ -2155,6 +2181,8 @@ final class QuickLayoutDpiViewController: UIViewController {
         l.text = L10n.autoRecommendedDpi
         l.font = .systemFont(ofSize: 14, weight: .medium)
         l.textColor = .label
+        l.adjustsFontSizeToFitWidth = true
+        l.minimumScaleFactor = 0.75
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
     }()
@@ -2415,6 +2443,7 @@ final class QuickAudioConfigViewController: UIViewController {
 
     private let destinationSegmentedControl: UISegmentedControl = {
         let seg = UISegmentedControl(items: [L10n.audioOutIpadShort, L10n.audioOutPhoneShort])
+        seg.apportionsSegmentWidthsByContent = true
         seg.translatesAutoresizingMaskIntoConstraints = false
         return seg
     }()
@@ -2614,6 +2643,8 @@ final class QuickAudioConfigViewController: UIViewController {
         titleLabel.text = title
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.textColor = .label
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.75
         titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         var toneConfig = UIButton.Configuration.tinted()
@@ -2666,13 +2697,16 @@ final class QuickAudioConfigViewController: UIViewController {
 
         let headerRow = UIStackView()
         headerRow.axis = .horizontal
+        headerRow.spacing = 8
         headerRow.alignment = .center
         headerRow.distribution = .equalSpacing
 
         duckingTitleLabel.text = L10n.navigationDuckingDrop
         duckingTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         duckingTitleLabel.textColor = .label
-        duckingTitleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        duckingTitleLabel.adjustsFontSizeToFitWidth = true
+        duckingTitleLabel.minimumScaleFactor = 0.75
+        duckingTitleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
         duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         duckingStatusLabel.textColor = .systemBlue
@@ -2704,6 +2738,8 @@ final class QuickAudioConfigViewController: UIViewController {
             config.cornerStyle = .capsule
             config.buttonSize = .mini
             let btn = UIButton(configuration: config)
+            btn.titleLabel?.adjustsFontSizeToFitWidth = true
+            btn.titleLabel?.minimumScaleFactor = 0.75
             btn.addAction(UIAction { [weak self] _ in
                 self?.applyDucking(preset.reductionAmount)
             }, for: .touchUpInside)
@@ -2724,6 +2760,8 @@ final class QuickAudioConfigViewController: UIViewController {
         testConfig.buttonSize = .small
         testConfig.cornerStyle = .medium
         let testBtn = UIButton(configuration: testConfig)
+        testBtn.titleLabel?.adjustsFontSizeToFitWidth = true
+        testBtn.titleLabel?.minimumScaleFactor = 0.75
         testBtn.addAction(UIAction { _ in
             AudioStreamTester.shared.playDuckingTestSequence()
         }, for: .touchUpInside)
@@ -2736,6 +2774,8 @@ final class QuickAudioConfigViewController: UIViewController {
         resetConfig.buttonSize = .small
         resetConfig.cornerStyle = .medium
         let resetBtn = UIButton(configuration: resetConfig)
+        resetBtn.titleLabel?.adjustsFontSizeToFitWidth = true
+        resetBtn.titleLabel?.minimumScaleFactor = 0.75
         resetBtn.addAction(UIAction { [weak self] _ in
             self?.resetAudioVolumes()
         }, for: .touchUpInside)

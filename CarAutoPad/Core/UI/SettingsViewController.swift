@@ -163,20 +163,27 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             return UITableViewCell()
         }
 
+        let cell: UITableViewCell
         switch sec {
         case .activeSession:
-            return makeActiveSessionCell(for: indexPath.row)
+            cell = makeActiveSessionCell(for: indexPath.row)
         case .displayLayout:
-            return makeDisplayLayoutCell(for: indexPath.row)
+            cell = makeDisplayLayoutCell(for: indexPath.row)
         case .videoAudio:
-            return makeVideoAudioCell(for: indexPath.row)
+            cell = makeVideoAudioCell(for: indexPath.row)
         case .smartSensors:
-            return makeSmartSensorsCell(for: indexPath.row)
+            cell = makeSmartSensorsCell(for: indexPath.row)
         case .connectionAutomation:
-            return makeConnectionAutomationCell(for: indexPath.row)
+            cell = makeConnectionAutomationCell(for: indexPath.row)
         case .diagnosticsBackup:
-            return makeDiagnosticsBackupCell(for: indexPath.row)
+            cell = makeDiagnosticsBackupCell(for: indexPath.row)
         }
+
+        cell.textLabel?.adjustsFontSizeToFitWidth = true
+        cell.textLabel?.minimumScaleFactor = 0.75
+        cell.detailTextLabel?.adjustsFontSizeToFitWidth = true
+        cell.detailTextLabel?.minimumScaleFactor = 0.75
+        return cell
     }
 
     private func makeActiveSessionCell(for row: Int) -> UITableViewCell {
@@ -222,6 +229,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.frameRateRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [ProjectionFpsLimit.fps60.title, ProjectionFpsLimit.fps30.title])
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.fpsLimit == .fps60) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -241,6 +249,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.displayFitMode
             let seg = UISegmentedControl(items: [L10n.fitSegmentFill, L10n.fitSegmentFit, L10n.fitSegmentStretch])
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.videoFitMode {
             case .fillMargin: seg.selectedSegmentIndex = 0
             case .contain, .fill, .cover: seg.selectedSegmentIndex = 1
@@ -268,6 +277,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 ProjectionOrientation.portrait.title,
                 ProjectionOrientation.system.title
             ])
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.orientation {
             case .landscape: seg.selectedSegmentIndex = 0
             case .portrait: seg.selectedSegmentIndex = 1
@@ -288,6 +298,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.drivingPosition
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [L10n.lhdShort, L10n.rhdShort])
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.driverPosition == .right) ? 1 : 0
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -308,6 +319,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.frameSmoothingRow
             let seg = UISegmentedControl(items: MotionBlurMode.allCases.map { $0.shortTitle })
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = ProjectionSettings.motionBlurMode.rawValue
             seg.addAction(UIAction { [weak self] _ in
                 let modes: [MotionBlurMode] = [.off, .light, .medium, .strong]
@@ -347,6 +359,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.videoCodecRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["H.264", "HEVC"])
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.videoCodecPreference {
             case .h264: seg.selectedSegmentIndex = 0
             case .hevc: seg.selectedSegmentIndex = 1
@@ -370,6 +383,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.audioCodecRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["AAC-LC", "PCM"])
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.audioCodecPreference == .aac) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -390,6 +404,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.audioOutputRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [L10n.audioTargetIpadSegment, L10n.audioTargetPhoneSegment])
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -415,6 +430,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.microphoneSourceRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [L10n.micFollowSegment, L10n.micIpadSegment, L10n.micPhoneSegment])
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.microphoneSource {
             case .followAudioOutput: seg.selectedSegmentIndex = 0
             case .ipad: seg.selectedSegmentIndex = 1
@@ -458,6 +474,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 NightModeSetting.night.shortTitle,
                 NightModeSetting.system.shortTitle
             ])
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.nightMode {
             case .auto: seg.selectedSegmentIndex = 0
             case .twilight: seg.selectedSegmentIndex = 1
@@ -479,6 +496,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
                 cell.textLabel?.text = L10n.gpsSourceRow
                 let seg = UISegmentedControl(items: [L10n.gpsPhoneShort, L10n.gpsIpadShort])
+                seg.apportionsSegmentWidthsByContent = true
                 seg.selectedSegmentIndex = (ProjectionSettings.gpsSource == .phone) ? 0 : 1
                 seg.addAction(UIAction { [weak self] _ in
                     let isIpad = (seg.selectedSegmentIndex == 1)
@@ -1196,6 +1214,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         titleLabel.text = title
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.textColor = .label
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.75
         titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         var toneConfig = UIButton.Configuration.tinted()
@@ -1248,13 +1268,16 @@ final class AudioChannelMixerCell: UITableViewCell {
 
         let headerRow = UIStackView()
         headerRow.axis = .horizontal
+        headerRow.spacing = 8
         headerRow.alignment = .center
         headerRow.distribution = .equalSpacing
 
         duckingTitleLabel.text = L10n.navigationDuckingDrop
         duckingTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         duckingTitleLabel.textColor = .label
-        duckingTitleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        duckingTitleLabel.adjustsFontSizeToFitWidth = true
+        duckingTitleLabel.minimumScaleFactor = 0.75
+        duckingTitleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
         duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         duckingStatusLabel.textColor = .systemBlue
@@ -1306,6 +1329,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         testConfig.buttonSize = .small
         testConfig.cornerStyle = .medium
         let testBtn = UIButton(configuration: testConfig)
+        testBtn.titleLabel?.adjustsFontSizeToFitWidth = true
+        testBtn.titleLabel?.minimumScaleFactor = 0.75
         testBtn.addAction(UIAction { _ in
             AudioStreamTester.shared.playDuckingTestSequence()
         }, for: .touchUpInside)
@@ -1318,6 +1343,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         resetConfig.buttonSize = .small
         resetConfig.cornerStyle = .medium
         let resetBtn = UIButton(configuration: resetConfig)
+        resetBtn.titleLabel?.adjustsFontSizeToFitWidth = true
+        resetBtn.titleLabel?.minimumScaleFactor = 0.75
         resetBtn.addAction(UIAction { [weak self] _ in
             self?.resetAudioVolumes()
         }, for: .touchUpInside)

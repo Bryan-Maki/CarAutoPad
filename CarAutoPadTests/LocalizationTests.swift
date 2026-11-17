@@ -31,6 +31,11 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ja-JP"]), .japanese)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ms-MY"]), .malay)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["id-ID"]), .malay)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ko-KR"]), .korean)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ko"]), .korean)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-MY"]), .tamil)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-SG"]), .tamil)
+        XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["ta-IN"]), .tamil)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["en-US"]), .english)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: ["fr-FR"]), .english)
         XCTAssertEqual(AppLanguage.resolveSystemLanguage(from: []), .english)
@@ -45,6 +50,10 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AppLanguage.traditionalChinese.shortBadgeTitle, "繁")
         XCTAssertEqual(AppLanguage.japanese.shortBadgeTitle, "JA")
         XCTAssertEqual(AppLanguage.malay.shortBadgeTitle, "MS")
+        XCTAssertEqual(AppLanguage.korean.shortBadgeTitle, "KO")
+        XCTAssertEqual(AppLanguage.tamil.shortBadgeTitle, "TA")
+        XCTAssertEqual(AppLanguage.korean.title, "한국어")
+        XCTAssertEqual(AppLanguage.tamil.title, "தமிழ்")
     }
 
     func testExplicitLanguageSwitchingUpdatesL10nAndEnums() {
@@ -71,6 +80,24 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(L10n.current, .malay)
         XCTAssertEqual(L10n.settingsButtonTitle, "Tetapan")
         XCTAssertEqual(NavigationDuckingPreset.off.shortTitle, "Mati (0%)")
+
+        ProjectionSettings.appLanguage = .korean
+        XCTAssertEqual(L10n.current, .korean)
+        XCTAssertEqual(L10n.settingsButtonTitle, "설정")
+        XCTAssertEqual(L10n.systemDefaultLanguageTitle, "시스템 기본값")
+        XCTAssertEqual(AppLanguage.system.title, "시스템 기본값")
+        XCTAssertEqual(ProjectionSettings.driverPositionTitle, "좌핸들 (LHD)")
+        XCTAssertEqual(MicrophoneSource.ipad.title, "iPad 마이크")
+        XCTAssertEqual(NightModeSetting.twilight.shortTitle, "일출몰")
+
+        ProjectionSettings.appLanguage = .tamil
+        XCTAssertEqual(L10n.current, .tamil)
+        XCTAssertEqual(L10n.settingsButtonTitle, "அமைப்புகள்")
+        XCTAssertEqual(L10n.systemDefaultLanguageTitle, "கணினி இயல்புநிலை")
+        XCTAssertEqual(AppLanguage.system.title, "கணினி இயல்புநிலை")
+        XCTAssertEqual(ProjectionSettings.driverPositionTitle, "இடது கை ஓட்டுநர் (LHD)")
+        XCTAssertEqual(MicrophoneSource.ipad.title, "iPad ஒலிவாங்கி")
+        XCTAssertEqual(NightModeSetting.twilight.shortTitle, "அந்தி")
 
         ProjectionSettings.appLanguage = .english
         XCTAssertEqual(L10n.current, .english)
@@ -163,6 +190,20 @@ final class LocalizationTests: XCTestCase {
         ProjectionSettings.appLanguage = .malay
         XCTAssertEqual(mainVC.languageButton.configuration?.title, "MS")
         XCTAssertEqual(mainVC.settingsButton.configuration?.title, "Tetapan")
+
+        ProjectionSettings.appLanguage = .korean
+        XCTAssertEqual(mainVC.languageButton.configuration?.title, "KO")
+        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "설정")
+        XCTAssertEqual(mainVC.hubTitleLabel.text, "무선 연결 허브")
+        XCTAssertEqual(mainVC.guideTitleLabel.text, "Android 휴대폰 설정 가이드")
+        XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+
+        ProjectionSettings.appLanguage = .tamil
+        XCTAssertEqual(mainVC.languageButton.configuration?.title, "TA")
+        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "அமைப்புகள்")
+        XCTAssertEqual(mainVC.hubTitleLabel.text, "வயர்லெஸ் இணைப்பு மையம்")
+        XCTAssertEqual(mainVC.guideTitleLabel.text, "Android தொலைபேசி அமைப்பு வழிகாட்டி")
+        XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
 
         // Verify live switching while running does NOT disconnect session
         ConnectionManager.shared.setStateForTesting(.running)
@@ -277,5 +318,100 @@ final class LocalizationTests: XCTestCase {
         XCTAssertTrue(ConnectionStatusKind.failedAfterRetries(maxAttempts: 3).isDisconnectedWarning)
         XCTAssertFalse(ConnectionStatusKind.ready.isDisconnectedWarning)
         XCTAssertFalse(ConnectionStatusKind.disconnectedFromSession.isDisconnectedWarning)
+    }
+
+    @MainActor
+    func testAllLanguagesLiveSwitchingAcrossControllersAndTruncationHardening() throws {
+        let mainVC = MainViewController()
+        mainVC.loadViewIfNeeded()
+        mainVC.view.layoutIfNeeded()
+
+        let settingsVC = SettingsViewController()
+        settingsVC.loadViewIfNeeded()
+        settingsVC.view.layoutIfNeeded()
+
+        let layoutVC = QuickLayoutDpiViewController()
+        layoutVC.loadViewIfNeeded()
+        layoutVC.view.layoutIfNeeded()
+
+        let audioVC = QuickAudioConfigViewController()
+        audioVC.loadViewIfNeeded()
+        audioVC.view.layoutIfNeeded()
+
+        guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView else {
+            XCTFail("SettingsViewController must contain a UITableView")
+            return
+        }
+
+        let smartSec = SettingsViewController.SettingsSection.smartSensors.rawValue
+        let displaySec = SettingsViewController.SettingsSection.displayLayout.rawValue
+        let audioSec = SettingsViewController.SettingsSection.videoAudio.rawValue
+
+        for lang in AppLanguage.allCases {
+            ProjectionSettings.appLanguage = lang
+
+            XCTAssertFalse(lang.title.isEmpty)
+            XCTAssertFalse(lang.shortBadgeTitle.isEmpty)
+
+            // MainViewController checks
+            XCTAssertEqual(mainVC.languageButton.configuration?.title, lang.shortBadgeTitle)
+            XCTAssertEqual(mainVC.settingsButton.configuration?.title, L10n.settingsButtonTitle)
+            XCTAssertFalse(mainVC.settingsButton.configuration?.title?.isEmpty ?? true)
+            XCTAssertEqual(mainVC.hubTitleLabel.text, L10n.wirelessConnectionHub)
+            XCTAssertFalse(mainVC.hubTitleLabel.text?.isEmpty ?? true)
+            XCTAssertEqual(mainVC.guideTitleLabel.text, L10n.androidPhoneSetupGuide)
+            XCTAssertFalse(mainVC.guideTitleLabel.text?.isEmpty ?? true)
+            XCTAssertEqual(mainVC.directConnectButton.configuration?.title, L10n.directConnectButton)
+            XCTAssertEqual(mainVC.connectButton.configuration?.title, L10n.scanForHeadunitServer)
+            XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+
+            // SettingsViewController checks + truncation hardening checks
+            XCTAssertEqual(settingsVC.title, L10n.projectionSettingsTitle)
+            XCTAssertFalse(settingsVC.title?.isEmpty ?? true)
+
+            let langCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: smartSec))
+            XCTAssertEqual(langCell.textLabel?.text, L10n.languageRowTitle)
+            XCTAssertEqual(langCell.detailTextLabel?.text, lang.title)
+            XCTAssertTrue(langCell.textLabel?.adjustsFontSizeToFitWidth ?? false)
+            XCTAssertEqual(Double(langCell.textLabel?.minimumScaleFactor ?? 0), 0.75, accuracy: 0.001)
+
+            let nightCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: smartSec))
+            XCTAssertTrue(nightCell.textLabel?.adjustsFontSizeToFitWidth ?? false)
+            if let seg = nightCell.accessoryView as? UISegmentedControl {
+                XCTAssertTrue(seg.apportionsSegmentWidthsByContent)
+            } else {
+                XCTFail("Expected UISegmentedControl for nightModeRow")
+            }
+
+            let fitCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 3, section: displaySec))
+            if let seg = fitCell.accessoryView as? UISegmentedControl {
+                XCTAssertTrue(seg.apportionsSegmentWidthsByContent)
+            } else {
+                XCTFail("Expected UISegmentedControl for displayFitMode")
+            }
+
+            let micCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 3, section: audioSec))
+            if let seg = micCell.accessoryView as? UISegmentedControl {
+                XCTAssertTrue(seg.apportionsSegmentWidthsByContent)
+            } else {
+                XCTFail("Expected UISegmentedControl for microphoneSourceRow")
+            }
+
+            // QuickLayoutDpiViewController & QuickAudioConfigViewController checks
+            XCTAssertEqual(layoutVC.title, L10n.layoutDpiModalTitle)
+            XCTAssertFalse(layoutVC.title?.isEmpty ?? true)
+            XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
+            XCTAssertFalse(audioVC.title?.isEmpty ?? true)
+        }
+
+        // Verify JSON backup round-trip for Korean and Tamil
+        for lang in [AppLanguage.korean, AppLanguage.tamil] {
+            ProjectionSettings.appLanguage = lang
+            let json = SettingsBackupManager.exportToJson()
+            XCTAssertTrue(json.contains("\"appLanguage\" : \"\(lang.rawValue)\""))
+            ProjectionSettings.resetToDefaults()
+            _ = try SettingsBackupManager.importFromJson(json)
+            XCTAssertEqual(ProjectionSettings.appLanguage, lang)
+        }
     }
 }
