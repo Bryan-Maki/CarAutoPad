@@ -193,9 +193,9 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private let subtitleLabel: UILabel = {
+    private(set) var subtitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Wireless Android Auto Receiver"
+        label.text = L10n.appSubtitle
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = .secondaryLabel
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -213,7 +213,7 @@ final class MainViewController: UIViewController {
         return view
     }()
 
-    private let statusDotView: UIView = {
+    private(set) var statusDotView: UIView = {
         let view = UIView()
         view.backgroundColor = .systemGreen
         view.layer.cornerRadius = 4
@@ -222,9 +222,9 @@ final class MainViewController: UIViewController {
         return view
     }()
 
-    private let statusLabel: UILabel = {
+    private(set) var statusLabel: UILabel = {
         let label = UILabel()
-        label.text = "Ready to connect"
+        label.text = L10n.statusReadyToConnect
         label.font = .systemFont(ofSize: 13, weight: .semibold)
         label.textColor = .secondaryLabel
         label.lineBreakMode = .byTruncatingTail
@@ -234,9 +234,29 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private lazy var settingsButton: UIButton = {
+    private(set) lazy var languageButton: UIButton = {
         var config = UIButton.Configuration.tinted()
-        config.title = "Settings"
+        config.title = ProjectionSettings.appLanguage.shortBadgeTitle
+        config.titleLineBreakMode = .byClipping
+        config.image = UIImage(systemName: "globe")
+        config.imagePadding = 5
+        config.cornerStyle = .capsule
+        config.buttonSize = .medium
+        config.baseBackgroundColor = UIColor.systemGray5
+        config.baseForegroundColor = .label
+
+        let button = UIButton(configuration: config)
+        button.accessibilityIdentifier = "languageButton"
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(languageButtonTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private(set) lazy var settingsButton: UIButton = {
+        var config = UIButton.Configuration.tinted()
+        config.title = L10n.settingsButtonTitle
         config.titleLineBreakMode = .byClipping
         config.image = UIImage(systemName: "slider.horizontal.3")
         config.imagePadding = 6
@@ -285,7 +305,7 @@ final class MainViewController: UIViewController {
 
     private lazy var connectionIssueDismissButton: UIButton = {
         let b = UIButton(type: .system)
-        b.setTitle("Dismiss", for: .normal)
+        b.setTitle(L10n.dismiss, for: .normal)
         b.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .medium)
         b.translatesAutoresizingMaskIntoConstraints = false
         b.addTarget(self, action: #selector(dismissConnectionIssueBanner), for: .touchUpInside)
@@ -315,9 +335,9 @@ final class MainViewController: UIViewController {
         return card
     }()
 
-    private let hubTitleLabel: UILabel = {
+    private(set) var hubTitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Wireless Connection Hub"
+        label.text = L10n.wirelessConnectionHub
         label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.textColor = .label
         label.textAlignment = .left
@@ -339,7 +359,7 @@ final class MainViewController: UIViewController {
 
     private let directIpLabel: UILabel = {
         let label = UILabel()
-        label.text = "Direct Connect (Phone Hotspot IP)"
+        label.text = L10n.directConnectLabel
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.textColor = .secondaryLabel
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -377,9 +397,9 @@ final class MainViewController: UIViewController {
         return button
     }()
 
-    private lazy var directConnectButton: UIButton = {
+    private(set) lazy var directConnectButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.title = "Direct Connect"
+        config.title = L10n.directConnectButton
         config.image = UIImage(systemName: "arrow.right.circle.fill")
         config.imagePadding = 6
         config.cornerStyle = .large
@@ -394,7 +414,7 @@ final class MainViewController: UIViewController {
 
     private let orDividerLabel: UILabel = {
         let label = UILabel()
-        label.text = "— OR AUTO-DISCOVER —"
+        label.text = L10n.orAutoDiscover
         label.font = .systemFont(ofSize: 11, weight: .bold)
         label.textColor = .tertiaryLabel
         label.textAlignment = .center
@@ -402,9 +422,9 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private lazy var connectButton: UIButton = {
+    private(set) lazy var connectButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.title = "Scan for Headunit Server (Port 5277)"
+        config.title = L10n.scanForHeadunitServer
         config.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
         config.imagePadding = 8
         config.cornerStyle = .large
@@ -424,9 +444,9 @@ final class MainViewController: UIViewController {
         return indicator
     }()
 
-    private lazy var disconnectButton: UIButton = {
+    private(set) lazy var disconnectButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.title = "Cancel / Disconnect"
+        config.title = L10n.cancelDisconnect
         config.cornerStyle = .large
         config.buttonSize = .large
         config.baseBackgroundColor = .systemRed
@@ -448,9 +468,9 @@ final class MainViewController: UIViewController {
         return card
     }()
 
-    private let guideTitleLabel: UILabel = {
+    private(set) var guideTitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Android Phone Setup Guide"
+        label.text = L10n.androidPhoneSetupGuide
         label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.textColor = .label
         label.textAlignment = .left
@@ -470,7 +490,7 @@ final class MainViewController: UIViewController {
         return iv
     }()
 
-    private let guideStepsStack: UIStackView = {
+    private(set) var guideStepsStack: UIStackView = {
         let stack = UIStackView()
         stack.axis = .vertical
         stack.spacing = 14
@@ -479,9 +499,9 @@ final class MainViewController: UIViewController {
         return stack
     }()
 
-    private let quickSpecsHeaderLabel: UILabel = {
+    private(set) var quickSpecsHeaderLabel: UILabel = {
         let label = UILabel()
-        label.text = "CURRENT CONFIGURATION (TAP TO CONFIGURE)"
+        label.text = L10n.currentConfigurationHeader
         label.font = .systemFont(ofSize: 12, weight: .bold)
         label.textColor = .secondaryLabel
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -576,6 +596,13 @@ final class MainViewController: UIViewController {
             name: .carAutoPadNetworkReachabilityDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyLocalization),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+        applyLocalization()
         updateUIForConnectionState(.disconnected)
         videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
         syncVideoAndTouchGeometry()
@@ -768,7 +795,7 @@ final class MainViewController: UIViewController {
             statusLabel.centerYAnchor.constraint(equalTo: statusPillView.centerYAnchor)
         ])
 
-        let rightHeaderStack = UIStackView(arrangedSubviews: [statusPillView, settingsButton])
+        let rightHeaderStack = UIStackView(arrangedSubviews: [statusPillView, languageButton, settingsButton])
         rightHeaderStack.axis = .horizontal
         rightHeaderStack.spacing = 10
         rightHeaderStack.alignment = .center
@@ -856,11 +883,15 @@ final class MainViewController: UIViewController {
     }
 
     private func setupGuideSteps() {
+        for subview in guideStepsStack.arrangedSubviews {
+            guideStepsStack.removeArrangedSubview(subview)
+            subview.removeFromSuperview()
+        }
         let steps = [
-            (icon: "gearshape.2.fill", tint: UIColor.systemIndigo, title: "1. Open Android Auto Settings", detail: "In phone Settings → Connected devices → Android Auto"),
-            (icon: "checkmark.seal.fill", tint: UIColor.systemBlue, title: "2. Enable Developer Mode", detail: "Scroll down, tap 'Version' 10 times and confirm OK"),
-            (icon: "play.tv.fill", tint: UIColor.systemGreen, title: "3. Start Head Unit Server", detail: "Tap top-right '⋮' menu in Android Auto & start server"),
-            (icon: "personalhotspot", tint: UIColor.systemOrange, title: "4. Connect Hotspot & Launch", detail: "Connect iPad to phone hotspot Wi-Fi & tap Connect")
+            (icon: "gearshape.2.fill", tint: UIColor.systemIndigo, title: L10n.guideStep1Title, detail: L10n.guideStep1Detail),
+            (icon: "checkmark.seal.fill", tint: UIColor.systemBlue, title: L10n.guideStep2Title, detail: L10n.guideStep2Detail),
+            (icon: "play.tv.fill", tint: UIColor.systemGreen, title: L10n.guideStep3Title, detail: L10n.guideStep3Detail),
+            (icon: "personalhotspot", tint: UIColor.systemOrange, title: L10n.guideStep4Title, detail: L10n.guideStep4Detail)
         ]
 
         for step in steps {
@@ -888,13 +919,14 @@ final class MainViewController: UIViewController {
         titleLbl.text = title
         titleLbl.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLbl.textColor = .label
+        titleLbl.numberOfLines = 0
         titleLbl.translatesAutoresizingMaskIntoConstraints = false
 
         let detailLbl = UILabel()
         detailLbl.text = detail
         detailLbl.font = .systemFont(ofSize: 11, weight: .regular)
         detailLbl.textColor = .secondaryLabel
-        detailLbl.numberOfLines = 2
+        detailLbl.numberOfLines = 0
         detailLbl.translatesAutoresizingMaskIntoConstraints = false
 
         let textStack = UIStackView(arrangedSubviews: [titleLbl, detailLbl])
@@ -926,42 +958,42 @@ final class MainViewController: UIViewController {
     }
 
     private func setupQuickSpecTiles() {
-        displayTile = QuickSpecTileView(icon: "display", title: "Display", tint: .systemBlue)
+        displayTile = QuickSpecTileView(icon: "display", title: L10n.tileDisplay, tint: .systemBlue)
         displayTile.tag = 0
         displayTile.onTap = { [weak self, weak displayTile] _ in
             guard let self = self, let sender = displayTile else { return }
             self.presentQuickDisplayConfig(from: sender)
         }
 
-        layoutTile = QuickSpecTileView(icon: "aspectratio", title: "Layout & DPI", tint: .systemPurple)
+        layoutTile = QuickSpecTileView(icon: "aspectratio", title: L10n.tileLayoutDpi, tint: .systemPurple)
         layoutTile.tag = 1
         layoutTile.onTap = { [weak self, weak layoutTile] _ in
             guard let self = self, let sender = layoutTile else { return }
             self.presentQuickLayoutAndDpiModal(from: sender)
         }
 
-        codecsTile = QuickSpecTileView(icon: "waveform.path.ecg", title: "Codecs", tint: .systemPink)
+        codecsTile = QuickSpecTileView(icon: "waveform.path.ecg", title: L10n.tileCodecs, tint: .systemPink)
         codecsTile.tag = 2
         codecsTile.onTap = { [weak self, weak codecsTile] _ in
             guard let self = self, let sender = codecsTile else { return }
             self.presentQuickCodecsConfig(from: sender)
         }
 
-        audioTile = QuickSpecTileView(icon: "speaker.wave.2.fill", title: "Audio & Ducking", tint: .systemGreen)
+        audioTile = QuickSpecTileView(icon: "speaker.wave.2.fill", title: L10n.tileAudioDucking, tint: .systemGreen)
         audioTile.tag = 3
         audioTile.onTap = { [weak self, weak audioTile] _ in
             guard let self = self, let sender = audioTile else { return }
             self.presentQuickAudioOutputConfig(from: sender)
         }
 
-        micTile = QuickSpecTileView(icon: "mic.fill", title: "Microphone", tint: .systemTeal)
+        micTile = QuickSpecTileView(icon: "mic.fill", title: L10n.tileMicrophone, tint: .systemTeal)
         micTile.tag = 4
         micTile.onTap = { [weak self, weak micTile] _ in
             guard let self = self, let sender = micTile else { return }
             self.presentQuickMicrophoneConfig(from: sender)
         }
 
-        modeTile = QuickSpecTileView(icon: "moon.stars.fill", title: "Smart Mode", tint: .systemOrange)
+        modeTile = QuickSpecTileView(icon: "moon.stars.fill", title: L10n.tileSmartMode, tint: .systemOrange)
         modeTile.tag = 5
         modeTile.onTap = { [weak self, weak modeTile] _ in
             guard let self = self, let sender = modeTile else { return }
@@ -1049,8 +1081,9 @@ final class MainViewController: UIViewController {
             appIconImageView.widthAnchor.constraint(equalToConstant: 44),
             appIconImageView.heightAnchor.constraint(equalToConstant: 44),
             statusPillView.heightAnchor.constraint(equalToConstant: 34),
+            languageButton.heightAnchor.constraint(equalToConstant: 34),
             settingsButton.heightAnchor.constraint(equalToConstant: 34),
-            settingsButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 112),
+            settingsButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
 
             hubIconView.widthAnchor.constraint(equalToConstant: 22),
             hubIconView.heightAnchor.constraint(equalToConstant: 22),
@@ -1115,17 +1148,63 @@ final class MainViewController: UIViewController {
         bannerZeroHeightConstraint?.isActive = true
     }
 
+    @objc func applyLocalization() {
+        subtitleLabel.text = L10n.appSubtitle
+
+        var langCfg = languageButton.configuration
+        langCfg?.title = ProjectionSettings.appLanguage.shortBadgeTitle
+        languageButton.configuration = langCfg
+
+        var settingsCfg = settingsButton.configuration
+        settingsCfg?.title = L10n.settingsButtonTitle
+        settingsButton.configuration = settingsCfg
+
+        connectionIssueDismissButton.setTitle(L10n.dismiss, for: .normal)
+        hubTitleLabel.text = L10n.wirelessConnectionHub
+        directIpLabel.text = L10n.directConnectLabel
+
+        var directCfg = directConnectButton.configuration
+        directCfg?.title = L10n.directConnectButton
+        directConnectButton.configuration = directCfg
+
+        orDividerLabel.text = L10n.orAutoDiscover
+
+        var connectCfg = connectButton.configuration
+        connectCfg?.title = L10n.scanForHeadunitServer
+        connectButton.configuration = connectCfg
+
+        var disconnectCfg = disconnectButton.configuration
+        disconnectCfg?.title = L10n.cancelDisconnect
+        disconnectButton.configuration = disconnectCfg
+
+        guideTitleLabel.text = L10n.androidPhoneSetupGuide
+        setupGuideSteps()
+
+        quickSpecsHeaderLabel.text = L10n.currentConfigurationHeader
+        displayTile?.title = L10n.tileDisplay
+        layoutTile?.title = L10n.tileLayoutDpi
+        codecsTile?.title = L10n.tileCodecs
+        audioTile?.title = L10n.tileAudioDucking
+        micTile?.title = L10n.tileMicrophone
+        modeTile?.title = L10n.tileSmartMode
+
+        refreshQuickSpecTiles()
+        updateConnectionIssueBanner()
+        connectionManager.refreshLocalizedStatus()
+        updateStatusPillAndButtons(for: connectionManager.state)
+    }
+
     func refreshQuickSpecTiles() {
         let res = ProjectionSettings.resolution.title
         let fps = ProjectionSettings.fpsLimit.title
         var displayValue = "\(res) • \(fps)"
         if ProjectionSettings.motionBlurMode != .off {
-            displayValue += " • Smooth: \(ProjectionSettings.motionBlurMode.shortTitle)"
+            displayValue += " • \(L10n.smoothTileValue(ProjectionSettings.motionBlurMode.shortTitle))"
         }
         displayTile?.value = displayValue
 
         let fit = ProjectionSettings.videoFitMode.title
-        let dpi = ProjectionSettings.isAutoDpi ? "Auto (\(ProjectionSettings.effectiveDpi))" : "\(ProjectionSettings.dpi) DPI"
+        let dpi = ProjectionSettings.isAutoDpi ? L10n.autoDpiTileValue(ProjectionSettings.effectiveDpi) : "\(ProjectionSettings.dpi) DPI"
         layoutTile?.value = "\(fit) • \(dpi)"
 
         let vCodec = ProjectionSettings.videoCodecPreference.title
@@ -1138,14 +1217,110 @@ final class MainViewController: UIViewController {
         micTile?.value = "\(mic)"
 
         let night = ProjectionSettings.nightMode.title
-        let rhd = (ProjectionSettings.driverPosition == .right) ? "RHD" : "LHD"
+        let rhd = (ProjectionSettings.driverPosition == .right) ? L10n.rhdAbbrev : L10n.lhdAbbrev
         modeTile?.value = "\(night) • \(rhd)"
+    }
+
+    private func updateStatusPillAndButtons(for state: ConnectionState) {
+        let currentIp = NetworkAddresses.stationIpv4() ?? L10n.noWifiText
+        switch state {
+        case .disconnected:
+            if connectionManager.isAutoReconnectScheduled {
+                statusDotView.backgroundColor = .systemOrange
+                statusLabel.text = connectionManager.statusDetail
+                statusLabel.textColor = .systemOrange
+                connectButton.isEnabled = false
+                directConnectButton.isEnabled = false
+                disconnectButton.isHidden = false
+                activityIndicator.startAnimating()
+            } else {
+                if connectionManager.statusKind.isDisconnectedWarning {
+                    statusDotView.backgroundColor = .systemOrange
+                    statusLabel.text = connectionManager.statusDetail
+                    statusLabel.textColor = .systemOrange
+                } else {
+                    statusDotView.backgroundColor = .systemGreen
+                    statusLabel.text = L10n.statusIpadIpReady(currentIp)
+                    statusLabel.textColor = .secondaryLabel
+                }
+                connectButton.isEnabled = true
+                directConnectButton.isEnabled = true
+                disconnectButton.isHidden = true
+                activityIndicator.stopAnimating()
+            }
+
+        case .discovering:
+            statusDotView.backgroundColor = .systemIndigo
+            statusLabel.text = L10n.statusScanningPort5277
+            statusLabel.textColor = .systemIndigo
+            connectButton.isEnabled = false
+            directConnectButton.isEnabled = false
+            disconnectButton.isHidden = false
+            activityIndicator.startAnimating()
+
+        case .waitingForWirelessHelper:
+            statusDotView.backgroundColor = .systemOrange
+            statusLabel.text = connectionManager.statusDetail.isEmpty ? L10n.statusWaitingForWireless : connectionManager.statusDetail
+            statusLabel.textColor = .systemOrange
+            connectButton.isEnabled = false
+            directConnectButton.isEnabled = false
+            disconnectButton.isHidden = false
+            activityIndicator.startAnimating()
+
+        case .connecting:
+            statusDotView.backgroundColor = .systemBlue
+            statusLabel.text = L10n.statusConnectingTo(connectionManager.connectedDevice?.displayName ?? L10n.defaultPhoneName)
+            statusLabel.textColor = .systemBlue
+            connectButton.isEnabled = false
+            directConnectButton.isEnabled = false
+            disconnectButton.isHidden = false
+            activityIndicator.startAnimating()
+
+        case .handshaking:
+            statusDotView.backgroundColor = .systemBlue
+            statusLabel.text = L10n.stateHandshaking
+            statusLabel.textColor = .systemBlue
+            connectButton.isEnabled = false
+            directConnectButton.isEnabled = false
+            disconnectButton.isHidden = false
+            activityIndicator.startAnimating()
+
+        case .running:
+            break
+
+        case .disconnecting:
+            statusDotView.backgroundColor = .systemGray
+            statusLabel.text = L10n.stateDisconnecting
+            statusLabel.textColor = .secondaryLabel
+            connectButton.isEnabled = false
+            directConnectButton.isEnabled = false
+            disconnectButton.isHidden = true
+            activityIndicator.startAnimating()
+
+        case .error(let message):
+            if connectionManager.isAutoReconnectScheduled {
+                statusDotView.backgroundColor = .systemOrange
+                statusLabel.text = connectionManager.statusDetail
+                statusLabel.textColor = .systemOrange
+                connectButton.isEnabled = false
+                directConnectButton.isEnabled = false
+                disconnectButton.isHidden = false
+                activityIndicator.startAnimating()
+            } else {
+                statusDotView.backgroundColor = .systemRed
+                statusLabel.text = connectionManager.statusDetail.isEmpty ? message : connectionManager.statusDetail
+                statusLabel.textColor = .systemRed
+                connectButton.isEnabled = true
+                directConnectButton.isEnabled = true
+                disconnectButton.isHidden = true
+                activityIndicator.stopAnimating()
+            }
+        }
     }
 
     private func updateUIForConnectionState(_ state: ConnectionState) {
         UIApplication.shared.isIdleTimerDisabled = (state == .running)
 
-        let currentIp = NetworkAddresses.stationIpv4() ?? "No Wi-Fi"
         switch state {
         case .disconnected:
             stopVideoWatchdog()
@@ -1160,91 +1335,16 @@ final class MainViewController: UIViewController {
             if directIpTextField.text?.isEmpty ?? true {
                 directIpTextField.text = NetworkAddresses.currentHotspotGatewayIpv4()
             }
-
-            if connectionManager.isAutoReconnectScheduled {
-                statusDotView.backgroundColor = .systemOrange
-                statusLabel.text = connectionManager.statusDetail
-                statusLabel.textColor = .systemOrange
-                connectButton.isEnabled = false
-                directConnectButton.isEnabled = false
-                disconnectButton.isHidden = false
-                activityIndicator.startAnimating()
-            } else {
-                let detail = connectionManager.statusDetail
-                if detail.contains("No device found") || detail.contains("Search failed") || detail.contains("Failed after 3 retries") {
-                    statusDotView.backgroundColor = .systemOrange
-                    statusLabel.text = detail
-                    statusLabel.textColor = .systemOrange
-                } else {
-                    statusDotView.backgroundColor = .systemGreen
-                    statusLabel.text = "iPad IP: \(currentIp) • Ready"
-                    statusLabel.textColor = .secondaryLabel
-                }
-                connectButton.isEnabled = true
-                directConnectButton.isEnabled = true
-                disconnectButton.isHidden = true
-                activityIndicator.stopAnimating()
-            }
+            updateStatusPillAndButtons(for: state)
             refreshSystemGestureDeferral()
 
-        case .discovering:
+        case .discovering, .waitingForWirelessHelper, .connecting, .handshaking:
             stopVideoWatchdog()
             videoContainerView.isHidden = true
             homeScrollView.isHidden = false
             view.bringSubviewToFront(homeScrollView)
             settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemIndigo
-            statusLabel.text = "Scanning Port 5277..."
-            statusLabel.textColor = .systemIndigo
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-            refreshSystemGestureDeferral()
-
-        case .waitingForWirelessHelper:
-            stopVideoWatchdog()
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
-            settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemOrange
-            statusLabel.text = connectionManager.statusDetail.isEmpty ? "Waiting for wireless..." : connectionManager.statusDetail
-            statusLabel.textColor = .systemOrange
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-            refreshSystemGestureDeferral()
-
-        case .connecting:
-            stopVideoWatchdog()
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
-            settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemBlue
-            statusLabel.text = "Connecting to \(connectionManager.connectedDevice?.displayName ?? "Phone")..."
-            statusLabel.textColor = .systemBlue
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-            refreshSystemGestureDeferral()
-
-        case .handshaking:
-            stopVideoWatchdog()
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
-            settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemBlue
-            statusLabel.text = "Handshaking..."
-            statusLabel.textColor = .systemBlue
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
+            updateStatusPillAndButtons(for: state)
             refreshSystemGestureDeferral()
 
         case .running:
@@ -1268,13 +1368,7 @@ final class MainViewController: UIViewController {
             view.bringSubviewToFront(homeScrollView)
             audioPlayer.reset()
             settingsButton.isHidden = false
-            statusDotView.backgroundColor = .systemGray
-            statusLabel.text = "Disconnecting..."
-            statusLabel.textColor = .secondaryLabel
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = true
-            activityIndicator.startAnimating()
+            updateStatusPillAndButtons(for: state)
             refreshSystemGestureDeferral()
 
         case .error(let message):
@@ -1290,24 +1384,7 @@ final class MainViewController: UIViewController {
             view.bringSubviewToFront(homeScrollView)
             audioPlayer.reset()
             settingsButton.isHidden = false
-
-            if connectionManager.isAutoReconnectScheduled {
-                statusDotView.backgroundColor = .systemOrange
-                statusLabel.text = connectionManager.statusDetail
-                statusLabel.textColor = .systemOrange
-                connectButton.isEnabled = false
-                directConnectButton.isEnabled = false
-                disconnectButton.isHidden = false
-                activityIndicator.startAnimating()
-            } else {
-                statusDotView.backgroundColor = .systemRed
-                statusLabel.text = connectionManager.statusDetail.isEmpty ? message : connectionManager.statusDetail
-                statusLabel.textColor = .systemRed
-                connectButton.isEnabled = true
-                directConnectButton.isEnabled = true
-                disconnectButton.isHidden = true
-                activityIndicator.stopAnimating()
-            }
+            updateStatusPillAndButtons(for: state)
             refreshSystemGestureDeferral()
         }
 
@@ -1379,6 +1456,10 @@ final class MainViewController: UIViewController {
         connectionManager.disconnect()
     }
 
+    @objc func languageButtonTapped() {
+        presentLanguagePicker(from: languageButton)
+    }
+
     @objc func settingsButtonTapped() {
         presentSettingsMenu()
     }
@@ -1430,15 +1511,15 @@ final class MainViewController: UIViewController {
 
     func presentQuickDisplayConfig(from sender: UIView) {
         let alert = UIAlertController(
-            title: "Display Configuration",
-            message: "Choose video resolution and maximum frame rate.",
+            title: L10n.quickDisplayTitle,
+            message: L10n.quickDisplayMessage,
             preferredStyle: .actionSheet
         )
         alert.popoverPresentationController?.sourceView = sender
         alert.popoverPresentationController?.sourceRect = sender.bounds
 
         let resolutions: [(title: String, res: ResolutionPreset)] = [
-            ("Auto (Recommended)", .auto),
+            (L10n.resolutionAutoRecommended, .auto),
             ("720p (1280×720)", .r1280x720),
             ("1080p (1920×1080)", .r1920x1080),
             ("1440p (2560×1440)", .r2560x1440),
@@ -1459,8 +1540,8 @@ final class MainViewController: UIViewController {
         }
 
         let fpsOptions: [(title: String, fps: ProjectionFpsLimit)] = [
-            ("Frame Rate: 60 FPS", .fps60),
-            ("Frame Rate: 30 FPS", .fps30)
+            (L10n.frameRateOption(ProjectionFpsLimit.fps60.title), .fps60),
+            (L10n.frameRateOption(ProjectionFpsLimit.fps30.title), .fps30)
         ]
         for item in fpsOptions {
             let isCurrent = (ProjectionSettings.fpsLimit == item.fps)
@@ -1476,7 +1557,7 @@ final class MainViewController: UIViewController {
         }
 
         let blurOptions: [(title: String, mode: MotionBlurMode)] = MotionBlurMode.allCases.map {
-            ("Frame Smoothing: \($0.title)", $0)
+            (L10n.frameSmoothingOption($0.title), $0)
         }
         for item in blurOptions {
             let isCurrent = (ProjectionSettings.motionBlurMode == item.mode)
@@ -1489,7 +1570,7 @@ final class MainViewController: UIViewController {
             })
         }
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
@@ -1514,16 +1595,16 @@ final class MainViewController: UIViewController {
 
     func presentQuickCodecsConfig(from sender: UIView) {
         let alert = UIAlertController(
-            title: "Codecs Configuration",
-            message: "Select video decoding and audio stream codecs.",
+            title: L10n.quickCodecsTitle,
+            message: L10n.quickCodecsMessage,
             preferredStyle: .actionSheet
         )
         alert.popoverPresentationController?.sourceView = sender
         alert.popoverPresentationController?.sourceRect = sender.bounds
 
         let videoOptions: [(title: String, val: VideoCodecPreference)] = [
-            ("Video: H.264 (AVC - Standard)", .h264),
-            ("Video: HEVC (H.265 - Efficient)", .hevc)
+            (L10n.videoCodecOptionH264, .h264),
+            (L10n.videoCodecOptionHevc, .hevc)
         ]
         for item in videoOptions {
             let isCurrent = (ProjectionSettings.videoCodecPreference == item.val)
@@ -1539,8 +1620,8 @@ final class MainViewController: UIViewController {
         }
 
         let audioOptions: [(title: String, val: AudioCodecPreference)] = [
-            ("Audio: AAC-LC (Compressed)", .aac),
-            ("Audio: PCM (Uncompressed)", .pcm)
+            (L10n.audioCodecOptionAac, .aac),
+            (L10n.audioCodecOptionPcm, .pcm)
         ]
         for item in audioOptions {
             let isCurrent = (ProjectionSettings.audioCodecPreference == item.val)
@@ -1555,7 +1636,7 @@ final class MainViewController: UIViewController {
             })
         }
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
@@ -1586,17 +1667,17 @@ final class MainViewController: UIViewController {
 
     func presentQuickMicrophoneConfig(from sender: UIView) {
         let alert = UIAlertController(
-            title: "Microphone Source",
-            message: "Select audio capture device for Google Voice Assistant.",
+            title: L10n.quickMicTitle,
+            message: L10n.quickMicMessage,
             preferredStyle: .actionSheet
         )
         alert.popoverPresentationController?.sourceView = sender
         alert.popoverPresentationController?.sourceRect = sender.bounds
 
         let sources: [(title: String, src: MicrophoneSource)] = [
-            ("Follow Audio Output (Automatic)", .followAudioOutput),
-            ("iPad Microphone", .ipad),
-            ("Phone / Car BT Mic", .phone)
+            (L10n.micFollowAutoTitle, .followAudioOutput),
+            (MicrophoneSource.ipad.title, .ipad),
+            (MicrophoneSource.phone.title, .phone)
         ]
         for item in sources {
             let isCurrent = (ProjectionSettings.microphoneSource == item.src)
@@ -1611,25 +1692,25 @@ final class MainViewController: UIViewController {
             })
         }
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
     func presentQuickSmartModeConfig(from sender: UIView) {
         let alert = UIAlertController(
-            title: "Smart Mode & Driver Position",
-            message: "Configure Day/Night theme and cockpit orientation.",
+            title: L10n.quickSmartModeTitle,
+            message: L10n.quickSmartModeMessage,
             preferredStyle: .actionSheet
         )
         alert.popoverPresentationController?.sourceView = sender
         alert.popoverPresentationController?.sourceRect = sender.bounds
 
         let nightModes: [(title: String, mode: NightModeSetting)] = [
-            ("Auto Day/Night (07:00–19:00)", .auto),
-            ("Twilight (Sunrise / Sunset)", .twilight),
-            ("Always Day Mode", .day),
-            ("Always Night Mode", .night),
-            ("Follow iOS System Appearance", .system)
+            (NightModeSetting.auto.title, .auto),
+            (NightModeSetting.twilight.title, .twilight),
+            (NightModeSetting.day.title, .day),
+            (NightModeSetting.night.title, .night),
+            (NightModeSetting.system.title, .system)
         ]
         for item in nightModes {
             let isCurrent = (ProjectionSettings.nightMode == item.mode)
@@ -1643,8 +1724,8 @@ final class MainViewController: UIViewController {
         }
 
         let positions: [(title: String, isRhd: Bool)] = [
-            ("Driver: Left Hand Drive (LHD)", false),
-            ("Driver: Right Hand Drive (RHD)", true)
+            (L10n.driverOptionLhd, false),
+            (L10n.driverOptionRhd, true)
         ]
         for item in positions {
             let isCurrent = (ProjectionSettings.driverPosition == (item.isRhd ? .right : .left))
@@ -1659,7 +1740,7 @@ final class MainViewController: UIViewController {
             })
         }
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
@@ -1740,13 +1821,12 @@ final class MainViewController: UIViewController {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let snapshot = NetworkReachabilityMonitor.shared.currentSnapshot
-            let ipText = snapshot.stationIpv4 ?? "No Wi-Fi"
+            let ipText = snapshot.stationIpv4 ?? L10n.noWifiText
             if self.connectionManager.state == .disconnected && !self.connectionManager.isAutoReconnectScheduled {
-                let detail = self.connectionManager.statusDetail
-                if detail.contains("No device found") || detail.contains("Search failed") || detail.contains("Failed after 3 retries") {
+                if self.connectionManager.statusKind.isDisconnectedWarning {
                     // Keep failure advice
                 } else {
-                    self.statusLabel.text = "iPad IP: \(ipText) • Ready"
+                    self.statusLabel.text = L10n.statusIpadIpReady(ipText)
                 }
             }
             if let gw = snapshot.gatewayIpv4, !gw.isEmpty {
@@ -1855,7 +1935,7 @@ extension MainViewController: ConnectionManagerDelegate {
     func connectionManager(_ manager: ConnectionManager, didDiscoverDevice device: DiscoveredDevice) {
         let update = { [weak self] in
             guard let self = self else { return }
-            self.statusLabel.text = "Found \(device.displayName), connecting..."
+            self.statusLabel.text = L10n.statusFoundDeviceConnecting(device.displayName)
             self.updateConnectionIssueBanner()
         }
         if Thread.isMainThread {
@@ -1893,6 +1973,12 @@ extension MainViewController: ConnectionManagerDelegate {
 final class QuickSpecTileView: UIControl {
 
     var onTap: ((UIView) -> Void)?
+
+    var title: String = "" {
+        didSet {
+            titleLabel.text = title
+        }
+    }
 
     var value: String = "" {
         didSet {
@@ -2032,21 +2118,37 @@ final class QuickLayoutDpiViewController: UIViewController {
         return v
     }()
 
+    private let fitLabel: UILabel = {
+        let l = UILabel()
+        l.text = L10n.displayFitMode
+        l.font = .systemFont(ofSize: 12, weight: .semibold)
+        l.textColor = .secondaryLabel
+        return l
+    }()
+
+    private let driverLabel: UILabel = {
+        let l = UILabel()
+        l.text = L10n.drivingPosition
+        l.font = .systemFont(ofSize: 12, weight: .semibold)
+        l.textColor = .secondaryLabel
+        return l
+    }()
+
     private let fitModeSegmentedControl: UISegmentedControl = {
-        let seg = UISegmentedControl(items: ["Fill Margin", "Fit (Letterbox)", "Stretch"])
+        let seg = UISegmentedControl(items: [L10n.fitSegmentFillMargin, L10n.fitSegmentFit, L10n.fitSegmentStretch])
         seg.translatesAutoresizingMaskIntoConstraints = false
         return seg
     }()
 
     private let driverPositionSegmentedControl: UISegmentedControl = {
-        let seg = UISegmentedControl(items: ["LHD (Left)", "RHD (Right)"])
+        let seg = UISegmentedControl(items: [L10n.lhdShort, L10n.rhdShort])
         seg.translatesAutoresizingMaskIntoConstraints = false
         return seg
     }()
 
     private let autoDpiLabel: UILabel = {
         let l = UILabel()
-        l.text = "Auto Recommended DPI"
+        l.text = L10n.autoRecommendedDpi
         l.font = .systemFont(ofSize: 14, weight: .medium)
         l.textColor = .label
         l.translatesAutoresizingMaskIntoConstraints = false
@@ -2089,10 +2191,30 @@ final class QuickLayoutDpiViewController: UIViewController {
         super.viewDidLoad()
         setupUI()
         syncWithCurrentSettings()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyLocalization),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func applyLocalization() {
+        title = L10n.layoutDpiModalTitle
+        fitLabel.text = L10n.displayFitMode
+        driverLabel.text = L10n.drivingPosition
+        autoDpiLabel.text = L10n.autoRecommendedDpi
+        fitModeSegmentedControl.setTitle(L10n.fitSegmentFillMargin, forSegmentAt: 0)
+        fitModeSegmentedControl.setTitle(L10n.fitSegmentFit, forSegmentAt: 1)
+        fitModeSegmentedControl.setTitle(L10n.fitSegmentStretch, forSegmentAt: 2)
+        driverPositionSegmentedControl.setTitle(L10n.lhdShort, forSegmentAt: 0)
+        driverPositionSegmentedControl.setTitle(L10n.rhdShort, forSegmentAt: 1)
+        previewView.setNeedsDisplay()
+        updateDpiLabel(val: ProjectionSettings.effectiveDpi, isAuto: ProjectionSettings.isAutoDpi)
     }
 
     private func setupUI() {
-        title = "Layout & DPI Configuration"
+        title = L10n.layoutDpiModalTitle
         view.backgroundColor = .systemGroupedBackground
         preferredContentSize = CGSize(width: 560, height: 500)
 
@@ -2122,17 +2244,9 @@ final class QuickLayoutDpiViewController: UIViewController {
 
         contentStack.addArrangedSubview(previewView)
 
-        let fitLabel = UILabel()
-        fitLabel.text = "Display Fit Mode"
-        fitLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        fitLabel.textColor = .secondaryLabel
         contentStack.addArrangedSubview(fitLabel)
         contentStack.addArrangedSubview(fitModeSegmentedControl)
 
-        let driverLabel = UILabel()
-        driverLabel.text = "Driving Position"
-        driverLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        driverLabel.textColor = .secondaryLabel
         contentStack.addArrangedSubview(driverLabel)
         contentStack.addArrangedSubview(driverPositionSegmentedControl)
 
@@ -2259,9 +2373,9 @@ final class QuickLayoutDpiViewController: UIViewController {
     private func updateDpiLabel(val: Int, isAuto: Bool) {
         let wDp = previewView.virtualWidthDp
         let hDp = previewView.virtualHeightDp
-        let coolwalkStr = previewView.isCoolwalkSplitScreen ? "Split Screen" : "Single Card"
+        let coolwalkStr = previewView.isCoolwalkSplitScreen ? L10n.splitScreenShort : L10n.singleCardShort
         if isAuto {
-            dpiValueLabel.text = "\(val) DPI (Auto) • \(wDp)×\(hDp) dp • \(coolwalkStr)"
+            dpiValueLabel.text = "\(val) DPI (\(L10n.autoShort)) • \(wDp)×\(hDp) dp • \(coolwalkStr)"
         } else {
             dpiValueLabel.text = "\(val) DPI • \(wDp)×\(hDp) dp • \(coolwalkStr)"
         }
@@ -2296,10 +2410,20 @@ final class QuickAudioConfigViewController: UIViewController {
     }()
 
     private let destinationSegmentedControl: UISegmentedControl = {
-        let seg = UISegmentedControl(items: ["iPad (Speaker / BT)", "Phone (Car BT)"])
+        let seg = UISegmentedControl(items: [L10n.audioOutIpadShort, L10n.audioOutPhoneShort])
         seg.translatesAutoresizingMaskIntoConstraints = false
         return seg
     }()
+
+    private let destLabel = UILabel()
+    private let chanHeader = UILabel()
+    private let mediaTitleLabel = UILabel()
+    private let navTitleLabel = UILabel()
+    private let sysTitleLabel = UILabel()
+    private let duckingTitleLabel = UILabel()
+    private let duckingSubLabel = UILabel()
+    private var testDuckingButton: UIButton?
+    private var resetAudioButton: UIButton?
 
     private let mediaSwitch = UISwitch()
     private let mediaSlider = UISlider()
@@ -2322,10 +2446,38 @@ final class QuickAudioConfigViewController: UIViewController {
         super.viewDidLoad()
         setupUI()
         syncWithCurrentSettings()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyLocalization),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func applyLocalization() {
+        title = L10n.audioDuckingModalTitle
+        destLabel.text = L10n.audioOutputDestination
+        destinationSegmentedControl.setTitle(L10n.audioOutIpadShort, forSegmentAt: 0)
+        destinationSegmentedControl.setTitle(L10n.audioOutPhoneShort, forSegmentAt: 1)
+        chanHeader.text = L10n.independentChannelVolumes
+        mediaTitleLabel.text = L10n.mediaAudio
+        navTitleLabel.text = L10n.navigationGuidance
+        sysTitleLabel.text = L10n.phoneSystemAlerts
+        duckingTitleLabel.text = L10n.navigationDuckingDrop
+        duckingSubLabel.text = L10n.navigationDuckingSubtitle
+        if var testCfg = testDuckingButton?.configuration {
+            testCfg.title = L10n.testNavDucking
+            testDuckingButton?.configuration = testCfg
+        }
+        if var resetCfg = resetAudioButton?.configuration {
+            resetCfg.title = L10n.resetAudio
+            resetAudioButton?.configuration = resetCfg
+        }
+        syncWithCurrentSettings()
     }
 
     private func setupUI() {
-        title = "Audio & Ducking Configuration"
+        title = L10n.audioDuckingModalTitle
         view.backgroundColor = .systemGroupedBackground
         preferredContentSize = CGSize(width: 580, height: 620)
 
@@ -2352,8 +2504,7 @@ final class QuickAudioConfigViewController: UIViewController {
         ])
 
         // Audio Output Destination Section
-        let destLabel = UILabel()
-        destLabel.text = "Audio Output Destination"
+        destLabel.text = L10n.audioOutputDestination
         destLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         destLabel.textColor = .secondaryLabel
         contentStack.addArrangedSubview(destLabel)
@@ -2379,8 +2530,7 @@ final class QuickAudioConfigViewController: UIViewController {
         contentStack.addArrangedSubview(sep1)
 
         // Channels Header
-        let chanHeader = UILabel()
-        chanHeader.text = "Independent Channel Volumes & Toggles"
+        chanHeader.text = L10n.independentChannelVolumes
         chanHeader.font = .systemFont(ofSize: 12, weight: .semibold)
         chanHeader.textColor = .secondaryLabel
         contentStack.addArrangedSubview(chanHeader)
@@ -2389,7 +2539,8 @@ final class QuickAudioConfigViewController: UIViewController {
         let mediaBlock = makeChannelRow(
             iconName: "music.note",
             iconColor: .systemBlue,
-            title: "Media Audio",
+            titleLabel: mediaTitleLabel,
+            title: L10n.mediaAudio,
             toggle: mediaSwitch,
             slider: mediaSlider,
             valueLabel: mediaValueLabel,
@@ -2401,7 +2552,8 @@ final class QuickAudioConfigViewController: UIViewController {
         let navBlock = makeChannelRow(
             iconName: "location.fill",
             iconColor: .systemGreen,
-            title: "Navigation / Guidance",
+            titleLabel: navTitleLabel,
+            title: L10n.navigationGuidance,
             toggle: navSwitch,
             slider: navSlider,
             valueLabel: navValueLabel,
@@ -2413,7 +2565,8 @@ final class QuickAudioConfigViewController: UIViewController {
         let sysBlock = makeChannelRow(
             iconName: "bell.fill",
             iconColor: .systemOrange,
-            title: "Phone & System Alerts",
+            titleLabel: sysTitleLabel,
+            title: L10n.phoneSystemAlerts,
             toggle: sysSwitch,
             slider: sysSlider,
             valueLabel: sysValueLabel,
@@ -2431,6 +2584,7 @@ final class QuickAudioConfigViewController: UIViewController {
     private func makeChannelRow(
         iconName: String,
         iconColor: UIColor,
+        titleLabel: UILabel,
         title: String,
         toggle: UISwitch,
         slider: UISlider,
@@ -2453,7 +2607,6 @@ final class QuickAudioConfigViewController: UIViewController {
         iconView.widthAnchor.constraint(equalToConstant: 20).isActive = true
         iconView.heightAnchor.constraint(equalToConstant: 20).isActive = true
 
-        let titleLabel = UILabel()
         titleLabel.text = title
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.textColor = .label
@@ -2510,11 +2663,10 @@ final class QuickAudioConfigViewController: UIViewController {
         headerRow.alignment = .center
         headerRow.distribution = .equalSpacing
 
-        let titleLabel = UILabel()
-        titleLabel.text = "Navigation Ducking Drop"
-        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        titleLabel.textColor = .label
-        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        duckingTitleLabel.text = L10n.navigationDuckingDrop
+        duckingTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        duckingTitleLabel.textColor = .label
+        duckingTitleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         duckingStatusLabel.textColor = .systemBlue
@@ -2522,16 +2674,15 @@ final class QuickAudioConfigViewController: UIViewController {
         duckingStatusLabel.adjustsFontSizeToFitWidth = true
         duckingStatusLabel.minimumScaleFactor = 0.75
 
-        headerRow.addArrangedSubview(titleLabel)
+        headerRow.addArrangedSubview(duckingTitleLabel)
         headerRow.addArrangedSubview(duckingStatusLabel)
         container.addArrangedSubview(headerRow)
 
-        let subLabel = UILabel()
-        subLabel.text = "Reduces media music volume during navigation speech guidance."
-        subLabel.font = .systemFont(ofSize: 12)
-        subLabel.textColor = .secondaryLabel
-        subLabel.numberOfLines = 0
-        container.addArrangedSubview(subLabel)
+        duckingSubLabel.text = L10n.navigationDuckingSubtitle
+        duckingSubLabel.font = .systemFont(ofSize: 12)
+        duckingSubLabel.textColor = .secondaryLabel
+        duckingSubLabel.numberOfLines = 0
+        container.addArrangedSubview(duckingSubLabel)
 
         duckingSlider.minimumValue = 0.0
         duckingSlider.maximumValue = 1.0
@@ -2561,29 +2712,31 @@ final class QuickAudioConfigViewController: UIViewController {
         actionsRow.distribution = .fillEqually
 
         var testConfig = UIButton.Configuration.tinted()
-        testConfig.title = "Test Nav Ducking"
+        testConfig.title = L10n.testNavDucking
         testConfig.image = UIImage(systemName: "play.fill")
         testConfig.imagePadding = 4
         testConfig.buttonSize = .small
         testConfig.cornerStyle = .medium
-        let testDuckingButton = UIButton(configuration: testConfig)
-        testDuckingButton.addAction(UIAction { _ in
+        let testBtn = UIButton(configuration: testConfig)
+        testBtn.addAction(UIAction { _ in
             AudioStreamTester.shared.playDuckingTestSequence()
         }, for: .touchUpInside)
+        self.testDuckingButton = testBtn
 
         var resetConfig = UIButton.Configuration.gray()
-        resetConfig.title = "Reset Audio"
+        resetConfig.title = L10n.resetAudio
         resetConfig.image = UIImage(systemName: "arrow.counterclockwise")
         resetConfig.imagePadding = 4
         resetConfig.buttonSize = .small
         resetConfig.cornerStyle = .medium
-        let resetAudioButton = UIButton(configuration: resetConfig)
-        resetAudioButton.addAction(UIAction { [weak self] _ in
+        let resetBtn = UIButton(configuration: resetConfig)
+        resetBtn.addAction(UIAction { [weak self] _ in
             self?.resetAudioVolumes()
         }, for: .touchUpInside)
+        self.resetAudioButton = resetBtn
 
-        actionsRow.addArrangedSubview(testDuckingButton)
-        actionsRow.addArrangedSubview(resetAudioButton)
+        actionsRow.addArrangedSubview(testBtn)
+        actionsRow.addArrangedSubview(resetBtn)
         container.addArrangedSubview(actionsRow)
 
         return container
@@ -2594,7 +2747,7 @@ final class QuickAudioConfigViewController: UIViewController {
             guard let self = self else { return }
             ProjectionSettings.isMediaChannelEnabled = self.mediaSwitch.isOn
             self.mediaSlider.isEnabled = self.mediaSwitch.isOn
-            self.mediaValueLabel.text = self.mediaSwitch.isOn ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off"
+            self.mediaValueLabel.text = self.mediaSwitch.isOn ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : L10n.off
             PCMAudioPlayer.shared.refreshVolumes()
             self.onVolumeOrDuckingChanged?()
         }, for: .valueChanged)
@@ -2612,7 +2765,7 @@ final class QuickAudioConfigViewController: UIViewController {
             guard let self = self else { return }
             ProjectionSettings.isNavigationChannelEnabled = self.navSwitch.isOn
             self.navSlider.isEnabled = self.navSwitch.isOn
-            self.navValueLabel.text = self.navSwitch.isOn ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off"
+            self.navValueLabel.text = self.navSwitch.isOn ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : L10n.off
             PCMAudioPlayer.shared.refreshVolumes()
             self.onVolumeOrDuckingChanged?()
         }, for: .valueChanged)
@@ -2630,7 +2783,7 @@ final class QuickAudioConfigViewController: UIViewController {
             guard let self = self else { return }
             ProjectionSettings.isSystemChannelEnabled = self.sysSwitch.isOn
             self.sysSlider.isEnabled = self.sysSwitch.isOn
-            self.sysValueLabel.text = self.sysSwitch.isOn ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off"
+            self.sysValueLabel.text = self.sysSwitch.isOn ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : L10n.off
             PCMAudioPlayer.shared.refreshVolumes()
             self.onVolumeOrDuckingChanged?()
         }, for: .valueChanged)
@@ -2695,15 +2848,15 @@ final class QuickAudioConfigViewController: UIViewController {
 
         mediaSwitch.isOn = ProjectionSettings.isMediaChannelEnabled
         mediaSlider.value = ProjectionSettings.mediaVolume
-        mediaValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off")
+        mediaValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : L10n.off)
 
         navSwitch.isOn = ProjectionSettings.isNavigationChannelEnabled
         navSlider.value = ProjectionSettings.navigationVolume
-        navValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off")
+        navValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : L10n.off)
 
         sysSwitch.isOn = ProjectionSettings.isSystemChannelEnabled
         sysSlider.value = ProjectionSettings.phoneSystemVolume
-        sysValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off")
+        sysValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : L10n.off)
 
         let duckAmount = ProjectionSettings.navigationDuckingAmount
         duckingSlider.value = duckAmount
@@ -2713,17 +2866,17 @@ final class QuickAudioConfigViewController: UIViewController {
 
     private func updateDuckingStatusLabel(amount: Float) {
         guard ProjectionSettings.isAudioSinkEnabled else {
-            duckingStatusLabel.text = "Disabled (Audio plays on Phone / Car BT)"
+            duckingStatusLabel.text = L10n.duckingDisabledPhoneAudio
             return
         }
         let pct = Int((amount * 100).rounded())
         if pct == 0 {
-            duckingStatusLabel.text = "0% (No Ducking)"
+            duckingStatusLabel.text = L10n.duckingOffTitle
         } else if pct == 100 {
-            duckingStatusLabel.text = "-100% (Mute Media)"
+            duckingStatusLabel.text = L10n.duckingMuteTitle
         } else {
             let retained = 100 - pct
-            duckingStatusLabel.text = "-\(pct)% (Media at \(retained)%)"
+            duckingStatusLabel.text = L10n.duckingStatusRetained(pct: pct, retained: retained)
         }
     }
 

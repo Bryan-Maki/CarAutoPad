@@ -22,17 +22,17 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         var title: String? {
             switch self {
             case .activeSession:
-                return ConnectionManager.shared.state == .running ? "Active Session" : nil
+                return ConnectionManager.shared.state == .running ? L10n.sectionActiveSession : nil
             case .displayLayout:
-                return "Display & Coolwalk Layout"
+                return L10n.sectionDisplayLayout
             case .videoAudio:
-                return "Video & Audio Pipeline"
+                return L10n.sectionVideoAudio
             case .smartSensors:
-                return "Smart Sensors & Night Mode"
+                return L10n.sectionSmartSensors
             case .connectionAutomation:
-                return "Connection & Automation"
+                return L10n.sectionConnectionAutomation
             case .diagnosticsBackup:
-                return "Diagnostics, Logs & Backup"
+                return L10n.sectionDiagnosticsBackup
             }
         }
     }
@@ -61,6 +61,17 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyLocalization),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func applyLocalization() {
+        title = L10n.projectionSettingsTitle
+        tableView.reloadData()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -69,7 +80,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     }
 
     private func setupUI() {
-        title = "Projection Settings"
+        title = L10n.projectionSettingsTitle
         view.backgroundColor = .systemGroupedBackground
         preferredContentSize = CGSize(width: 640, height: 740)
 
@@ -113,7 +124,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .videoAudio:
             return 5
         case .smartSensors:
-            return 2
+            return 3
         case .connectionAutomation:
             return 2
         case .diagnosticsBackup:
@@ -130,18 +141,18 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         switch sec {
         case .displayLayout:
             if isHandshakeSettingsLocked {
-                return "Handshake parameters (DPI, Resolution, FPS, Driving Position) are locked during active session. Disconnect to modify. Fit mode and smoothing remain adjustable."
+                return L10n.footerDisplayLayoutLocked
             }
-            return "Adjust DPI to scale Android Auto UI elements. Virtual width ≥ 800 dp enables Coolwalk split-screen cards. Touch, resolution and margins adapt dynamically."
+            return L10n.footerDisplayLayoutUnlocked
         case .videoAudio:
             if isHandshakeSettingsLocked {
-                return "Video/Audio codecs, output routing and mic source are locked during active session. Disconnect to modify. Live audio channel mixer remains adjustable."
+                return L10n.footerVideoAudioLocked
             }
-            return "Hardware decoding and microphone routing preferences. Vehicle identity remains permanent Car (CAR 1) for seamless multi-device coexistence."
+            return L10n.footerVideoAudioUnlocked
         case .connectionAutomation:
-            return "Auto Reconnect retries failed or interrupted wireless connections silently."
+            return L10n.footerConnectionAutomation
         case .diagnosticsBackup:
-            return "CarAutoPad • Wireless Android Auto Receiver"
+            return L10n.footerDiagnosticsBackup
         default:
             return nil
         }
@@ -171,12 +182,12 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     private func makeActiveSessionCell(for row: Int) -> UITableViewCell {
         let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
         if row == 0 {
-            cell.textLabel?.text = "Connected Device"
+            cell.textLabel?.text = L10n.connectedDeviceRow
             let device = connectionManager.connectedDevice
-            cell.detailTextLabel?.text = "\(device?.displayName ?? "Phone") (\(device?.ip ?? ""):\(device?.port ?? 5277))"
+            cell.detailTextLabel?.text = "\(device?.displayName ?? L10n.defaultPhoneName) (\(device?.ip ?? ""):\(device?.port ?? 5277))"
             cell.accessoryType = .disclosureIndicator
         } else {
-            cell.textLabel?.text = "Disconnect Android Auto"
+            cell.textLabel?.text = L10n.disconnectAndroidAutoRow
             cell.textLabel?.textColor = .systemRed
             cell.textLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
             cell.textLabel?.textAlignment = .center
@@ -198,9 +209,9 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 1:
             let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-            cell.textLabel?.text = "Resolution"
+            cell.textLabel?.text = L10n.resolutionTitle
             let currentRes = ProjectionSettings.resolution
-            cell.detailTextLabel?.text = locked ? "\(currentRes.title) (Locked)" : currentRes.title
+            cell.detailTextLabel?.text = locked ? L10n.lockedSuffix(currentRes.title) : currentRes.title
             cell.accessoryType = locked ? .none : .disclosureIndicator
             cell.selectionStyle = locked ? .none : .default
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
@@ -208,9 +219,9 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Frame Rate"
+            cell.textLabel?.text = L10n.frameRateRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
-            let seg = UISegmentedControl(items: ["60 FPS", "30 FPS"])
+            let seg = UISegmentedControl(items: [ProjectionFpsLimit.fps60.title, ProjectionFpsLimit.fps30.title])
             seg.selectedSegmentIndex = (ProjectionSettings.fpsLimit == .fps60) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -228,8 +239,8 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Display Fit Mode"
-            let seg = UISegmentedControl(items: ["Fill", "Fit", "Stretch"])
+            cell.textLabel?.text = L10n.displayFitMode
+            let seg = UISegmentedControl(items: [L10n.fitSegmentFill, L10n.fitSegmentFit, L10n.fitSegmentStretch])
             switch ProjectionSettings.videoFitMode {
             case .fillMargin: seg.selectedSegmentIndex = 0
             case .contain, .fill, .cover: seg.selectedSegmentIndex = 1
@@ -251,8 +262,12 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 4:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Screen Orientation"
-            let seg = UISegmentedControl(items: ["Landscape", "Portrait", "Auto"])
+            cell.textLabel?.text = L10n.screenOrientationRow
+            let seg = UISegmentedControl(items: [
+                ProjectionOrientation.landscape.title,
+                ProjectionOrientation.portrait.title,
+                ProjectionOrientation.system.title
+            ])
             switch ProjectionSettings.orientation {
             case .landscape: seg.selectedSegmentIndex = 0
             case .portrait: seg.selectedSegmentIndex = 1
@@ -270,9 +285,9 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 5:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Driving Position"
+            cell.textLabel?.text = L10n.drivingPosition
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
-            let seg = UISegmentedControl(items: ["LHD (Left)", "RHD (Right)"])
+            let seg = UISegmentedControl(items: [L10n.lhdShort, L10n.rhdShort])
             seg.selectedSegmentIndex = (ProjectionSettings.driverPosition == .right) ? 1 : 0
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -291,8 +306,8 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 6:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Frame Smoothing"
-            let seg = UISegmentedControl(items: ["Off", "Subtle", "Balanced", "Strong"])
+            cell.textLabel?.text = L10n.frameSmoothingRow
+            let seg = UISegmentedControl(items: MotionBlurMode.allCases.map { $0.shortTitle })
             seg.selectedSegmentIndex = ProjectionSettings.motionBlurMode.rawValue
             seg.addAction(UIAction { [weak self] _ in
                 let modes: [MotionBlurMode] = [.off, .light, .medium, .strong]
@@ -308,7 +323,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 7:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Edge Swipe Protection (Double-Swipe)"
+            cell.textLabel?.text = L10n.edgeSwipeProtectionRow
             let toggle = UISwitch()
             toggle.isOn = ProjectionSettings.isEdgeSwipeProtectionEnabled
             toggle.addAction(UIAction { [weak self] _ in
@@ -329,7 +344,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         switch row {
         case 0:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Video Codec"
+            cell.textLabel?.text = L10n.videoCodecRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["H.264", "HEVC"])
             switch ProjectionSettings.videoCodecPreference {
@@ -352,7 +367,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 1:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Audio Codec"
+            cell.textLabel?.text = L10n.audioCodecRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["AAC-LC", "PCM"])
             seg.selectedSegmentIndex = (ProjectionSettings.audioCodecPreference == .aac) ? 0 : 1
@@ -372,9 +387,9 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Audio Output"
+            cell.textLabel?.text = L10n.audioOutputRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
-            let seg = UISegmentedControl(items: ["iPad", "Phone"])
+            let seg = UISegmentedControl(items: [L10n.audioTargetIpadSegment, L10n.audioTargetPhoneSegment])
             seg.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -397,9 +412,9 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Microphone Source"
+            cell.textLabel?.text = L10n.microphoneSourceRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
-            let seg = UISegmentedControl(items: ["Follow", "iPad", "Phone"])
+            let seg = UISegmentedControl(items: [L10n.micFollowSegment, L10n.micIpadSegment, L10n.micPhoneSegment])
             switch ProjectionSettings.microphoneSource {
             case .followAudioOutput: seg.selectedSegmentIndex = 0
             case .ipad: seg.selectedSegmentIndex = 1
@@ -435,8 +450,14 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         switch row {
         case 0:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Night Mode"
-            let seg = UISegmentedControl(items: ["Auto", "Twilight", "Day", "Night", "System"])
+            cell.textLabel?.text = L10n.nightModeRow
+            let seg = UISegmentedControl(items: [
+                NightModeSetting.auto.shortTitle,
+                NightModeSetting.twilight.shortTitle,
+                NightModeSetting.day.shortTitle,
+                NightModeSetting.night.shortTitle,
+                NightModeSetting.system.shortTitle
+            ])
             switch ProjectionSettings.nightMode {
             case .auto: seg.selectedSegmentIndex = 0
             case .twilight: seg.selectedSegmentIndex = 1
@@ -456,8 +477,8 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case 1:
             if ProjectionSettings.supportsCellularIpad() {
                 let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-                cell.textLabel?.text = "GPS Source"
-                let seg = UISegmentedControl(items: ["Phone", "iPad"])
+                cell.textLabel?.text = L10n.gpsSourceRow
+                let seg = UISegmentedControl(items: [L10n.gpsPhoneShort, L10n.gpsIpadShort])
                 seg.selectedSegmentIndex = (ProjectionSettings.gpsSource == .phone) ? 0 : 1
                 seg.addAction(UIAction { [weak self] _ in
                     let isIpad = (seg.selectedSegmentIndex == 1)
@@ -472,11 +493,19 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 return cell
             } else {
                 let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-                cell.textLabel?.text = "GPS Source"
-                cell.detailTextLabel?.text = "Phone Only (Wi-Fi iPad)"
+                cell.textLabel?.text = L10n.gpsSourceRow
+                cell.detailTextLabel?.text = L10n.gpsPhoneOnlyWifiIpad
                 cell.selectionStyle = .none
                 return cell
             }
+
+        case 2:
+            let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
+            cell.textLabel?.text = L10n.languageRowTitle
+            cell.detailTextLabel?.text = ProjectionSettings.appLanguage.title
+            cell.accessoryType = .disclosureIndicator
+            cell.selectionStyle = .default
+            return cell
 
         default:
             return UITableViewCell()
@@ -487,7 +516,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         switch row {
         case 0:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Auto Reconnect"
+            cell.textLabel?.text = L10n.autoReconnectRow
             let toggle = UISwitch()
             toggle.isOn = ProjectionSettings.autoReconnect
             toggle.addAction(UIAction { _ in
@@ -499,7 +528,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 1:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Auto Resume Playback"
+            cell.textLabel?.text = L10n.autoResumePlaybackRow
             let toggle = UISwitch()
             toggle.isOn = ProjectionSettings.autoResumePlayback
             toggle.addAction(UIAction { _ in
@@ -518,7 +547,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         switch row {
         case 0:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Debug Mode (HUD & Floating Bubble)"
+            cell.textLabel?.text = L10n.debugModeRow
             let toggle = UISwitch()
             toggle.isOn = ProjectionSettings.isDebugModeEnabled
             toggle.addAction(UIAction { [weak self] _ in
@@ -531,40 +560,40 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
         case 1:
             let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-            cell.textLabel?.text = "Debug Log Categories..."
+            cell.textLabel?.text = L10n.debugLogCategoriesRow
             let enabledCount = DebugLogCategory.allCases.filter { ProjectionSettings.isDebugCategoryEnabled($0) }.count
-            cell.detailTextLabel?.text = "\(enabledCount) of \(DebugLogCategory.allCases.count) enabled"
+            cell.detailTextLabel?.text = L10n.debugCategoriesEnabledCount(enabled: enabledCount, total: DebugLogCategory.allCases.count)
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Live Diagnostics Report"
+            cell.textLabel?.text = L10n.liveDiagnosticsReportRow
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Export / Share Session Logs"
+            cell.textLabel?.text = L10n.exportShareSessionLogsRow
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 4:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Clear All Diagnostic Logs"
+            cell.textLabel?.text = L10n.clearAllDiagnosticLogsRow
             cell.textLabel?.textColor = .systemOrange
             cell.textLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
             return cell
 
         case 5:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Backup / Restore Settings (JSON)"
+            cell.textLabel?.text = L10n.backupRestoreSettingsRow
             cell.accessoryType = .disclosureIndicator
             return cell
 
         case 6:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            cell.textLabel?.text = "Reset All Settings to Defaults"
+            cell.textLabel?.text = L10n.resetAllSettingsRow
             cell.textLabel?.textColor = .systemRed
             cell.textLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
             return cell
@@ -590,6 +619,11 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .displayLayout:
             if indexPath.row == 1 && !isHandshakeSettingsLocked {
                 presentResolutionPicker(sourceView: tableView.cellForRow(at: indexPath) ?? tableView)
+            }
+
+        case .smartSensors:
+            if indexPath.row == 2 {
+                presentLanguagePicker(from: tableView.cellForRow(at: indexPath) ?? tableView)
             }
 
         case .diagnosticsBackup:
@@ -618,26 +652,26 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     private func presentConnectionDetails() {
         let device = connectionManager.connectedDevice
         let details = [
-            "State: \(connectionManager.state.description)",
-            "Status: \(connectionManager.statusDetail)",
-            "Device: \(device?.displayName ?? "Unknown")",
-            "IP: \(device?.ip ?? "Unknown")",
-            "Port: \(device?.port ?? 0)"
+            "\(L10n.detailState): \(connectionManager.state.localizedDescription)",
+            "\(L10n.detailStatus): \(connectionManager.statusDetail)",
+            "\(L10n.detailDevice): \(device?.displayName ?? L10n.unknown)",
+            "\(L10n.detailIp): \(device?.ip ?? L10n.unknown)",
+            "\(L10n.detailPort): \(device?.port ?? 0)"
         ].joined(separator: "\n")
 
-        let alert = UIAlertController(title: "Connection Details", message: details, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: L10n.connectionDetailsTitle, message: details, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: L10n.ok, style: .default))
         present(alert, animated: true)
     }
 
     private func presentResolutionPicker(sourceView: UIView) {
-        let alert = UIAlertController(title: "Resolution", message: "Choose target projection resolution ladder", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: L10n.resolutionTitle, message: L10n.resolutionPickerMessage, preferredStyle: .actionSheet)
         configurePopover(for: alert, sourceView: sourceView)
 
         let presets: [ResolutionPreset] = [.auto, .r1280x720, .r1920x1080, .r2560x1440, .r3840x2160]
         for preset in presets {
             let isCurrent = preset == ProjectionSettings.resolution
-            let title = isCurrent ? "\(preset.title) (Current)" : preset.title
+            let title = isCurrent ? L10n.currentSuffix(preset.title) : preset.title
             alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
                 ProjectionSettings.resolution = preset
                 HeadUnitScreenConfig.shared.recalculate(requestedResolution: preset)
@@ -650,31 +684,31 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 }
             })
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
     private func presentLiveDiagnostics() {
         let lines = onProvideDiagnosticLines?() ?? connectionManager.diagnosticLines()
         let text = lines.joined(separator: "\n")
-        let alert = UIAlertController(title: "Live Diagnostics", message: text, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Copy to Clipboard", style: .default) { _ in
+        let alert = UIAlertController(title: L10n.liveDiagnosticsTitle, message: text, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: L10n.copyToClipboard, style: .default) { _ in
             UIPasteboard.general.string = text
         })
-        alert.addAction(UIAlertAction(title: "Close", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.close, style: .cancel))
         present(alert, animated: true)
     }
 
     private func presentLogExportMenu(sourceView: UIView) {
-        let alert = UIAlertController(title: "Export / Share Logs", message: "Session diagnostic logs & audit reports.", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: L10n.exportShareLogsTitle, message: L10n.exportShareLogsMessage, preferredStyle: .actionSheet)
         configurePopover(for: alert, sourceView: sourceView)
 
-        alert.addAction(UIAlertAction(title: "Copy Log to Clipboard", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: L10n.copyLogToClipboard, style: .default) { _ in
             let text = LogExporter.exportToClipboardText()
             UIPasteboard.general.string = text
             AppLog.i("Diagnostic log copied to clipboard (\(text.utf8.count) bytes)", tag: "SettingsViewController")
         })
-        alert.addAction(UIAlertAction(title: "Share Log File (.txt)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: L10n.shareLogFileTxt, style: .default) { [weak self] _ in
             guard let self = self else { return }
             if let fileUrl = LogExporter.exportToTemporaryFile() {
                 let activityVC = UIActivityViewController(activityItems: [fileUrl], applicationActivities: nil)
@@ -682,31 +716,31 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 self.present(activityVC, animated: true)
             }
         })
-        alert.addAction(UIAlertAction(title: "Clear In-Memory Logs", style: .destructive) { _ in
+        alert.addAction(UIAlertAction(title: L10n.clearInMemoryLogs, style: .destructive) { _ in
             AppLog.shared.clear()
         })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
     private func presentBackupRestoreMenu(sourceView: UIView) {
-        let alert = UIAlertController(title: "Backup / Restore Settings", message: "Export settings to JSON or restore from clipboard.", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: L10n.backupRestoreTitle, message: L10n.backupRestoreMessage, preferredStyle: .actionSheet)
         configurePopover(for: alert, sourceView: sourceView)
 
-        alert.addAction(UIAlertAction(title: "Copy Settings JSON to Clipboard", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: L10n.copySettingsJsonToClipboard, style: .default) { [weak self] _ in
             guard let self = self else { return }
             let json = SettingsBackupManager.exportToJson()
             UIPasteboard.general.string = json
-            let ok = UIAlertController(title: "Settings Exported", message: "JSON settings copied to clipboard.", preferredStyle: .alert)
-            ok.addAction(UIAlertAction(title: "OK", style: .default))
+            let ok = UIAlertController(title: L10n.settingsExportedTitle, message: L10n.settingsExportedMessage, preferredStyle: .alert)
+            ok.addAction(UIAlertAction(title: L10n.ok, style: .default))
             self.present(ok, animated: true)
         })
 
-        alert.addAction(UIAlertAction(title: "Restore Settings from Clipboard", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: L10n.restoreSettingsFromClipboard, style: .default) { [weak self] _ in
             guard let self = self else { return }
             guard let json = UIPasteboard.general.string, !json.isEmpty else {
-                let err = UIAlertController(title: "Restore Failed", message: "Clipboard does not contain JSON text.", preferredStyle: .alert)
-                err.addAction(UIAlertAction(title: "OK", style: .default))
+                let err = UIAlertController(title: L10n.restoreFailedTitle, message: L10n.restoreFailedNoJson, preferredStyle: .alert)
+                err.addAction(UIAlertAction(title: L10n.ok, style: .default))
                 self.present(err, animated: true)
                 return
             }
@@ -716,33 +750,33 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 self.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared)
                 self.tableView.reloadData()
                 self.onSettingsChanged?(.uiOnly)
-                let ok = UIAlertController(title: "Settings Restored", message: "Preferences have been restored from clipboard.", preferredStyle: .alert)
-                ok.addAction(UIAlertAction(title: "OK", style: .default))
+                let ok = UIAlertController(title: L10n.settingsRestoredTitle, message: L10n.settingsRestoredMessage, preferredStyle: .alert)
+                ok.addAction(UIAlertAction(title: L10n.ok, style: .default))
                 self.present(ok, animated: true)
             } catch {
-                let err = UIAlertController(title: "Restore Error", message: error.localizedDescription, preferredStyle: .alert)
-                err.addAction(UIAlertAction(title: "OK", style: .default))
+                let err = UIAlertController(title: L10n.restoreErrorTitle, message: error.localizedDescription, preferredStyle: .alert)
+                err.addAction(UIAlertAction(title: L10n.ok, style: .default))
                 self.present(err, animated: true)
             }
         })
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
     private func presentResetDefaultsAlert() {
         let alert = UIAlertController(
-            title: "Reset All Settings",
-            message: "Are you sure you want to reset all projection preferences to factory defaults? This action cannot be undone.",
+            title: L10n.resetAllSettingsTitle,
+            message: L10n.resetAllSettingsMessage,
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Reset", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: L10n.reset, style: .destructive) { [weak self] _ in
             SettingsBackupManager.resetToDefaults()
             self?.dpiPreviewCell?.configure(with: HeadUnitScreenConfig.shared)
             self?.tableView.reloadData()
             self?.onSettingsChanged?(.uiOnly)
         })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
         present(alert, animated: true)
     }
 
@@ -756,11 +790,11 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         generator.notificationOccurred(.success)
         AppLog.shared.clear()
         let alert = UIAlertController(
-            title: "Diagnostic Logs Cleared",
-            message: "Memory buffer and disk logs have been emptied (0 entries).",
+            title: L10n.diagnosticLogsClearedTitle,
+            message: L10n.diagnosticLogsClearedMessage,
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: L10n.ok, style: .default))
         present(alert, animated: true)
     }
 }
@@ -779,7 +813,7 @@ final class DpiPreviewCell: UITableViewCell {
 
     private let autoDpiLabel: UILabel = {
         let label = UILabel()
-        label.text = "Auto DPI (Recommended)"
+        label.text = L10n.autoDpiRecommended
         label.font = .systemFont(ofSize: 16, weight: .medium)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -909,6 +943,7 @@ final class DpiPreviewCell: UITableViewCell {
         previewView.isRightHandDrive = (ProjectionSettings.driverPosition == .right)
         previewView.fitMode = ProjectionSettings.videoFitMode
 
+        autoDpiLabel.text = L10n.autoDpiRecommended
         autoDpiSwitch.isOn = ProjectionSettings.isAutoDpi
         dpiSlider.value = Float(ProjectionSettings.effectiveDpi)
         updateDpiLabel()
@@ -952,8 +987,8 @@ final class DpiPreviewCell: UITableViewCell {
     }
 
     private func updateDpiLabel() {
-        let prefix = ProjectionSettings.isAutoDpi ? "Auto " : "Custom "
-        let splitText = previewView.isCoolwalkSplitScreen ? "Coolwalk Split" : "Single Fullscreen"
+        let prefix = ProjectionSettings.isAutoDpi ? "\(L10n.autoShort) " : "\(L10n.customShort) "
+        let splitText = previewView.isCoolwalkSplitScreen ? L10n.coolwalkSplitShort : L10n.singleFullscreenShort
         dpiValueLabel.text = "\(prefix)(\(previewView.dpi) DPI) • \(previewView.virtualWidthDp)×\(previewView.virtualHeightDp) dp (\(splitText))"
     }
 }
@@ -961,7 +996,7 @@ final class DpiPreviewCell: UITableViewCell {
 final class DebugLogCategoriesViewController: UITableViewController {
     init() {
         super.init(style: .insetGrouped)
-        title = "Debug Log Categories"
+        title = L10n.debugLogCategoriesTitle
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -969,11 +1004,23 @@ final class DebugLogCategoriesViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Enable All",
+            title: L10n.enableAll,
             style: .plain,
             target: self,
             action: #selector(enableAllTapped)
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyLocalization),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func applyLocalization() {
+        title = L10n.debugLogCategoriesTitle
+        navigationItem.rightBarButtonItem?.title = L10n.enableAll
+        tableView.reloadData()
     }
 
     @objc private func enableAllTapped() {
@@ -1010,7 +1057,7 @@ final class DebugLogCategoriesViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        return "Enabled categories emit structured telemetry to AppLog. Disabling unnecessary categories saves CPU overhead."
+        return L10n.debugLogCategoriesFooter
     }
 }
 
@@ -1027,22 +1074,29 @@ final class AudioChannelMixerCell: UITableViewCell {
         return stack
     }()
 
+    private let mediaTitleLabel = UILabel()
     private let mediaSwitch = UISwitch()
     private let mediaSlider = UISlider()
     private let mediaValueLabel = UILabel()
 
+    private let navTitleLabel = UILabel()
     private let navSwitch = UISwitch()
     private let navSlider = UISlider()
     private let navValueLabel = UILabel()
 
+    private let sysTitleLabel = UILabel()
     private let sysSwitch = UISwitch()
     private let sysSlider = UISlider()
     private let sysValueLabel = UILabel()
 
+    private let duckingTitleLabel = UILabel()
+    private let duckingSubLabel = UILabel()
     private let duckingStatusLabel = UILabel()
     private let duckingSlider = UISlider()
     private let presetStackView = UIStackView()
     private var presetButtons: [NavigationDuckingPreset: UIButton] = [:]
+    private var testDuckingButton: UIButton?
+    private var resetAudioButton: UIButton?
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -1071,7 +1125,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         let mediaBlock = makeChannelRow(
             iconName: "music.note",
             iconColor: .systemBlue,
-            title: "Media Audio",
+            titleLabel: mediaTitleLabel,
+            title: L10n.mediaAudio,
             toggle: mediaSwitch,
             slider: mediaSlider,
             valueLabel: mediaValueLabel,
@@ -1083,7 +1138,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         let navBlock = makeChannelRow(
             iconName: "location.fill",
             iconColor: .systemGreen,
-            title: "Navigation / Guidance",
+            titleLabel: navTitleLabel,
+            title: L10n.navigationGuidance,
             toggle: navSwitch,
             slider: navSlider,
             valueLabel: navValueLabel,
@@ -1095,7 +1151,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         let sysBlock = makeChannelRow(
             iconName: "bell.fill",
             iconColor: .systemOrange,
-            title: "Phone & System Alerts",
+            titleLabel: sysTitleLabel,
+            title: L10n.phoneSystemAlerts,
             toggle: sysSwitch,
             slider: sysSlider,
             valueLabel: sysValueLabel,
@@ -1113,6 +1170,7 @@ final class AudioChannelMixerCell: UITableViewCell {
     private func makeChannelRow(
         iconName: String,
         iconColor: UIColor,
+        titleLabel: UILabel,
         title: String,
         toggle: UISwitch,
         slider: UISlider,
@@ -1135,7 +1193,6 @@ final class AudioChannelMixerCell: UITableViewCell {
         iconView.widthAnchor.constraint(equalToConstant: 20).isActive = true
         iconView.heightAnchor.constraint(equalToConstant: 20).isActive = true
 
-        let titleLabel = UILabel()
         titleLabel.text = title
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.textColor = .label
@@ -1192,11 +1249,10 @@ final class AudioChannelMixerCell: UITableViewCell {
         headerRow.alignment = .center
         headerRow.distribution = .equalSpacing
 
-        let titleLabel = UILabel()
-        titleLabel.text = "Navigation Ducking Drop"
-        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        titleLabel.textColor = .label
-        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        duckingTitleLabel.text = L10n.navigationDuckingDrop
+        duckingTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        duckingTitleLabel.textColor = .label
+        duckingTitleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         duckingStatusLabel.textColor = .systemBlue
@@ -1204,16 +1260,15 @@ final class AudioChannelMixerCell: UITableViewCell {
         duckingStatusLabel.adjustsFontSizeToFitWidth = true
         duckingStatusLabel.minimumScaleFactor = 0.75
 
-        headerRow.addArrangedSubview(titleLabel)
+        headerRow.addArrangedSubview(duckingTitleLabel)
         headerRow.addArrangedSubview(duckingStatusLabel)
         container.addArrangedSubview(headerRow)
 
-        let subLabel = UILabel()
-        subLabel.text = "Reduces media music volume during navigation speech guidance."
-        subLabel.font = .systemFont(ofSize: 12)
-        subLabel.textColor = .secondaryLabel
-        subLabel.numberOfLines = 0
-        container.addArrangedSubview(subLabel)
+        duckingSubLabel.text = L10n.navigationDuckingSubtitle
+        duckingSubLabel.font = .systemFont(ofSize: 12)
+        duckingSubLabel.textColor = .secondaryLabel
+        duckingSubLabel.numberOfLines = 0
+        container.addArrangedSubview(duckingSubLabel)
 
         duckingSlider.minimumValue = 0.0
         duckingSlider.maximumValue = 1.0
@@ -1243,29 +1298,31 @@ final class AudioChannelMixerCell: UITableViewCell {
         actionsRow.distribution = .fillEqually
 
         var testConfig = UIButton.Configuration.tinted()
-        testConfig.title = "Test Nav Ducking"
+        testConfig.title = L10n.testNavDucking
         testConfig.image = UIImage(systemName: "play.fill")
         testConfig.imagePadding = 4
         testConfig.buttonSize = .small
         testConfig.cornerStyle = .medium
-        let testDuckingButton = UIButton(configuration: testConfig)
-        testDuckingButton.addAction(UIAction { _ in
+        let testBtn = UIButton(configuration: testConfig)
+        testBtn.addAction(UIAction { _ in
             AudioStreamTester.shared.playDuckingTestSequence()
         }, for: .touchUpInside)
+        self.testDuckingButton = testBtn
 
         var resetConfig = UIButton.Configuration.gray()
-        resetConfig.title = "Reset Audio"
+        resetConfig.title = L10n.resetAudio
         resetConfig.image = UIImage(systemName: "arrow.counterclockwise")
         resetConfig.imagePadding = 4
         resetConfig.buttonSize = .small
         resetConfig.cornerStyle = .medium
-        let resetAudioButton = UIButton(configuration: resetConfig)
-        resetAudioButton.addAction(UIAction { [weak self] _ in
+        let resetBtn = UIButton(configuration: resetConfig)
+        resetBtn.addAction(UIAction { [weak self] _ in
             self?.resetAudioVolumes()
         }, for: .touchUpInside)
+        self.resetAudioButton = resetBtn
 
-        actionsRow.addArrangedSubview(testDuckingButton)
-        actionsRow.addArrangedSubview(resetAudioButton)
+        actionsRow.addArrangedSubview(testBtn)
+        actionsRow.addArrangedSubview(resetBtn)
         container.addArrangedSubview(actionsRow)
 
         return container
@@ -1276,7 +1333,7 @@ final class AudioChannelMixerCell: UITableViewCell {
             guard let self = self else { return }
             ProjectionSettings.isMediaChannelEnabled = self.mediaSwitch.isOn
             self.mediaSlider.isEnabled = self.mediaSwitch.isOn
-            self.mediaValueLabel.text = self.mediaSwitch.isOn ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off"
+            self.mediaValueLabel.text = self.mediaSwitch.isOn ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : L10n.off
             PCMAudioPlayer.shared.refreshVolumes()
             self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
         }, for: .valueChanged)
@@ -1294,7 +1351,7 @@ final class AudioChannelMixerCell: UITableViewCell {
             guard let self = self else { return }
             ProjectionSettings.isNavigationChannelEnabled = self.navSwitch.isOn
             self.navSlider.isEnabled = self.navSwitch.isOn
-            self.navValueLabel.text = self.navSwitch.isOn ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off"
+            self.navValueLabel.text = self.navSwitch.isOn ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : L10n.off
             PCMAudioPlayer.shared.refreshVolumes()
             self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
         }, for: .valueChanged)
@@ -1312,7 +1369,7 @@ final class AudioChannelMixerCell: UITableViewCell {
             guard let self = self else { return }
             ProjectionSettings.isSystemChannelEnabled = self.sysSwitch.isOn
             self.sysSlider.isEnabled = self.sysSwitch.isOn
-            self.sysValueLabel.text = self.sysSwitch.isOn ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off"
+            self.sysValueLabel.text = self.sysSwitch.isOn ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : L10n.off
             PCMAudioPlayer.shared.refreshVolumes()
             self.onSettingsChanged?(.audioVolumeOrDuckingChanged)
         }, for: .valueChanged)
@@ -1361,6 +1418,20 @@ final class AudioChannelMixerCell: UITableViewCell {
     }
 
     func syncWithCurrentSettings() {
+        mediaTitleLabel.text = L10n.mediaAudio
+        navTitleLabel.text = L10n.navigationGuidance
+        sysTitleLabel.text = L10n.phoneSystemAlerts
+        duckingTitleLabel.text = L10n.navigationDuckingDrop
+        duckingSubLabel.text = L10n.navigationDuckingSubtitle
+        if var testCfg = testDuckingButton?.configuration {
+            testCfg.title = L10n.testNavDucking
+            testDuckingButton?.configuration = testCfg
+        }
+        if var resetCfg = resetAudioButton?.configuration {
+            resetCfg.title = L10n.resetAudio
+            resetAudioButton?.configuration = resetCfg
+        }
+
         let isSink = ProjectionSettings.isAudioSinkEnabled
         mediaSwitch.isEnabled = isSink
         mediaSlider.isEnabled = isSink && ProjectionSettings.isMediaChannelEnabled
@@ -1375,15 +1446,15 @@ final class AudioChannelMixerCell: UITableViewCell {
 
         mediaSwitch.isOn = ProjectionSettings.isMediaChannelEnabled
         mediaSlider.value = ProjectionSettings.mediaVolume
-        mediaValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : "Off")
+        mediaValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : L10n.off)
 
         navSwitch.isOn = ProjectionSettings.isNavigationChannelEnabled
         navSlider.value = ProjectionSettings.navigationVolume
-        navValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : "Off")
+        navValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : L10n.off)
 
         sysSwitch.isOn = ProjectionSettings.isSystemChannelEnabled
         sysSlider.value = ProjectionSettings.phoneSystemVolume
-        sysValueLabel.text = (!isSink) ? "N/A" : (ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : "Off")
+        sysValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : L10n.off)
 
         let duckAmount = ProjectionSettings.navigationDuckingAmount
         duckingSlider.value = duckAmount
@@ -1393,17 +1464,17 @@ final class AudioChannelMixerCell: UITableViewCell {
 
     private func updateDuckingStatusLabel(amount: Float) {
         guard ProjectionSettings.isAudioSinkEnabled else {
-            duckingStatusLabel.text = "Disabled (Audio plays on Phone / Car BT)"
+            duckingStatusLabel.text = L10n.duckingDisabledPhoneAudio
             return
         }
         let pct = Int((amount * 100).rounded())
         if pct == 0 {
-            duckingStatusLabel.text = "0% (No Ducking)"
+            duckingStatusLabel.text = L10n.duckingOffTitle
         } else if pct == 100 {
-            duckingStatusLabel.text = "-100% (Mute Media)"
+            duckingStatusLabel.text = L10n.duckingMuteTitle
         } else {
             let retained = 100 - pct
-            duckingStatusLabel.text = "-\(pct)% (Media at \(retained)%)"
+            duckingStatusLabel.text = L10n.duckingStatusRetained(pct: pct, retained: retained)
         }
     }
 

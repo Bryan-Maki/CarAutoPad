@@ -8,11 +8,11 @@ public enum SettingsBackupError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidFormat:
-            return "Invalid settings format: missing or incorrect format identifier"
+            return L10n.backupErrorInvalidFormat
         case .unsupportedVersion(let v):
-            return "Unsupported settings format version: \(v)"
+            return L10n.backupErrorUnsupportedVersion(v)
         case .corruptedData(let msg):
-            return "Corrupted settings data: \(msg)"
+            return L10n.backupErrorCorruptedData(msg)
         }
     }
 }
@@ -43,6 +43,7 @@ public struct SettingsPayload: Codable, Equatable {
     public var isSystemChannelEnabled: Bool?
     public var navigationDuckingAmount: Float?
     public var isEdgeSwipeProtectionEnabled: Bool? = nil
+    public var appLanguage: String? = nil
 
     public init(
         resolution: Int,
@@ -69,7 +70,8 @@ public struct SettingsPayload: Codable, Equatable {
         isNavigationChannelEnabled: Bool? = nil,
         isSystemChannelEnabled: Bool? = nil,
         navigationDuckingAmount: Float? = nil,
-        isEdgeSwipeProtectionEnabled: Bool? = nil
+        isEdgeSwipeProtectionEnabled: Bool? = nil,
+        appLanguage: String? = nil
     ) {
         self.resolution = resolution
         self.fpsLimit = fpsLimit
@@ -96,6 +98,7 @@ public struct SettingsPayload: Codable, Equatable {
         self.isSystemChannelEnabled = isSystemChannelEnabled
         self.navigationDuckingAmount = navigationDuckingAmount
         self.isEdgeSwipeProtectionEnabled = isEdgeSwipeProtectionEnabled
+        self.appLanguage = appLanguage
     }
 }
 
@@ -143,7 +146,8 @@ public enum SettingsBackupManager {
             isNavigationChannelEnabled: ProjectionSettings.isNavigationChannelEnabled,
             isSystemChannelEnabled: ProjectionSettings.isSystemChannelEnabled,
             navigationDuckingAmount: ProjectionSettings.navigationDuckingAmount,
-            isEdgeSwipeProtectionEnabled: ProjectionSettings.isEdgeSwipeProtectionEnabled
+            isEdgeSwipeProtectionEnabled: ProjectionSettings.isEdgeSwipeProtectionEnabled,
+            appLanguage: ProjectionSettings.appLanguage.rawValue
         )
     }
 
@@ -253,6 +257,9 @@ public enum SettingsBackupManager {
         if let edgeSwipe = s.isEdgeSwipeProtectionEnabled {
             ProjectionSettings.isEdgeSwipeProtectionEnabled = edgeSwipe
         }
+        if let langRaw = s.appLanguage, let lang = AppLanguage(rawValue: langRaw) {
+            ProjectionSettings.appLanguage = lang
+        }
 
         PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: ProjectionSettings.resolution)
@@ -286,6 +293,7 @@ public enum SettingsBackupManager {
         ProjectionSettings.isSystemChannelEnabled = true
         ProjectionSettings.navigationDuckingAmount = ProjectionSettings.defaultNavigationDuckingAmount
         ProjectionSettings.isEdgeSwipeProtectionEnabled = true
+        ProjectionSettings.appLanguage = .system
 
         PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: .auto)

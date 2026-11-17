@@ -33,6 +33,83 @@ enum ConnectionState: Equatable {
             return "Error: \(message)"
         }
     }
+
+    var localizedDescription: String {
+        switch self {
+        case .disconnected:
+            return L10n.stateDisconnected
+        case .discovering:
+            return L10n.stateDiscovering
+        case .waitingForWirelessHelper:
+            return L10n.stateWaitingHelper
+        case .connecting:
+            return L10n.stateConnecting
+        case .handshaking:
+            return L10n.stateHandshaking
+        case .running:
+            return L10n.stateConnected
+        case .disconnecting:
+            return L10n.stateDisconnecting
+        case .error(let message):
+            return L10n.stateError(message)
+        }
+    }
+}
+
+public enum ConnectionStatusKind: Equatable {
+    case ready
+    case searchFailedNoWifi
+    case scanning(stationIp: String)
+    case connecting(deviceName: String)
+    case retrying(attempt: Int, maxAttempts: Int)
+    case failedAfterRetries(maxAttempts: Int)
+    case noDeviceFound
+    case searchFailed(reason: String)
+    case waitingForHeadunitServer
+    case handshakingTls
+    case runningWireless
+    case disconnectedFromSession
+    case customError(String)
+
+    public var isDisconnectedWarning: Bool {
+        switch self {
+        case .searchFailedNoWifi, .noDeviceFound, .searchFailed, .failedAfterRetries:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var localizedText: String {
+        switch self {
+        case .ready:
+            return L10n.statusReadyToConnect
+        case .searchFailedNoWifi:
+            return L10n.statusSearchFailedNoWifi
+        case .scanning(let stationIp):
+            return L10n.statusScanning(stationIp: stationIp)
+        case .connecting(let deviceName):
+            return L10n.statusConnectingTo(deviceName)
+        case .retrying(let attempt, let maxAttempts):
+            return L10n.statusRetrying(attempt: attempt, maxAttempts: maxAttempts)
+        case .failedAfterRetries(let maxAttempts):
+            return L10n.statusFailedAfterRetries(maxAttempts)
+        case .noDeviceFound:
+            return L10n.statusNoDeviceFound
+        case .searchFailed(let reason):
+            return L10n.statusSearchFailed(reason: reason)
+        case .waitingForHeadunitServer:
+            return L10n.statusWaitingHeadunitServer
+        case .handshakingTls:
+            return L10n.statusHandshakingTls
+        case .runningWireless:
+            return L10n.statusRunningWireless
+        case .disconnectedFromSession:
+            return L10n.statusDisconnectedFromSession
+        case .customError(let message):
+            return message
+        }
+    }
 }
 
 protocol ConnectionManagerDelegate: AnyObject {
@@ -122,7 +199,8 @@ class ConnectionManager {
 
     private(set) var discoveredDevices: [DiscoveredDevice] = []
     private(set) var connectedDevice: DiscoveredDevice?
-    private(set) var statusDetail = "Ready to connect"
+    public private(set) var statusKind: ConnectionStatusKind = .ready
+    private(set) var statusDetail = L10n.statusReadyToConnect
 
     init() {
         discovery.delegate = self
@@ -144,6 +222,35 @@ class ConnectionManager {
             name: .carAutoPadNetworkReachabilityDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppLanguageDidChange),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func handleAppLanguageDidChange() {
+        refreshLocalizedStatus()
+    }
+
+    func setStatusKindForTesting(_ kind: ConnectionStatusKind) {
+        statusKind = kind
+        statusDetail = kind.localizedText
+    }
+
+    public func refreshLocalizedStatus() {
+        let localized = statusKind.localizedText
+        statusDetail = localized
+        let notify = { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.connectionManager(self, didUpdateStatus: localized)
+        }
+        if Thread.isMainThread {
+            notify()
+        } else {
+            DispatchQueue.main.async(execute: notify)
+        }
     }
 
     @objc private func handleNetworkReachabilityChanged(_ notification: Notification) {
@@ -179,7 +286,7 @@ class ConnectionManager {
             AppLog.w("ConnectionManager: No Wi-Fi IPv4 address detected, aborting discovery", tag: "ConnectionManager")
             state = .disconnected
             ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
-            updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+            updateStatus(.searchFailedNoWifi)
             return
         }
 
@@ -203,8 +310,8 @@ class ConnectionManager {
         discoveredDevices.removeAll()
         state = .discovering
 
-        let stationIp = NetworkAddresses.stationIpv4() ?? "No Wi-Fi"
-        updateStatus("iPad IP: \(stationIp) | Scanning for phone hotspot / headunit...")
+        let stationIp = NetworkAddresses.stationIpv4() ?? ""
+        updateStatus(.scanning(stationIp: stationIp))
 
         Discovery.triggerLocalNetworkPermission()
 
@@ -217,7 +324,7 @@ class ConnectionManager {
         discovery.stopScan(cancelPrepared: cancelPrepared)
         if resetState && (state == .discovering || state == .waitingForWirelessHelper) {
             state = .disconnected
-            updateStatus("Ready to connect")
+            updateStatus(.ready)
         }
     }
 
@@ -273,12 +380,12 @@ class ConnectionManager {
         if let prepared = prepared {
             AppLog.category(.connectionHandshake, "[CONN] Adopting prepared discovery socket to \(device.ip):\(device.port)", tag: "ConnectionManager")
             AppLog.i("ConnectionManager: Adopting prepared discovery connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
-            updateStatus("Connecting to \(device.displayName)...")
+            updateStatus(.connecting(deviceName: device.displayName))
             tcpHandler.adoptConnection(prepared, host: device.ip, port: device.port)
         } else {
             AppLog.category(.connectionHandshake, "[CONN] Opening fresh TCP socket to \(device.ip):\(device.port)", tag: "ConnectionManager")
             AppLog.i("ConnectionManager: Opening fresh TCP connection to \(device.ip):\(device.port)", tag: "ConnectionManager")
-            updateStatus("Connecting to \(device.displayName)...")
+            updateStatus(.connecting(deviceName: device.displayName))
             tcpHandler.connect(host: device.ip, port: device.port)
         }
     }
@@ -313,7 +420,7 @@ class ConnectionManager {
         locationCapture.stop()
         connectedDevice = nil
         state = .disconnected
-        updateStatus("Ready to connect")
+        updateStatus(.ready)
 
         delayedDisconnectWorkItem?.cancel()
         delayedDisconnectWorkItem = nil
@@ -485,7 +592,9 @@ class ConnectionManager {
         aapTransport = transport
     }
 
-    private func updateStatus(_ status: String) {
+    private func updateStatus(_ kind: ConnectionStatusKind) {
+        statusKind = kind
+        let status = kind.localizedText
         statusDetail = status
         AppLog.i("ConnectionManager: status = \(status)", tag: "ConnectionManager")
         DispatchQueue.main.async { [weak self] in
@@ -502,7 +611,7 @@ class ConnectionManager {
         if reconnectAttempt < maxReconnectAttempts {
             reconnectAttempt += 1
             let attemptNum = reconnectAttempt
-            updateStatus("Connection failed. Retrying in 3s (\(attemptNum)/\(maxReconnectAttempts))...")
+            updateStatus(.retrying(attempt: attemptNum, maxAttempts: maxReconnectAttempts))
             let session = (activeConnection ?? tcpHandler) as AnyObject
             autoReconnect.schedule(
                 endedSession: session,
@@ -518,8 +627,8 @@ class ConnectionManager {
         } else {
             autoReconnect.cancel()
             ConnectionIssueStore.shared.raise(issue: .headunitServerStuckAfterRetries)
-            state = .error("Connection failed after 3 retries. Headunit Server on phone may be stuck — please manually restart Headunit Server.")
-            updateStatus("Failed after 3 retries. Phone Headunit Server may be stuck — please restart it manually.")
+            state = .error(L10n.errorFailedAfterRetries(maxReconnectAttempts))
+            updateStatus(.failedAfterRetries(maxAttempts: maxReconnectAttempts))
         }
     }
 
@@ -554,10 +663,10 @@ extension ConnectionManager: DiscoveryDelegate {
         state = .disconnected
         if NetworkAddresses.stationIpv4() == nil {
             ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
-            updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+            updateStatus(.searchFailedNoWifi)
         } else {
             ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
-            updateStatus("No device found on network (Check Headunit Server on phone)")
+            updateStatus(.noDeviceFound)
         }
     }
 
@@ -566,10 +675,10 @@ extension ConnectionManager: DiscoveryDelegate {
         state = .disconnected
         if NetworkAddresses.stationIpv4() == nil || (error as? DiscoveryError) == .noNetworkInterface {
             ConnectionIssueStore.shared.raise(issue: .wifiRadioOff)
-            updateStatus("Search failed: No Wi-Fi / Hotspot connection")
+            updateStatus(.searchFailedNoWifi)
         } else {
             ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
-            updateStatus("Search failed: \(error.localizedDescription)")
+            updateStatus(.searchFailed(reason: error.localizedDescription))
         }
     }
 }
@@ -621,8 +730,8 @@ extension ConnectionManager: AapTransportDelegate {
         NowPlayingCoordinator.shared.updateMetadata(
             NowPlayingMetadata(
                 title: title?.isEmpty == false ? title! : "Android Auto",
-                artist: artist?.isEmpty == false ? artist! : "Unknown Artist",
-                album: album?.isEmpty == false ? album! : "Projection",
+                artist: artist?.isEmpty == false ? artist! : L10n.unknownArtist,
+                album: album?.isEmpty == false ? album! : L10n.projectionLabel,
                 durationSeconds: metadata.durationSeconds,
                 artworkImage: artwork
             )
@@ -640,7 +749,7 @@ extension ConnectionManager: AapTransportDelegate {
                 NowPlayingMetadata(
                     title: source,
                     artist: "Android Auto",
-                    album: "Projection",
+                    album: L10n.projectionLabel,
                     durationSeconds: nil,
                     artworkImage: nil
                 )
@@ -659,11 +768,11 @@ extension ConnectionManager: AapTransportDelegate {
         switch state {
         case .waitingForVersion, .versionSent:
             self.state = .handshaking
-            updateStatus("Waiting for Android Auto Headunit Server (5277)...")
+            updateStatus(.waitingForHeadunitServer)
 
         case .tlsHandshaking, .authenticating, .authenticatingComplete, .binding:
             self.state = .handshaking
-            updateStatus("Handshaking with Android Auto (TLS / Service Discovery)...")
+            updateStatus(.handshakingTls)
 
         case .running:
             NowPlayingCoordinator.shared.activate()
@@ -676,7 +785,7 @@ extension ConnectionManager: AapTransportDelegate {
             consecutiveSilentFailures = 0
             autoReconnect.resetAttempts()
             ConnectionIssueStore.shared.clearAll()
-            updateStatus("Android Auto is running over wireless")
+            updateStatus(.runningWireless)
             consecutiveStarvedSessions = VideoStarvationPolicy.nextStreak(
                 current: consecutiveStarvedSessions,
                 reachedHandshake: true,
@@ -702,7 +811,7 @@ extension ConnectionManager: AapTransportDelegate {
             microphoneCapture.stop()
             locationCapture.stop()
             self.state = .error(msg)
-            updateStatus(msg)
+            updateStatus(.customError(msg))
 
             consecutiveSilentFailures = UnresponsivePeerPolicy.countAfterSilentFailure(
                 previousCount: consecutiveSilentFailures,
@@ -736,7 +845,7 @@ extension ConnectionManager: AapTransportDelegate {
         locationCapture.stop()
         connectedDevice = nil
         state = .disconnected
-        updateStatus("Android Auto disconnected")
+        updateStatus(.disconnectedFromSession)
 
         consecutiveStarvedSessions = VideoStarvationPolicy.nextStreak(
             current: consecutiveStarvedSessions,

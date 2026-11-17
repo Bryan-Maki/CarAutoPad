@@ -268,24 +268,31 @@ public final class DpiPreviewView: UIView {
         let isSplit = isCoolwalkSplitScreen
         let layoutModeText: String
         if isPortraitLayout {
-            layoutModeText = isSplit ? "Portrait Coolwalk (Top Map + Lower Cards)" : "Portrait Single Card"
+            layoutModeText = isSplit ? L10n.previewPortraitSplit : L10n.previewPortraitSingle
         } else {
-            layoutModeText = isSplit ? "Coolwalk Split Screen" : "Single Card Compact"
+            layoutModeText = isSplit ? L10n.previewLandscapeSplit : L10n.previewLandscapeSingle
         }
 
         let statusText: String
         if marginWidthPx > 0 || marginHeightPx > 0 {
-            statusText = String(
-                format: "Active: %d×%d (%d×%d crop) • %d DPI (%d×%d dp) • %@",
-                effectivePanelWidthPx, effectivePanelHeightPx,
-                codecWidthPx, codecHeightPx,
-                dpi, virtualWidthDp, virtualHeightDp, layoutModeText
+            statusText = L10n.previewStatusHeaderWithCrop(
+                activeW: effectivePanelWidthPx,
+                activeH: effectivePanelHeightPx,
+                codecW: codecWidthPx,
+                codecH: codecHeightPx,
+                dpi: dpi,
+                dpW: virtualWidthDp,
+                dpH: virtualHeightDp,
+                layoutMode: layoutModeText
             )
         } else {
-            statusText = String(
-                format: "Active: %d×%d • %d DPI (%d×%d dp) • %@",
-                effectivePanelWidthPx, effectivePanelHeightPx,
-                dpi, virtualWidthDp, virtualHeightDp, layoutModeText
+            statusText = L10n.previewStatusHeader(
+                activeW: effectivePanelWidthPx,
+                activeH: effectivePanelHeightPx,
+                dpi: dpi,
+                dpW: virtualWidthDp,
+                dpH: virtualHeightDp,
+                layoutMode: layoutModeText
             )
         }
 

@@ -12,38 +12,38 @@ public enum ConnectionIssue: String, CaseIterable, Equatable, Codable {
     public var title: String {
         switch self {
         case .wifiRadioOff:
-            return "Search Failed: No Wi-Fi / Hotspot"
+            return L10n.issueWifiOffTitle
         case .headunitServerNotAnswering:
-            return "Headunit Server Not Answering"
+            return L10n.issueHeadunitNotAnsweringTitle
         case .connectionRefused5277:
-            return "Connection Refused (Port 5277)"
+            return L10n.issueRefused5277Title
         case .tlsHandshakeFailed:
-            return "TLS Handshake Failed"
+            return L10n.issueTlsFailedTitle
         case .videoLinkTooSlow:
-            return "Wireless Link Too Slow"
+            return L10n.issueVideoSlowTitle
         case .noDeviceDiscovered:
-            return "No Device Found on Network"
+            return L10n.issueNoDeviceTitle
         case .headunitServerStuckAfterRetries:
-            return "Connection Failed After 3 Retries (Server May Be Stuck)"
+            return L10n.issueStuckAfterRetriesTitle
         }
     }
 
     public var resolutionAdvice: String {
         switch self {
         case .wifiRadioOff:
-            return "No valid local Wi-Fi IPv4 address detected. Please connect iPad to your phone's personal hotspot or the same Wi-Fi network first."
+            return L10n.issueWifiOffAdvice
         case .headunitServerNotAnswering:
-            return "Ensure 'Start Headunit Server' is running in Android Auto developer settings on the phone."
+            return L10n.issueHeadunitNotAnsweringAdvice
         case .connectionRefused5277:
-            return "The phone actively refused port 5277. Stop and re-start Headunit Server in Android Auto."
+            return L10n.issueRefused5277Advice
         case .tlsHandshakeFailed:
-            return "Cryptographic negotiation failed. Check date/time synchronization or re-pair."
+            return L10n.issueTlsFailedAdvice
         case .videoLinkTooSlow:
-            return "Heavy packet drops on video feed. Move closer to the Wi-Fi hotspot or switch to 5GHz."
+            return L10n.issueVideoSlowAdvice
         case .noDeviceDiscovered:
-            return "Wi-Fi is connected, but no phone responded on port 5277. Make sure 'Start head unit server' is active in Android Auto Developer Settings."
+            return L10n.issueNoDeviceAdvice
         case .headunitServerStuckAfterRetries:
-            return "The phone's Headunit Server appears frozen or unresponsive. Please open Android Auto (⋮ -> Stop head unit server, then Start head unit server) on your phone and try again."
+            return L10n.issueStuckAfterRetriesAdvice
         }
     }
 }

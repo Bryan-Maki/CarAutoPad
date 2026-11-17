@@ -8,8 +8,8 @@ public enum ProjectionFpsLimit: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .fps60: return "60 FPS"
-        case .fps30: return "30 FPS"
+        case .fps60: return L10n.fps60
+        case .fps30: return L10n.fps30
         }
     }
 }
@@ -20,8 +20,8 @@ public enum ProjectionGpsSource: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .phone: return "Phone GPS"
-        case .ipad: return "iPad GPS"
+        case .phone: return L10n.gpsPhone
+        case .ipad: return L10n.gpsIpad
         }
     }
 }
@@ -33,9 +33,9 @@ public enum ProjectionOrientation: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .landscape: return "Landscape"
-        case .portrait: return "Portrait"
-        case .system: return "Auto"
+        case .landscape: return L10n.orientationLandscape
+        case .portrait: return L10n.orientationPortrait
+        case .system: return L10n.orientationSystem
         }
     }
 }
@@ -49,21 +49,21 @@ public enum NightModeSetting: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .auto: return "Auto (Time 07:00-19:00)"
-        case .twilight: return "Twilight (Sunrise / Sunset)"
-        case .day: return "Day (Always Light)"
-        case .night: return "Night (Always Dark)"
-        case .system: return "System (Follow iPad)"
+        case .auto: return L10n.nightAutoTitle
+        case .twilight: return L10n.nightTwilightTitle
+        case .day: return L10n.nightDayTitle
+        case .night: return L10n.nightNightTitle
+        case .system: return L10n.nightSystemTitle
         }
     }
 
     public var shortTitle: String {
         switch self {
-        case .auto: return "Auto"
-        case .twilight: return "Twilight"
-        case .day: return "Day"
-        case .night: return "Night"
-        case .system: return "System"
+        case .auto: return L10n.nightAutoShort
+        case .twilight: return L10n.nightTwilightShort
+        case .day: return L10n.nightDayShort
+        case .night: return L10n.nightNightShort
+        case .system: return L10n.nightSystemShort
         }
     }
 }
@@ -74,8 +74,8 @@ public enum AudioCodecPreference: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .aac: return "AAC-LC"
-        case .pcm: return "PCM (Uncompressed)"
+        case .aac: return L10n.audioCodecAac
+        case .pcm: return L10n.audioCodecPcm
         }
     }
 }
@@ -86,8 +86,8 @@ public enum AudioOutputTarget: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .ipad: return "iPad (Speaker / iPad BT)"
-        case .phone: return "Phone (Original Device)"
+        case .ipad: return L10n.audioTargetIpad
+        case .phone: return L10n.audioTargetPhone
         }
     }
 
@@ -103,9 +103,9 @@ public enum MicrophoneSource: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .followAudioOutput: return "Follow Audio Output"
-        case .ipad: return "iPad Microphone"
-        case .phone: return "Phone / Car BT Mic"
+        case .followAudioOutput: return L10n.micFollowAudioOutput
+        case .ipad: return L10n.micIpad
+        case .phone: return L10n.micPhone
         }
     }
 }
@@ -124,17 +124,17 @@ public enum NavigationDuckingPreset: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .off: return "0% (No Ducking)"
-        case .light: return "-25% (Light)"
-        case .medium: return "-50% (Half)"
-        case .standard: return "-70% (Default)"
-        case .deep: return "-85% (Deep)"
-        case .mute: return "-100% (Mute Media)"
+        case .off: return L10n.duckingOffTitle
+        case .light: return L10n.duckingLightTitle
+        case .medium: return L10n.duckingMediumTitle
+        case .standard: return L10n.duckingStandardTitle
+        case .deep: return L10n.duckingDeepTitle
+        case .mute: return L10n.duckingMuteTitle
         }
     }
 
     public var shortTitle: String {
-        return rawValue == 0 ? "Off (0%)" : "-\(rawValue)%"
+        return rawValue == 0 ? L10n.duckingOffShort : "-\(rawValue)%"
     }
 }
 
@@ -146,19 +146,19 @@ public enum MotionBlurMode: Int, CaseIterable {
 
     public var title: String {
         switch self {
-        case .off: return "Off"
-        case .light: return "Subtle (Low-Latency)"
-        case .medium: return "Balanced (Smooth)"
-        case .strong: return "Strong (Max Pacing)"
+        case .off: return L10n.motionBlurOffTitle
+        case .light: return L10n.motionBlurLightTitle
+        case .medium: return L10n.motionBlurMediumTitle
+        case .strong: return L10n.motionBlurStrongTitle
         }
     }
 
     public var shortTitle: String {
         switch self {
-        case .off: return "Off"
-        case .light: return "Subtle"
-        case .medium: return "Balanced"
-        case .strong: return "Strong"
+        case .off: return L10n.motionBlurOffShort
+        case .light: return L10n.motionBlurLightShort
+        case .medium: return L10n.motionBlurMediumShort
+        case .strong: return L10n.motionBlurStrongShort
         }
     }
 
@@ -228,6 +228,30 @@ public enum ProjectionSettings {
     private static let lastKnownLatitudeKey = "projection-last-known-latitude"
     private static let lastKnownLongitudeKey = "projection-last-known-longitude"
     private static let debugCategoriesKey = "projection-debug-log-categories"
+    private static let appLanguageKey = "projection-app-language"
+
+    public static var appLanguage: AppLanguage {
+        get {
+            guard let raw = defaults.string(forKey: appLanguageKey),
+                  let lang = AppLanguage(rawValue: raw) else {
+                return .system
+            }
+            return lang
+        }
+        set {
+            let previous = appLanguage
+            defaults.set(newValue.rawValue, forKey: appLanguageKey)
+            if previous != newValue {
+                if Thread.isMainThread {
+                    NotificationCenter.default.post(name: .appLanguageDidChange, object: newValue)
+                } else {
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .appLanguageDidChange, object: newValue)
+                    }
+                }
+            }
+        }
+    }
 
     public static let defaultDpi = 160
     public static let minDpi = 100
@@ -478,6 +502,7 @@ public enum ProjectionSettings {
         motionBlurMode = .off
         isEdgeSwipeProtectionEnabled = true
         resetDpiToDefault()
+        appLanguage = .system
     }
 
     public static var motionBlurMode: MotionBlurMode {
@@ -599,12 +624,11 @@ public enum ProjectionSettings {
 
     public static var audioChannelsSummaryText: String {
         guard isAudioSinkEnabled else { return audioOutputTarget.title }
-        let mPct = isMediaChannelEnabled ? "\(Int((mediaVolume * 100).rounded()))%" : "Off"
-        let nPct = isNavigationChannelEnabled ? "\(Int((navigationVolume * 100).rounded()))%" : "Off"
-        let sPct = isSystemChannelEnabled ? "\(Int((phoneSystemVolume * 100).rounded()))%" : "Off"
+        let mPct = isMediaChannelEnabled ? "\(Int((mediaVolume * 100).rounded()))%" : L10n.off
+        let nPct = isNavigationChannelEnabled ? "\(Int((navigationVolume * 100).rounded()))%" : L10n.off
+        let sPct = isSystemChannelEnabled ? "\(Int((phoneSystemVolume * 100).rounded()))%" : L10n.off
         let duckPct = Int((navigationDuckingAmount * 100).rounded())
-        let duckStr = duckPct == 0 ? "No Duck" : "Duck -\(duckPct)%"
-        return "iPad (\(mPct)/\(nPct)/\(sPct) • \(duckStr))"
+        return L10n.audioChannelsSummary(mPct: mPct, nPct: nPct, sPct: sPct, duckPct: duckPct)
     }
 
     public static var videoResolution: ResolutionPreset {
@@ -623,7 +647,7 @@ public enum ProjectionSettings {
     }
 
     public static var driverPositionTitle: String {
-        return rightHandDrive ? "Right-Hand Drive (RHD)" : "Left-Hand Drive (LHD)"
+        return rightHandDrive ? L10n.driverPositionRhd : L10n.driverPositionLhd
     }
 
     public static var effectiveFpsLimit: ProjectionFpsLimit {

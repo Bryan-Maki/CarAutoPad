@@ -58,5 +58,15 @@
 		<string>_androidauto._tcp</string>
 		<string>_aawireless._tcp</string>
 	</array>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
+		<string>ja</string>
+		<string>ms</string>
+	</array>
 </dict>
 </plist>

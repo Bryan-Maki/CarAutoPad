@@ -9,21 +9,21 @@ public enum DebugLogCategory: String, CaseIterable, Codable, Sendable {
 
     public var title: String {
         switch self {
-        case .connectionHandshake: return "Connection, Handshake & Lifecycle"
-        case .videoTelemetry:      return "Video 60FPS Telemetry & Hitch Catcher"
-        case .touchLatency:        return "Touch Input End-to-End Latency"
-        case .protocolControl:     return "AAP Protocol, Focus & Keyframe Recovery"
-        case .audioMic:            return "Audio Streams, Ducking & Microphone"
+        case .connectionHandshake: return L10n.logCatConnTitle
+        case .videoTelemetry:      return L10n.logCatVideoTitle
+        case .touchLatency:        return L10n.logCatTouchTitle
+        case .protocolControl:     return L10n.logCatProtoTitle
+        case .audioMic:            return L10n.logCatAudioTitle
         }
     }
 
     public var subtitle: String {
         switch self {
-        case .connectionHandshake: return "Scan, TLS timing, SDR config, background/foreground & watchdog"
-        case .videoTelemetry:      return "1s summary [VIDEO-1S] + instant hitch capture [VIDEO-HITCH]"
-        case .touchLatency:        return "UI -> QueueWait -> TLS Encrypt/Send -> Next Frame [TOUCH]"
-        case .protocolControl:     return "VideoFocus, Margin 0x8009, Ping RTT & FocusCycle"
-        case .audioMic:            return "Audio sink start/stop, ducking gain & mic 0x8005"
+        case .connectionHandshake: return L10n.logCatConnSubtitle
+        case .videoTelemetry:      return L10n.logCatVideoSubtitle
+        case .touchLatency:        return L10n.logCatTouchSubtitle
+        case .protocolControl:     return L10n.logCatProtoSubtitle
+        case .audioMic:            return L10n.logCatAudioSubtitle
         }
     }
 

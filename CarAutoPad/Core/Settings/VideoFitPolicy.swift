@@ -12,15 +12,15 @@ public enum VideoFitMode: Int, CaseIterable {
     public var title: String {
         switch self {
         case .contain:
-            return "Fit (Letterbox)"
+            return L10n.fitContainTitle
         case .fill:
-            return "Fill (PAR)"
+            return L10n.fitFillTitle
         case .cover:
-            return "Cover (Crop)"
+            return L10n.fitCoverTitle
         case .fillMargin:
-            return "Fill Margin (iPad Fullscreen)"
+            return L10n.fitFillMarginTitle
         case .stretch:
-            return "Stretch"
+            return L10n.fitStretchTitle
         }
     }
 }
