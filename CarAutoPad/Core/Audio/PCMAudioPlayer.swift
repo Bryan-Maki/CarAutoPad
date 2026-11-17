@@ -211,13 +211,13 @@ final class PCMAudioPlayer {
     }
 
     public static func softClipSample(_ x: Float32) -> Float32 {
-        let s = max(-3.0, min(3.0, x))
-        if s > 0.625 {
-            let d = s - 0.625
-            return 0.625 + (d * 0.375) / (d + 0.75)
-        } else if s < -0.625 {
-            let d = -s - 0.625
-            return -(0.625 + (d * 0.375) / (d + 0.75))
+        let s = max(-4.0, min(4.0, x))
+        if s > 0.88 {
+            let d = s - 0.88
+            return 0.88 + (d * 0.12) / (d + 0.24)
+        } else if s < -0.88 {
+            let d = -s - 0.88
+            return -(0.88 + (d * 0.12) / (d + 0.24))
         } else {
             return s
         }
@@ -283,7 +283,8 @@ final class PCMAudioPlayer {
         default:
             targetGain = 1.0
         }
-        let conversionGain: Float = targetGain > 1.0 ? targetGain : 1.0
+        let split = Self.splitChannelGain(targetGain)
+        let conversionGain: Float = split.physicalGain > 1.0 ? split.physicalGain : 1.0
         guard let buffer = Self.convertInt16PCMToFloat32Buffer(
             data,
             sampleRate: sampleRate,
@@ -472,13 +473,14 @@ final class PCMAudioPlayer {
         return (targetMedia, navVol, sysVol, effectiveDucking)
     }
 
-    public static func splitChannelGain(_ gain: Float) -> (playerVolume: Float, eqGlobalGainDb: Float, effectiveGain: Float) {
-        guard gain.isFinite else { return (0.0, 0.0, 0.0) }
+    public static func splitChannelGain(_ gain: Float) -> (playerVolume: Float, eqGlobalGainDb: Float, effectiveGain: Float, physicalGain: Float) {
+        guard gain.isFinite else { return (0.0, 0.0, 0.0, 0.0) }
         let clamped = max(0.0, min(ProjectionSettings.maxChannelVolume, gain))
         if clamped <= 1.0 {
-            return (clamped, 0.0, clamped)
+            return (clamped, 0.0, clamped, clamped)
         } else {
-            return (1.0, 20.0 * log10(clamped), clamped)
+            let physicalGain: Float = 1.0 + (clamped - 1.0) * 2.75
+            return (1.0, 20.0 * log10(physicalGain), clamped, physicalGain)
         }
     }
 

@@ -1185,8 +1185,7 @@ final class MainViewController: UIViewController {
                 disconnectButton.isHidden = true
                 activityIndicator.stopAnimating()
             }
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .discovering:
             stopVideoWatchdog()
@@ -1201,8 +1200,7 @@ final class MainViewController: UIViewController {
             directConnectButton.isEnabled = false
             disconnectButton.isHidden = false
             activityIndicator.startAnimating()
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .waitingForWirelessHelper:
             stopVideoWatchdog()
@@ -1217,8 +1215,7 @@ final class MainViewController: UIViewController {
             directConnectButton.isEnabled = false
             disconnectButton.isHidden = false
             activityIndicator.startAnimating()
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .connecting:
             stopVideoWatchdog()
@@ -1233,8 +1230,7 @@ final class MainViewController: UIViewController {
             directConnectButton.isEnabled = false
             disconnectButton.isHidden = false
             activityIndicator.startAnimating()
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .handshaking:
             stopVideoWatchdog()
@@ -1249,8 +1245,7 @@ final class MainViewController: UIViewController {
             directConnectButton.isEnabled = false
             disconnectButton.isHidden = false
             activityIndicator.startAnimating()
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .running:
             ConnectionIssueStore.shared.clearAll()
@@ -1264,8 +1259,7 @@ final class MainViewController: UIViewController {
             videoContainerView.layoutIfNeeded()
             syncVideoAndTouchGeometry()
             videoRenderer.applyGeometry()
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .disconnecting:
             stopVideoWatchdog()
@@ -1281,8 +1275,7 @@ final class MainViewController: UIViewController {
             directConnectButton.isEnabled = false
             disconnectButton.isHidden = true
             activityIndicator.startAnimating()
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
 
         case .error(let message):
             let lower = message.lowercased()
@@ -1315,8 +1308,7 @@ final class MainViewController: UIViewController {
                 disconnectButton.isHidden = true
                 activityIndicator.stopAnimating()
             }
-            setNeedsStatusBarAppearanceUpdate()
-            setNeedsUpdateOfHomeIndicatorAutoHidden()
+            refreshSystemGestureDeferral()
         }
 
         updatePerformanceOverlayState()
@@ -1329,7 +1321,17 @@ final class MainViewController: UIViewController {
     }
 
     override var prefersHomeIndicatorAutoHidden: Bool {
-        return connectionManager.state == .running
+        return false
+    }
+
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
+        return (connectionManager.state == .running && ProjectionSettings.isEdgeSwipeProtectionEnabled) ? .all : []
+    }
+
+    func refreshSystemGestureDeferral() {
+        setNeedsStatusBarAppearanceUpdate()
+        setNeedsUpdateOfHomeIndicatorAutoHidden()
+        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
     }
 
     private func startVideoWatchdog() {
@@ -1391,6 +1393,7 @@ final class MainViewController: UIViewController {
             switch impact {
             case .uiOnly:
                 self.updatePerformanceOverlayState()
+                self.refreshSystemGestureDeferral()
             case .nightModeChanged:
                 self.connectionManager.updateNightMode(userInterfaceStyle: self.traitCollection.userInterfaceStyle, force: true)
             case .geometryChanged:

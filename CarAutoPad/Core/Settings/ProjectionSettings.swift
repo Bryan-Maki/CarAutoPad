@@ -223,6 +223,7 @@ public enum ProjectionSettings {
     private static let motionBlurModeKey = "projection-motion-blur-mode"
 
     private static let autoDpiKey = "projection-auto-dpi"
+    private static let edgeSwipeProtectionKey = "projection-edge-swipe-protection"
     private static let showPerformanceOverlayKey = "projection-show-performance-overlay"
     private static let lastKnownLatitudeKey = "projection-last-known-latitude"
     private static let lastKnownLongitudeKey = "projection-last-known-longitude"
@@ -475,6 +476,7 @@ public enum ProjectionSettings {
         navigationDuckingAmount = defaultNavigationDuckingAmount
         nightMode = .auto
         motionBlurMode = .off
+        isEdgeSwipeProtectionEnabled = true
         resetDpiToDefault()
     }
 
@@ -640,6 +642,18 @@ public enum ProjectionSettings {
         }
         set {
             defaults.set(newValue, forKey: autoDpiKey)
+        }
+    }
+
+    public static var isEdgeSwipeProtectionEnabled: Bool {
+        get {
+            if defaults.object(forKey: edgeSwipeProtectionKey) == nil {
+                return true
+            }
+            return defaults.bool(forKey: edgeSwipeProtectionKey)
+        }
+        set {
+            defaults.set(newValue, forKey: edgeSwipeProtectionKey)
         }
     }
 

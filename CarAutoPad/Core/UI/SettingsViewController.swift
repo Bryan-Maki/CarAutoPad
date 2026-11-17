@@ -109,7 +109,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         case .activeSession:
             return connectionManager.state == .running ? 2 : 0
         case .displayLayout:
-            return 7
+            return 8
         case .videoAudio:
             return 5
         case .smartSensors:
@@ -303,6 +303,19 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 }
             }, for: .valueChanged)
             cell.accessoryView = seg
+            cell.selectionStyle = .none
+            return cell
+
+        case 7:
+            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+            cell.textLabel?.text = "Edge Swipe Protection (Double-Swipe)"
+            let toggle = UISwitch()
+            toggle.isOn = ProjectionSettings.isEdgeSwipeProtectionEnabled
+            toggle.addAction(UIAction { [weak self] _ in
+                ProjectionSettings.isEdgeSwipeProtectionEnabled = toggle.isOn
+                self?.onSettingsChanged?(.uiOnly)
+            }, for: .valueChanged)
+            cell.accessoryView = toggle
             cell.selectionStyle = .none
             return cell
 

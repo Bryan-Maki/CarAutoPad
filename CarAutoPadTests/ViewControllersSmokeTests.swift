@@ -516,4 +516,73 @@ final class ViewControllersSmokeTests: XCTestCase {
         cm.disconnect()
         XCTAssertEqual(cm.state, .disconnected)
     }
+
+    @MainActor
+    func testMainViewControllerEdgeSwipeProtectionAndHomeIndicatorBehavior() {
+        ProjectionSettings.resetToDefaults()
+        defer {
+            ProjectionSettings.resetToDefaults()
+            ConnectionManager.shared.setStateForTesting(.disconnected)
+        }
+
+        let mainVC = MainViewController()
+        mainVC.loadViewIfNeeded()
+
+        XCTAssertFalse(mainVC.prefersHomeIndicatorAutoHidden)
+
+        // Disconnected: never defer system edge gestures even when enabled
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        ProjectionSettings.isEdgeSwipeProtectionEnabled = true
+        XCTAssertEqual(mainVC.preferredScreenEdgesDeferringSystemGestures, [])
+
+        // Running + enabled: defer all edges; home indicator auto-hide remains false so deferral works
+        ConnectionManager.shared.setStateForTesting(.running)
+        XCTAssertFalse(mainVC.prefersHomeIndicatorAutoHidden)
+        XCTAssertEqual(mainVC.preferredScreenEdgesDeferringSystemGestures, .all)
+
+        // Running + disabled: stop deferring system edge gestures
+        ProjectionSettings.isEdgeSwipeProtectionEnabled = false
+        mainVC.refreshSystemGestureDeferral()
+        XCTAssertEqual(mainVC.preferredScreenEdgesDeferringSystemGestures, [])
+    }
+
+    @MainActor
+    func testSettingsViewControllerDisplayLayoutEdgeSwipeProtectionRow() {
+        ProjectionSettings.resetToDefaults()
+        ConnectionManager.shared.setStateForTesting(.running)
+        defer {
+            ProjectionSettings.resetToDefaults()
+            ConnectionManager.shared.setStateForTesting(.disconnected)
+        }
+
+        let settingsVC = SettingsViewController()
+        settingsVC.loadViewIfNeeded()
+        settingsVC.view.layoutIfNeeded()
+
+        guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView else {
+            XCTFail("SettingsViewController must contain a UITableView")
+            return
+        }
+
+        let dlSec = SettingsViewController.SettingsSection.displayLayout.rawValue
+        XCTAssertEqual(settingsVC.tableView(tableView, numberOfRowsInSection: dlSec), 8)
+
+        let cell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 7, section: dlSec))
+        XCTAssertEqual(cell.textLabel?.text, "Edge Swipe Protection (Double-Swipe)")
+        guard let toggle = cell.accessoryView as? UISwitch else {
+            XCTFail("Edge Swipe Protection row must have a UISwitch accessoryView")
+            return
+        }
+        XCTAssertTrue(toggle.isEnabled, "Edge Swipe Protection switch must remain enabled while connected")
+        XCTAssertTrue(toggle.isOn)
+
+        var receivedImpact: SettingsViewController.ChangeImpact?
+        settingsVC.onSettingsChanged = { impact in
+            receivedImpact = impact
+        }
+        toggle.isOn = false
+        toggle.sendActions(for: .valueChanged)
+        XCTAssertFalse(ProjectionSettings.isEdgeSwipeProtectionEnabled)
+        XCTAssertEqual(receivedImpact, .uiOnly)
+    }
 }

@@ -42,6 +42,7 @@ public struct SettingsPayload: Codable, Equatable {
     public var isNavigationChannelEnabled: Bool?
     public var isSystemChannelEnabled: Bool?
     public var navigationDuckingAmount: Float?
+    public var isEdgeSwipeProtectionEnabled: Bool? = nil
 
     public init(
         resolution: Int,
@@ -67,7 +68,8 @@ public struct SettingsPayload: Codable, Equatable {
         isMediaChannelEnabled: Bool? = nil,
         isNavigationChannelEnabled: Bool? = nil,
         isSystemChannelEnabled: Bool? = nil,
-        navigationDuckingAmount: Float? = nil
+        navigationDuckingAmount: Float? = nil,
+        isEdgeSwipeProtectionEnabled: Bool? = nil
     ) {
         self.resolution = resolution
         self.fpsLimit = fpsLimit
@@ -93,6 +95,7 @@ public struct SettingsPayload: Codable, Equatable {
         self.isNavigationChannelEnabled = isNavigationChannelEnabled
         self.isSystemChannelEnabled = isSystemChannelEnabled
         self.navigationDuckingAmount = navigationDuckingAmount
+        self.isEdgeSwipeProtectionEnabled = isEdgeSwipeProtectionEnabled
     }
 }
 
@@ -139,7 +142,8 @@ public enum SettingsBackupManager {
             isMediaChannelEnabled: ProjectionSettings.isMediaChannelEnabled,
             isNavigationChannelEnabled: ProjectionSettings.isNavigationChannelEnabled,
             isSystemChannelEnabled: ProjectionSettings.isSystemChannelEnabled,
-            navigationDuckingAmount: ProjectionSettings.navigationDuckingAmount
+            navigationDuckingAmount: ProjectionSettings.navigationDuckingAmount,
+            isEdgeSwipeProtectionEnabled: ProjectionSettings.isEdgeSwipeProtectionEnabled
         )
     }
 
@@ -246,6 +250,9 @@ public enum SettingsBackupManager {
         if let duck = s.navigationDuckingAmount {
             ProjectionSettings.navigationDuckingAmount = duck
         }
+        if let edgeSwipe = s.isEdgeSwipeProtectionEnabled {
+            ProjectionSettings.isEdgeSwipeProtectionEnabled = edgeSwipe
+        }
 
         PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: ProjectionSettings.resolution)
@@ -278,6 +285,7 @@ public enum SettingsBackupManager {
         ProjectionSettings.isNavigationChannelEnabled = true
         ProjectionSettings.isSystemChannelEnabled = true
         ProjectionSettings.navigationDuckingAmount = ProjectionSettings.defaultNavigationDuckingAmount
+        ProjectionSettings.isEdgeSwipeProtectionEnabled = true
 
         PCMAudioPlayer.shared.refreshVolumes()
         HeadUnitScreenConfig.shared.recalculate(requestedResolution: .auto)

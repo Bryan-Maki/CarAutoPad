@@ -270,8 +270,31 @@ final class Phase6DiagnosticsAndPolishTests: XCTestCase {
         SettingsBackupManager.resetToDefaults()
         XCTAssertEqual(ProjectionSettings.dpi, ProjectionSettings.defaultDpi)
         XCTAssertTrue(ProjectionSettings.autoReconnect)
+        XCTAssertTrue(ProjectionSettings.isEdgeSwipeProtectionEnabled)
         XCTAssertEqual(ProjectionSettings.fitMode, .fillMargin)
         XCTAssertEqual(ProjectionSettings.gpsSource, .phone)
+    }
+
+    func testProjectionSettingsEdgeSwipeProtectionDefaultBackupAndReset() throws {
+        ProjectionSettings.resetToDefaults()
+        defer { ProjectionSettings.resetToDefaults() }
+
+        XCTAssertTrue(ProjectionSettings.isEdgeSwipeProtectionEnabled, "Edge Swipe Protection should default to true")
+
+        ProjectionSettings.isEdgeSwipeProtectionEnabled = false
+        XCTAssertFalse(ProjectionSettings.isEdgeSwipeProtectionEnabled)
+
+        let json = SettingsBackupManager.exportToJson()
+        XCTAssertTrue(json.contains("\"isEdgeSwipeProtectionEnabled\" : false"))
+
+        ProjectionSettings.resetToDefaults()
+        XCTAssertTrue(ProjectionSettings.isEdgeSwipeProtectionEnabled)
+
+        try SettingsBackupManager.importFromJson(json)
+        XCTAssertFalse(ProjectionSettings.isEdgeSwipeProtectionEnabled)
+
+        SettingsBackupManager.resetToDefaults()
+        XCTAssertTrue(ProjectionSettings.isEdgeSwipeProtectionEnabled)
     }
 
     func testAnnouncedDensityPolicyHuigMaxDpiSymmetry() {

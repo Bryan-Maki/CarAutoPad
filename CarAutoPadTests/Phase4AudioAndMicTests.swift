@@ -434,50 +434,54 @@ final class Phase4AudioAndMicTests: XCTestCase {
     }
 
     func testPCMAudioPlayerSoftClipSampleLinearRegionAndSaturation() {
-        // Completely linear inside [-0.625, 0.625]
+        // Completely linear inside [-0.88, 0.88]
         XCTAssertEqual(PCMAudioPlayer.softClipSample(0.0), 0.0, accuracy: 0.0001)
         XCTAssertEqual(PCMAudioPlayer.softClipSample(0.5), 0.5, accuracy: 0.0001)
         XCTAssertEqual(PCMAudioPlayer.softClipSample(-0.5), -0.5, accuracy: 0.0001)
-        XCTAssertEqual(PCMAudioPlayer.softClipSample(0.625), 0.625, accuracy: 0.0001)
-        XCTAssertEqual(PCMAudioPlayer.softClipSample(-0.625), -0.625, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(0.8), 0.8, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(-0.8), -0.8, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(0.88), 0.88, accuracy: 0.0001)
+        XCTAssertEqual(PCMAudioPlayer.softClipSample(-0.88), -0.88, accuracy: 0.0001)
 
-        // Smooth saturation strictly inside (-1.0, 1.0) for overdriven inputs
+        // Smooth saturation strictly inside (-1.0, 1.0) for overdriven inputs > 0.88
         let posOverdrive = PCMAudioPlayer.softClipSample(1.5)
-        XCTAssertGreaterThan(posOverdrive, 0.625)
+        XCTAssertGreaterThan(posOverdrive, 0.88)
         XCTAssertLessThan(posOverdrive, 1.0)
-        XCTAssertEqual(posOverdrive, 0.625 + (0.875 * 0.375) / (0.875 + 0.75), accuracy: 0.0001)
+        let d = Float32(1.5 - 0.88)
+        XCTAssertEqual(posOverdrive, 0.88 + (d * 0.12) / (d + 0.24), accuracy: 0.0001)
 
         let negOverdrive = PCMAudioPlayer.softClipSample(-1.5)
-        XCTAssertLessThan(negOverdrive, -0.625)
+        XCTAssertLessThan(negOverdrive, -0.88)
         XCTAssertGreaterThan(negOverdrive, -1.0)
         XCTAssertEqual(negOverdrive, -posOverdrive, accuracy: 0.0001)
 
         // Extreme peaks clamped smoothly below 1.0
         XCTAssertLessThan(PCMAudioPlayer.softClipSample(3.0), 1.0)
+        XCTAssertLessThan(PCMAudioPlayer.softClipSample(4.0), 1.0)
         XCTAssertLessThan(PCMAudioPlayer.softClipSample(5.0), 1.0)
         XCTAssertGreaterThan(PCMAudioPlayer.softClipSample(-5.0), -1.0)
 
-        // Pure in-memory buffer conversion with gain > 1.0 applies headroom soft-clipping without touching AVAudioEngine
+        // Pure in-memory buffer conversion with gain = 2.375 (+7.51 dB) applies headroom soft-clipping without touching AVAudioEngine
         let samples: [Int16] = [8192, -8192, 32767, -32768]
         var pcmData = Data(capacity: samples.count * MemoryLayout<Int16>.size)
         for sample in samples {
             var le = sample.littleEndian
             withUnsafeBytes(of: &le) { pcmData.append(contentsOf: $0) }
         }
-        guard let boostedBuffer = PCMAudioPlayer.convertInt16PCMToFloat32Buffer(pcmData, sampleRate: 48000, channels: 2, gain: 1.5),
+        guard let boostedBuffer = PCMAudioPlayer.convertInt16PCMToFloat32Buffer(pcmData, sampleRate: 48000, channels: 2, gain: 2.375),
               let floatData = boostedBuffer.floatChannelData else {
             XCTFail("Expected non-nil boosted buffer")
             return
         }
-        // 8192/32768 = 0.25 -> 0.25 * 1.5 = 0.375 <= 0.625 (stays linear)
+        // 8192/32768 = 0.25 -> 0.25 * 2.375 = 0.59375 <= 0.88 (stays linear)
         XCTAssertEqual(floatData[0][0], 0.25, accuracy: 0.0001)
         XCTAssertEqual(floatData[1][0], -0.25, accuracy: 0.0001)
-        // Full-scale samples are compressed so that sample * 1.5 stays strictly < 1.0
-        XCTAssertLessThan(floatData[0][1] * 1.5, 1.0)
-        XCTAssertGreaterThan(floatData[1][1] * 1.5, -1.0)
+        // Full-scale samples are compressed so that sample * 2.375 stays strictly < 1.0
+        XCTAssertLessThan(floatData[0][1] * 2.375, 1.0)
+        XCTAssertGreaterThan(floatData[1][1] * 2.375, -1.0)
 
-        // At unity gain (default 1.0), samples > 0.625 remain 100% lossless (no soft-clipping)
-        let unitySamples: [Int16] = [26214, -26214] // ~0.8 > 0.625
+        // At unity gain (default 1.0), samples > 0.88 remain 100% lossless (no soft-clipping)
+        let unitySamples: [Int16] = [30000, -30000] // ~0.9155 > 0.88
         var unityData = Data(capacity: unitySamples.count * MemoryLayout<Int16>.size)
         for sample in unitySamples {
             var le = sample.littleEndian
@@ -488,8 +492,8 @@ final class Phase4AudioAndMicTests: XCTestCase {
             XCTFail("Expected non-nil unity buffer")
             return
         }
-        XCTAssertEqual(unityFloat[0][0], Float(26214.0 / 32768.0), accuracy: 0.0001)
-        XCTAssertEqual(unityFloat[1][0], Float(-26214.0 / 32768.0), accuracy: 0.0001)
+        XCTAssertEqual(unityFloat[0][0], Float(30000.0 / 32768.0), accuracy: 0.0001)
+        XCTAssertEqual(unityFloat[1][0], Float(-30000.0 / 32768.0), accuracy: 0.0001)
     }
 
     func testPCMAudioPlayerSplitChannelGainAndBoostDb() {
@@ -497,31 +501,43 @@ final class Phase4AudioAndMicTests: XCTestCase {
         XCTAssertEqual(negative.effectiveGain, 0.0, accuracy: 0.0001)
         XCTAssertEqual(negative.playerVolume, 0.0, accuracy: 0.0001)
         XCTAssertEqual(negative.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(negative.physicalGain, 0.0, accuracy: 0.0001)
 
         let attenuated = PCMAudioPlayer.splitChannelGain(0.5)
         XCTAssertEqual(attenuated.effectiveGain, 0.5, accuracy: 0.0001)
         XCTAssertEqual(attenuated.playerVolume, 0.5, accuracy: 0.0001)
         XCTAssertEqual(attenuated.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(attenuated.physicalGain, 0.5, accuracy: 0.0001)
 
         let unity = PCMAudioPlayer.splitChannelGain(1.0)
         XCTAssertEqual(unity.effectiveGain, 1.0, accuracy: 0.0001)
         XCTAssertEqual(unity.playerVolume, 1.0, accuracy: 0.0001)
         XCTAssertEqual(unity.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(unity.physicalGain, 1.0, accuracy: 0.0001)
+
+        let midBoost = PCMAudioPlayer.splitChannelGain(1.25)
+        XCTAssertEqual(midBoost.effectiveGain, 1.25, accuracy: 0.0001)
+        XCTAssertEqual(midBoost.playerVolume, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(midBoost.physicalGain, 1.6875, accuracy: 0.0001)
+        XCTAssertEqual(midBoost.eqGlobalGainDb, 20.0 * log10(Float(1.6875)), accuracy: 0.001)
 
         let maxBoost = PCMAudioPlayer.splitChannelGain(1.5)
         XCTAssertEqual(maxBoost.effectiveGain, 1.5, accuracy: 0.0001)
         XCTAssertEqual(maxBoost.playerVolume, 1.0, accuracy: 0.0001)
-        XCTAssertEqual(maxBoost.eqGlobalGainDb, 20.0 * log10(Float(1.5)), accuracy: 0.001)
+        XCTAssertEqual(maxBoost.physicalGain, 2.375, accuracy: 0.0001)
+        XCTAssertEqual(maxBoost.eqGlobalGainDb, 20.0 * log10(Float(2.375)), accuracy: 0.001)
 
         let overClamped = PCMAudioPlayer.splitChannelGain(2.5)
         XCTAssertEqual(overClamped.effectiveGain, 1.5, accuracy: 0.0001)
         XCTAssertEqual(overClamped.playerVolume, 1.0, accuracy: 0.0001)
-        XCTAssertEqual(overClamped.eqGlobalGainDb, 20.0 * log10(Float(1.5)), accuracy: 0.001)
+        XCTAssertEqual(overClamped.physicalGain, 2.375, accuracy: 0.0001)
+        XCTAssertEqual(overClamped.eqGlobalGainDb, 20.0 * log10(Float(2.375)), accuracy: 0.001)
 
         let nanGain = PCMAudioPlayer.splitChannelGain(.nan)
         XCTAssertEqual(nanGain.effectiveGain, 0.0, accuracy: 0.0001)
         XCTAssertEqual(nanGain.playerVolume, 0.0, accuracy: 0.0001)
         XCTAssertEqual(nanGain.eqGlobalGainDb, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(nanGain.physicalGain, 0.0, accuracy: 0.0001)
     }
 
     func testSettingsBackupManagerPreserves150PercentBoost() throws {
