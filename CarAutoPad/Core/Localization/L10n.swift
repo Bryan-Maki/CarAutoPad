@@ -202,6 +202,9 @@ public enum L10n {
     public static var ok: String {
         tr(en: "OK", zhHans: "好", zhHant: "好", ja: "OK", ms: "OK", ko: "확인", ta: "சரி")
     }
+    public static var done: String {
+        tr(en: "Done", zhHans: "完成", zhHant: "完成", ja: "完了", ms: "Selesai", ko: "완료", ta: "முடிந்தது")
+    }
     public static var cancel: String {
         tr(en: "Cancel", zhHans: "取消", zhHant: "取消", ja: "キャンセル", ms: "Batal", ko: "취소", ta: "ரத்து")
     }
@@ -212,7 +215,7 @@ public enum L10n {
         tr(en: "Dismiss", zhHans: "关闭", zhHant: "關閉", ja: "閉じる", ms: "Tutup", ko: "닫기", ta: "மூடு")
     }
     public static var reset: String {
-        tr(en: "Reset", zhHans: "重置", zhHant: "重置", ja: "リセット", ms: "Tetapkan Semula", ko: "재설정", ta: "மீட்டமை")
+        tr(en: "Reset", zhHans: "重置", zhHant: "重設", ja: "リセット", ms: "Tetapkan Semula", ko: "재설정", ta: "மீட்டமை")
     }
     public static var off: String {
         tr(en: "Off", zhHans: "关闭", zhHant: "關閉", ja: "オフ", ms: "Mati", ko: "끔", ta: "அணை")
@@ -227,7 +230,7 @@ public enum L10n {
         tr(en: "Unknown", zhHans: "未知", zhHant: "未知", ja: "不明", ms: "Tidak diketahui", ko: "알 수 없음", ta: "தெரியாதது")
     }
     public static var autoShort: String {
-        tr(en: "Auto", zhHans: "自动", zhHant: "自動", ja: "自動", ms: "Auto", ko: "자동", ta: "தானி")
+        tr(en: "Auto", zhHans: "自动", zhHant: "自動", ja: "自動", ms: "Auto", ko: "자동", ta: "தானியங்கி")
     }
     public static var customShort: String {
         tr(en: "Custom", zhHans: "自定义", zhHant: "自訂", ja: "カスタム", ms: "Tersuai", ko: "사용자 지정", ta: "தனிப்பயன்")
@@ -301,7 +304,7 @@ public enum L10n {
         tr(en: "Portrait", zhHans: "竖屏", zhHant: "直向", ja: "縦向き", ms: "Potret", ko: "세로", ta: "செங்குத்து")
     }
     public static var orientationSystem: String {
-        tr(en: "Auto", zhHans: "自动", zhHant: "自動", ja: "自動", ms: "Auto", ko: "자동", ta: "தானி")
+        tr(en: "Auto", zhHans: "自动", zhHant: "自動", ja: "自動", ms: "Auto", ko: "자동", ta: "தானியங்கி")
     }
 
     public static var nightAutoTitle: String {
@@ -361,10 +364,10 @@ public enum L10n {
     }
 
     public static var nightAutoShort: String {
-        tr(en: "Auto", zhHans: "自动", zhHant: "自動", ja: "自動", ms: "Auto", ko: "자동", ta: "தானி")
+        tr(en: "Auto", zhHans: "自动", zhHant: "自動", ja: "自動", ms: "Auto", ko: "자동", ta: "தானியங்கி")
     }
     public static var nightTwilightShort: String {
-        tr(en: "Twilight", zhHans: "晨昏", zhHant: "晨昏", ja: "日出没", ms: "Senja", ko: "일출몰", ta: "அந்தி")
+        tr(en: "Twilight", zhHans: "晨昏", zhHant: "晨昏", ja: "日の出入", ms: "Senja", ko: "일출/일몰", ta: "அந்தி")
     }
     public static var nightDayShort: String {
         tr(en: "Day", zhHans: "日间", zhHant: "日間", ja: "昼", ms: "Siang", ko: "주간", ta: "பகல்")
@@ -475,9 +478,9 @@ public enum L10n {
             zhHans: "0%（不压音）",
             zhHant: "0%（不壓低音量）",
             ja: "0%（ダッキングなし）",
-            ms: "0% (Tiada Pengurangan)",
+            ms: "0% (Tiada Redaman)",
             ko: "0% (더킹 없음)",
-            ta: "0% (குறைப்பு இல்லை)"
+            ta: "0% (ஒலி குறைப்பு இல்லை)"
         )
     }
     public static var duckingLightTitle: String {
@@ -548,7 +551,7 @@ public enum L10n {
             zhHans: "轻柔（低延迟）",
             zhHant: "輕柔（低延遲）",
             ja: "弱（低遅延）",
-            ms: "Halus (Latensi Rendah)",
+            ms: "Halus (Sela Masa Rendah)",
             ko: "약하게 (저지연)",
             ta: "மென்மை (குறைந்த தாமதம்)"
         )
@@ -568,7 +571,7 @@ public enum L10n {
         tr(
             en: "Strong (Max Pacing)",
             zhHans: "强力（极致稳帧）",
-            zhHant: "強力（極致穩幀）",
+            zhHant: "強力（極致順暢）",
             ja: "強（最大スムージング）",
             ms: "Kuat (Kestabilan Maks)",
             ko: "강하게 (최대 보정)",
@@ -580,13 +583,13 @@ public enum L10n {
         tr(en: "Off", zhHans: "关闭", zhHant: "關閉", ja: "オフ", ms: "Mati", ko: "끔", ta: "அணை")
     }
     public static var motionBlurLightShort: String {
-        tr(en: "Subtle", zhHans: "轻柔", zhHant: "輕柔", ja: "弱", ms: "Halus", ko: "약함", ta: "மென்")
+        tr(en: "Subtle", zhHans: "轻柔", zhHant: "輕柔", ja: "弱", ms: "Halus", ko: "약함", ta: "மென்மை")
     }
     public static var motionBlurMediumShort: String {
-        tr(en: "Balanced", zhHans: "均衡", zhHant: "均衡", ja: "バランス", ms: "Seimbang", ko: "균형", ta: "சமம்")
+        tr(en: "Balanced", zhHans: "均衡", zhHant: "均衡", ja: "バランス", ms: "Seimbang", ko: "균형", ta: "சமநிலை")
     }
     public static var motionBlurStrongShort: String {
-        tr(en: "Strong", zhHans: "强力", zhHant: "強力", ja: "強", ms: "Kuat", ko: "강함", ta: "வலு")
+        tr(en: "Strong", zhHans: "强力", zhHant: "強力", ja: "強", ms: "Kuat", ko: "강함", ta: "வலிமை")
     }
 
     public static var driverPositionRhd: String {
@@ -595,9 +598,9 @@ public enum L10n {
             zhHans: "右舵驾驶 (RHD)",
             zhHant: "右駕 (RHD)",
             ja: "右ハンドル (RHD)",
-            ms: "Pemanduan Kanan (RHD)",
+            ms: "Pandu Kanan (RHD)",
             ko: "우핸들 (RHD)",
-            ta: "வலது கை ஓட்டுநர் (RHD)"
+            ta: "வலதுபுற ஸ்டியரிங் (RHD)"
         )
     }
     public static var driverPositionLhd: String {
@@ -606,9 +609,9 @@ public enum L10n {
             zhHans: "左舵驾驶 (LHD)",
             zhHant: "左駕 (LHD)",
             ja: "左ハンドル (LHD)",
-            ms: "Pemanduan Kiri (LHD)",
+            ms: "Pandu Kiri (LHD)",
             ko: "좌핸들 (LHD)",
-            ta: "இடது கை ஓட்டுநர் (LHD)"
+            ta: "இடதுபுற ஸ்டியரிங் (LHD)"
         )
     }
     public static var rhdAbbrev: String {
@@ -652,7 +655,7 @@ public enum L10n {
         tr(
             en: "Auto (Native iPad)",
             zhHans: "自动（适配 iPad 原生）",
-            zhHant: "自動（適配 iPad 原生）",
+            zhHant: "自動（iPad 原生解析度）",
             ja: "自動（iPad ネイティブ）",
             ms: "Auto (Asli iPad)",
             ko: "자동 (iPad 기본 해상도)",
@@ -675,7 +678,7 @@ public enum L10n {
         tr(
             en: "Fit (Letterbox)",
             zhHans: "适应（保留黑边）",
-            zhHant: "適應（保留黑邊）",
+            zhHant: "符合畫面（保留黑邊）",
             ja: "フィット（黒帯あり）",
             ms: "Muat (Letterbox)",
             ko: "맞춤 (레터박스 유지)",
@@ -697,7 +700,7 @@ public enum L10n {
         tr(
             en: "Cover (Crop)",
             zhHans: "铺满（裁切边缘）",
-            zhHant: "鋪滿（裁切邊緣）",
+            zhHant: "填滿（裁切邊緣）",
             ja: "カバー（切り抜き）",
             ms: "Litup (Pangkas)",
             ko: "꽉 채우기 (가장자리 자르기)",
@@ -708,7 +711,7 @@ public enum L10n {
         tr(
             en: "Fill Margin (iPad Fullscreen)",
             zhHans: "全屏边距填充（iPad 满屏）",
-            zhHant: "全螢幕邊距填滿（iPad 滿屏）",
+            zhHant: "全螢幕邊距填滿（iPad 滿版）",
             ja: "全画面マージン最適化 (iPad)",
             ms: "Isi Margin (Skrin Penuh iPad)",
             ko: "여백 채우기 (iPad 전체 화면)",
@@ -719,7 +722,7 @@ public enum L10n {
         tr(
             en: "Stretch",
             zhHans: "拉伸铺满",
-            zhHant: "拉伸鋪滿",
+            zhHant: "延展填滿",
             ja: "ストレッチ",
             ms: "Regang",
             ko: "늘려서 채우기",
@@ -728,13 +731,13 @@ public enum L10n {
     }
 
     public static var fitSegmentFill: String {
-        tr(en: "Fill", zhHans: "满屏", zhHant: "滿屏", ja: "満画面", ms: "Isi", ko: "채우기", ta: "நிரப்பு")
+        tr(en: "Fill", zhHans: "满屏", zhHant: "滿版", ja: "全画面", ms: "Isi", ko: "채우기", ta: "நிரப்பு")
     }
     public static var fitSegmentFillMargin: String {
-        tr(en: "Fill Margin", zhHans: "边距满屏", zhHant: "邊距滿屏", ja: "マージン満画面", ms: "Isi Margin", ko: "여백 채움", ta: "முழு நிரப்பு")
+        tr(en: "Fill Margin", zhHans: "边距满屏", zhHant: "邊距滿版", ja: "余白最適化", ms: "Isi Margin", ko: "여백 채움", ta: "முழு நிரப்பு")
     }
     public static var fitSegmentFit: String {
-        tr(en: "Fit", zhHans: "适应", zhHant: "適應", ja: "フィット", ms: "Muat", ko: "맞춤", ta: "பொருத்து")
+        tr(en: "Fit", zhHans: "适应", zhHant: "符合", ja: "フィット", ms: "Muat", ko: "맞춤", ta: "பொருத்து")
     }
     public static var fitSegmentStretch: String {
         tr(en: "Stretch", zhHans: "拉伸", zhHant: "拉伸", ja: "ストレッチ", ms: "Regang", ko: "늘리기", ta: "நீட்டு")
@@ -782,16 +785,16 @@ public enum L10n {
             zhHans: "连接、握手与生命周期",
             zhHant: "連線、握手與生命週期",
             ja: "接続・ハンドシェイク・ライフサイクル",
-            ms: "Sambungan, Jabat Tangan & Kitaran Hayat",
+            ms: "Sambungan, Handshake & Kitaran Hayat",
             ko: "연결, 핸드셰이크 및 수명 주기",
-            ta: "இணைப்பு, ஹேண்ட்ஷேக் & சுழற்சி"
+            ta: "இணைப்பு, ஹேண்ட்ஷேக் & வாழ்க்கைச் சுழற்சி"
         )
     }
     public static var logCatConnSubtitle: String {
         tr(
             en: "Scan, TLS timing, SDR config, background/foreground & watchdog",
             zhHans: "扫描、TLS 耗时、SDR 配置、前后台切换与看门狗",
-            zhHant: "掃描、TLS 耗時、SDR 設定、前後台切換與看門狗",
+            zhHant: "掃描、TLS 耗時、SDR 設定、前景/背景切換與看門狗",
             ja: "スキャン・TLS 時間・SDR 設定・バックグラウンド切替・監視",
             ms: "Imbasan, masa TLS, konfigurasi SDR, latar belakang/depan & pemantau",
             ko: "스캔, TLS 지연, SDR 설정, 백그라운드/포그라운드 전환 및 워치독",
@@ -826,7 +829,7 @@ public enum L10n {
             zhHans: "触控输入端到端延迟",
             zhHant: "觸控輸入端到端延遲",
             ja: "タッチ入力のエンドツーエンド遅延",
-            ms: "Latensi Hujung-ke-Hujung Input Sentuhan",
+            ms: "Sela Masa Hujung-ke-Hujung Input Sentuhan",
             ko: "터치 입력 종단간 지연 시간",
             ta: "தொடு உள்ளீடு முழு தாமதம்"
         )
@@ -835,7 +838,7 @@ public enum L10n {
         tr(
             en: "UI -> QueueWait -> TLS Encrypt/Send -> Next Frame [TOUCH]",
             zhHans: "UI -> 队列等待 -> TLS 加密发送 -> 下一帧 [TOUCH]",
-            zhHant: "UI -> 佇列等待 -> TLS 加密傳送 -> 下一幀 [TOUCH]",
+            zhHant: "UI -> 佇列等待 -> TLS 加密傳送 -> 下一影格 [TOUCH]",
             ja: "UI -> キュー待機 -> TLS 暗号化送信 -> 次フレーム [TOUCH]",
             ms: "UI -> Tunggu Giliran -> Enkripsi/Hantar TLS -> Bingkai Seterusnya [TOUCH]",
             ko: "UI -> 큐 대기 -> TLS 암호화/전송 -> 다음 프레임 [TOUCH]",
@@ -846,11 +849,11 @@ public enum L10n {
         tr(
             en: "AAP Protocol, Focus & Keyframe Recovery",
             zhHans: "AAP 协议、焦点与关键帧自愈",
-            zhHant: "AAP 協定、焦點與關鍵幀自癒",
+            zhHant: "AAP 協定、焦點與關鍵影格自動修復",
             ja: "AAP プロトコル・フォーカス・キーフレーム復旧",
             ms: "Protokol AAP, Fokus & Pemulihan Bingkai Utama",
             ko: "AAP 프로토콜, 포커스 및 키프레임 복구",
-            ta: "AAP நெறிமுறை, கவனம் & கீபிரேம் மீட்பு"
+            ta: "AAP நெறிமுறை, ஃபோகஸ் & கீபிரேம் மீட்பு"
         )
     }
     public static var logCatProtoSubtitle: String {
@@ -870,7 +873,7 @@ public enum L10n {
             zhHans: "音频流、导航压音与麦克风",
             zhHant: "音訊串流、導航壓音與麥克風",
             ja: "音声ストリーム・ダッキング・マイク",
-            ms: "Strim Audio, Pengurangan & Mikrofon",
+            ms: "Strim Audio, Redaman & Mikrofon",
             ko: "오디오 스트림, 더킹 및 마이크",
             ta: "ஒலி ஓடைகள், குறைப்பு & ஒலிவாங்கி"
         )
@@ -881,7 +884,7 @@ public enum L10n {
             zhHans: "音频通道启停、压音增益与麦克风 0x8005",
             zhHant: "音訊通道啟停、壓音增益與麥克風 0x8005",
             ja: "オーディオシンク開始/停止・ダッキングゲイン・マイク 0x8005",
-            ms: "Mula/henti sink audio, gandaan pengurangan & mik 0x8005",
+            ms: "Mula/henti sink audio, gandaan redaman & mik 0x8005",
             ko: "오디오 싱크 시작/중지, 더킹 게인 및 마이크 0x8005",
             ta: "ஒலி சிங்க் தொடக்கம்/நிறுத்தம், குறைப்பு & மைக் 0x8005"
         )
@@ -913,10 +916,10 @@ public enum L10n {
     public static var issueHeadunitNotAnsweringTitle: String {
         tr(
             en: "Headunit Server Not Answering",
-            zhHans: "主机服务器未响应",
-            zhHant: "主機伺服器無回應",
-            ja: "ヘッドユニットサーバーが応答しません",
-            ms: "Pelayan Headunit Tidak Menjawab",
+            zhHans: "车机服务器未响应",
+            zhHant: "車機伺服器無回應",
+            ja: "ヘッドユニット サーバーが応答しません",
+            ms: "Pelayan Unit Kepala Tidak Menjawab",
             ko: "헤드유닛 서버 응답 없음",
             ta: "ஹெட் யூனிட் சேவையகம் பதிலளிக்கவில்லை"
         )
@@ -924,12 +927,12 @@ public enum L10n {
     public static var issueHeadunitNotAnsweringAdvice: String {
         tr(
             en: "Ensure 'Start Headunit Server' is running in Android Auto developer settings on the phone.",
-            zhHans: "请确认安卓手机的 Android Auto 开发者设置中已开启「启动主机服务器」。",
-            zhHant: "請確認手機的 Android Auto 開發人員設定中已開啟「啟動主機伺服器」。",
-            ja: "スマートフォンの Android Auto 開発者向け設定で「ヘッドユニット サーバーを開始」が有効になっているか確認してください。",
-            ms: "Pastikan 'Mula Pelayan Headunit' sedang berjalan dalam tetapan pembangun Android Auto pada telefon.",
+            zhHans: "请确认安卓手机的 Android Auto 开发者设置中已开启「启动车机服务器」。",
+            zhHant: "請確認手機的 Android Auto 開發人員設定中已開啟「啟動車機伺服器」。",
+            ja: "スマートフォンの Android Auto 開発者向け設定で「ヘッドユニット サーバーを起動」が有効になっているか確認してください。",
+            ms: "Pastikan 'Mulakan pelayan unit kepala' sedang berjalan dalam tetapan pembangun Android Auto pada telefon.",
             ko: "휴대폰의 Android Auto 개발자 설정에서 '헤드유닛 서버 시작'이 실행 중인지 확인하세요.",
-            ta: "உங்கள் தொலைபேசியின் Android Auto டெவலப்பர் அமைப்புகளில் 'Start Headunit Server' இயக்கப்பட்டுள்ளதா என உறுதிப்படுத்தவும்."
+            ta: "உங்கள் தொலைபேசியின் Android Auto டெவலப்பர் அமைப்புகளில் 'Start head unit server' இயக்கப்பட்டுள்ளதா என உறுதிப்படுத்தவும்."
         )
     }
     public static var issueRefused5277Title: String {
@@ -946,10 +949,10 @@ public enum L10n {
     public static var issueRefused5277Advice: String {
         tr(
             en: "The phone actively refused port 5277. Stop and re-start Headunit Server in Android Auto.",
-            zhHans: "手机主动拒绝了 5277 端口连接。请在 Android Auto 中停止并重新启动主机服务器。",
-            zhHant: "手機主動拒絕了 5277 連接埠連線。請在 Android Auto 中停止並重新啟動主機伺服器。",
-            ja: "スマートフォンがポート 5277 への接続を拒否しました。Android Auto でヘッドユニットサーバーを停止してから再起動してください。",
-            ms: "Telefon menolak sambungan port 5277 secara aktif. Hentikan dan mulakan semula Pelayan Headunit dalam Android Auto.",
+            zhHans: "手机主动拒绝了 5277 端口连接。请在 Android Auto 中「停止车机服务器」，然后重新「启动车机服务器」。",
+            zhHant: "手機主動拒絕了 5277 連接埠連線。請在 Android Auto 中「停止車機伺服器」，然後重新「啟動車機伺服器」。",
+            ja: "スマートフォンがポート 5277 への接続を拒否しました。Android Auto で「ヘッドユニット サーバーを停止」してから「ヘッドユニット サーバーを起動」してください。",
+            ms: "Telefon menolak sambungan port 5277 secara aktif. Hentikan dan mulakan semula pelayan unit kepala dalam Android Auto.",
             ko: "휴대폰이 5277 포트 연결을 거부했습니다. Android Auto에서 헤드유닛 서버를 중지한 후 다시 시작하세요.",
             ta: "தொலைபேசி போர்ட் 5277 இணைப்பை மறுத்தது. Android Auto-வில் ஹெட் யூனிட் சேவையகத்தை நிறுத்தி மீண்டும் தொடங்கவும்."
         )
@@ -960,7 +963,7 @@ public enum L10n {
             zhHans: "TLS 安全握手失败",
             zhHant: "TLS 安全握手失敗",
             ja: "TLS ハンドシェイクに失敗しました",
-            ms: "Jabat Tangan TLS Gagal",
+            ms: "Handshake TLS Gagal",
             ko: "TLS 핸드셰이크 실패",
             ta: "TLS ஹேண்ட்ஷேக் தோல்வி"
         )
@@ -991,7 +994,7 @@ public enum L10n {
         tr(
             en: "Heavy packet drops on video feed. Move closer to the Wi-Fi hotspot or switch to 5GHz.",
             zhHans: "视频流出现严重丢包。请靠近手机热点或将热点频段切换为 5GHz。",
-            zhHant: "視訊串流出現嚴重掉幀。請靠近手機熱點或將熱點頻段切換為 5GHz。",
+            zhHant: "視訊串流出現嚴重封包遺失。請靠近手機熱點或將熱點頻段切換為 5GHz。",
             ja: "映像フィードでパケットロスが発生しています。テザリング端末に近づくか 5GHz 帯へ切り替えてください。",
             ms: "Kehilangan paket tinggi pada suapan video. Dekatkan ke hotspot Wi-Fi atau tukar ke 5GHz.",
             ko: "비디오 스트림에서 심각한 패킷 손실이 발생했습니다. 핫스팟 가까이로 이동하거나 5GHz 대역으로 전환하세요.",
@@ -1012,10 +1015,10 @@ public enum L10n {
     public static var issueNoDeviceAdvice: String {
         tr(
             en: "Wi-Fi is connected, but no phone responded on port 5277. Make sure 'Start head unit server' is active in Android Auto Developer Settings.",
-            zhHans: "Wi-Fi 已连接，但没有手机在 5277 端口响应。请确认 Android Auto 开发者设置中的「启动主机服务器」处于开启状态。",
-            zhHant: "Wi-Fi 已連線，但沒有手機在 5277 連接埠回應。請確認 Android Auto 開發人員設定中的「啟動主機伺服器」處於開啟狀態。",
-            ja: "Wi-Fi には接続されていますが、ポート 5277 で応答する端末がありません。Android Auto 開発者向け設定で「ヘッドユニット サーバーを開始」が有効かご確認ください。",
-            ms: "Wi-Fi disambungkan, tetapi tiada telefon bertindak balas pada port 5277. Pastikan 'Start head unit server' aktif dalam Tetapan Pembangun Android Auto.",
+            zhHans: "Wi-Fi 已连接，但没有手机在 5277 端口响应。请确认 Android Auto 开发者设置中的「启动车机服务器」处于开启状态。",
+            zhHant: "Wi-Fi 已連線，但沒有手機在 5277 連接埠回應。請確認 Android Auto 開發人員設定中的「啟動車機伺服器」處於開啟狀態。",
+            ja: "Wi-Fi には接続されていますが、ポート 5277 で応答する端末がありません。Android Auto 開発者向け設定で「ヘッドユニット サーバーを起動」が有効かご確認ください。",
+            ms: "Wi-Fi disambungkan, tetapi tiada telefon bertindak balas pada port 5277. Pastikan 'Mulakan pelayan unit kepala' aktif dalam Tetapan Pembangun Android Auto.",
             ko: "Wi-Fi는 연결되었지만 5277 포트에서 응답하는 휴대폰이 없습니다. Android Auto 개발자 설정에서 '헤드유닛 서버 시작'이 활성화되어 있는지 확인하세요.",
             ta: "Wi-Fi இணைக்கப்பட்டுள்ளது, ஆனால் போர்ட் 5277-இல் எந்தத் தொலைபேசியும் பதிலளிக்கவில்லை. Android Auto டெவலப்பர் அமைப்புகளில் 'Start head unit server' செயலில் உள்ளதா எனச் சரிபார்க்கவும்."
         )
@@ -1023,10 +1026,10 @@ public enum L10n {
     public static var issueStuckAfterRetriesTitle: String {
         tr(
             en: "Connection Failed After 3 Retries (Server May Be Stuck)",
-            zhHans: "连续 3 次重试失败（主机服务器可能卡死）",
-            zhHant: "連續 3 次重試失敗（主機伺服器可能卡死）",
+            zhHans: "连续 3 次重试失败（车机服务器可能卡死）",
+            zhHant: "連續 3 次重試失敗（車機伺服器可能卡死）",
             ja: "3回の再試行後も接続失敗（サーバー停止の可能性）",
-            ms: "Sambungan Gagal Selepas 3 Percubaan (Pelayan Mungkin Terhenti)",
+            ms: "Sambungan Gagal Selepas 3 Percubaan (Pelayan Mungkin Tersekat)",
             ko: "3회 재시도 후 연결 실패 (서버 응답 중지 가능성)",
             ta: "3 முயற்சிகளுக்குப் பிறகு இணைப்பு தோல்வி (சேவையகம் முடங்கியிருக்கலாம்)"
         )
@@ -1034,10 +1037,10 @@ public enum L10n {
     public static var issueStuckAfterRetriesAdvice: String {
         tr(
             en: "The phone's Headunit Server appears frozen or unresponsive. Please open Android Auto (⋮ -> Stop head unit server, then Start head unit server) on your phone and try again.",
-            zhHans: "手机端的主机服务器似乎已卡死或无响应。请在手机上打开 Android Auto（⋮ -> 停止主机服务器，然后重新启动主机服务器）后再试。",
-            zhHant: "手機端的主機伺服器似乎已卡死或無回應。請在手機上開啟 Android Auto（⋮ -> 停止主機伺服器，然後重新啟動主機伺服器）後再試。",
-            ja: "スマートフォン側のヘッドユニットサーバーが応答停止している可能性があります。Android Auto を開き（⋮ → ヘッドユニットサーバーを停止 → 開始）を行ってから再度お試しください。",
-            ms: "Pelayan Headunit telefon kelihatan beku atau tidak bertindak balas. Sila buka Android Auto (⋮ -> Henti pelayan head unit, kemudian Mula pelayan head unit) pada telefon dan cuba lagi.",
+            zhHans: "手机端的车机服务器似乎已卡死或无响应。请在手机上打开 Android Auto（⋮ -> 停止车机服务器，然后点击启动车机服务器）后再试。",
+            zhHant: "手機端的車機伺服器似乎已卡死或無回應。請在手機上開啟 Android Auto（⋮ -> 停止車機伺服器，然後點擊啟動車機伺服器）後再試。",
+            ja: "スマートフォン側のヘッドユニット サーバーが応答停止している可能性があります。Android Auto を開き（⋮ → ヘッドユニット サーバーを停止 → ヘッドユニット サーバーを起動）を行ってから再度お試しください。",
+            ms: "Pelayan Headunit telefon kelihatan tersekat atau tidak bertindak balas. Sila buka Android Auto (⋮ -> Hentikan pelayan unit kepala, kemudian Mulakan pelayan unit kepala) pada telefon dan cuba lagi.",
             ko: "휴대폰의 헤드유닛 서버가 멈춘 것 같습니다. 휴대폰에서 Android Auto를 열어 (⋮ -> 헤드유닛 서버 중지 -> 다시 시작) 후 재시도하세요.",
             ta: "தொலைபேசியின் ஹெட் யூனிட் சேவையகம் முடங்கியுள்ளதாகத் தெரிகிறது. தொலைபேசியில் Android Auto-வைத் திறந்து (⋮ -> Stop head unit server, பிறகு Start head unit server) மீண்டும் முயற்சிக்கவும்."
         )
@@ -1057,7 +1060,7 @@ public enum L10n {
         tr(en: "Connecting...", zhHans: "正在连接...", zhHant: "正在連線...", ja: "接続中...", ms: "Menyambung...", ko: "연결 중...", ta: "இணைக்கிறது...")
     }
     public static var stateHandshaking: String {
-        tr(en: "Handshaking...", zhHans: "正在握手...", zhHant: "正在握手...", ja: "ハンドシェイク中...", ms: "Berjabat Tangan...", ko: "핸드셰이크 중...", ta: "ஹேண்ட்ஷேக் செய்கிறது...")
+        tr(en: "Handshaking...", zhHans: "正在握手...", zhHant: "正在握手...", ja: "ハンドシェイク中...", ms: "Rundingan Handshake...", ko: "핸드셰이크 중...", ta: "ஹேண்ட்ஷேக் செய்கிறது...")
     }
     public static var stateConnected: String {
         tr(en: "Connected", zhHans: "已连接", zhHant: "已連線", ja: "接続済み", ms: "Bersambung", ko: "연결됨", ta: "இணைக்கப்பட்டது")
@@ -1131,10 +1134,10 @@ public enum L10n {
     public static func statusFailedAfterRetries(_ maxAttempts: Int) -> String {
         tr(
             en: "Failed after \(maxAttempts) retries. Phone Headunit Server may be stuck — please restart it manually.",
-            zhHans: "连续 \(maxAttempts) 次重试失败。手机主机服务器可能卡死，请手动重启。",
-            zhHant: "連續 \(maxAttempts) 次重試失敗。手機主機伺服器可能卡死，請手動重啟。",
+            zhHans: "连续 \(maxAttempts) 次重试失败。手机车机服务器可能卡死，请手动重启。",
+            zhHant: "連續 \(maxAttempts) 次重試失敗。手機車機伺服器可能卡死，請手動重啟。",
             ja: "\(maxAttempts)回の再試行後も失敗しました。サーバーが停止している可能性があるため手動で再起動してください。",
-            ms: "Gagal selepas \(maxAttempts) percubaan. Pelayan Headunit telefon mungkin terhenti — sila mulakan semula secara manual.",
+            ms: "Gagal selepas \(maxAttempts) percubaan. Pelayan unit kepala telefon mungkin tersekat — sila mulakan semula secara manual.",
             ko: "\(maxAttempts)회 재시도 후 실패했습니다. 휴대폰 헤드유닛 서버가 멈췄을 수 있으니 수동으로 재시작하세요.",
             ta: "\(maxAttempts) முயற்சிகளுக்குப் பிறகு தோல்வி. தொலைபேசி ஹெட் யூனிட் சேவையகம் முடங்கியிருக்கலாம் — கைமுறையாக மீண்டும் தொடங்கவும்."
         )
@@ -1142,10 +1145,10 @@ public enum L10n {
     public static func errorFailedAfterRetries(_ maxAttempts: Int) -> String {
         tr(
             en: "Connection failed after \(maxAttempts) retries. Headunit Server on phone may be stuck — please manually restart Headunit Server.",
-            zhHans: "连续 \(maxAttempts) 次重试连接失败。手机端的 Android Auto 主机服务器可能已卡死，请手动重启后再试。",
-            zhHant: "連續 \(maxAttempts) 次重試連線失敗。手機端的 Android Auto 主機伺服器可能已卡死，請手動重啟後再試。",
-            ja: "\(maxAttempts)回の再試行後も接続に失敗しました。端末側のヘッドユニットサーバーが停止している可能性があります。手動で再起動してください。",
-            ms: "Sambungan gagal selepas \(maxAttempts) percubaan. Pelayan Headunit pada telefon mungkin terhenti — sila mulakan semula Pelayan Headunit secara manual.",
+            zhHans: "连续 \(maxAttempts) 次重试连接失败。手机端的 Android Auto 车机服务器可能已卡死，请手动重启后再试。",
+            zhHant: "連續 \(maxAttempts) 次重試連線失敗。手機端的 Android Auto 車機伺服器可能已卡死，請手動重啟後再試。",
+            ja: "\(maxAttempts)回の再試行後も接続に失敗しました。端末側のヘッドユニット サーバーが停止している可能性があります。手動で再起動してください。",
+            ms: "Sambungan gagal selepas \(maxAttempts) percubaan. Pelayan unit kepala pada telefon mungkin tersekat — sila mulakan semula secara manual.",
             ko: "\(maxAttempts)회 재시도 후 연결에 실패했습니다. 휴대폰의 헤드유닛 서버가 멈췄을 수 있으니 수동으로 재시작하세요.",
             ta: "\(maxAttempts) முயற்சிகளுக்குப் பிறகு இணைப்பு தோல்வி. தொலைபேசியின் ஹெட் யூனிட் சேவையகம் முடங்கியிருக்கலாம் — கைமுறையாக மீண்டும் தொடங்கவும்."
         )
@@ -1153,10 +1156,10 @@ public enum L10n {
     public static var statusNoDeviceFound: String {
         tr(
             en: "No device found on network (Check Headunit Server on phone)",
-            zhHans: "网络中未发现设备（请检查手机主机服务器是否开启）",
-            zhHant: "網路中未發現裝置（請檢查手機主機伺服器是否開啟）",
-            ja: "端末が見つかりません（スマホのヘッドユニットサーバーを確認してください）",
-            ms: "Tiada peranti ditemui di rangkaian (Semak Pelayan Headunit pada telefon)",
+            zhHans: "网络中未发现设备（请检查手机车机服务器是否开启）",
+            zhHant: "網路中未發現裝置（請檢查手機車機伺服器是否開啟）",
+            ja: "端末が見つかりません（スマホのヘッドユニット サーバーを確認してください）",
+            ms: "Tiada peranti ditemui di rangkaian (Semak Pelayan Unit Kepala pada telefon)",
             ko: "네트워크에서 기기를 찾을 수 없습니다 (휴대폰 헤드유닛 서버 확인)",
             ta: "பிணையத்தில் சாதனம் இல்லை (தொலைபேசியில் ஹெட் யூனிட் சேவையகத்தைச் சரிபார்க்கவும்)"
         )
@@ -1175,10 +1178,10 @@ public enum L10n {
     public static var statusWaitingHeadunitServer: String {
         tr(
             en: "Waiting for Android Auto Headunit Server (5277)...",
-            zhHans: "正在等待 Android Auto 主机服务器 (5277)...",
-            zhHant: "正在等待 Android Auto 主機伺服器 (5277)...",
-            ja: "Android Auto ヘッドユニットサーバー (5277) を待機中...",
-            ms: "Menunggu Pelayan Headunit Android Auto (5277)...",
+            zhHans: "正在等待 Android Auto 车机服务器 (5277)...",
+            zhHant: "正在等待 Android Auto 車機伺服器 (5277)...",
+            ja: "Android Auto ヘッドユニット サーバー (5277) を待機中...",
+            ms: "Menunggu Pelayan Unit Kepala Android Auto (5277)...",
             ko: "Android Auto 헤드유닛 서버 (5277) 대기 중...",
             ta: "Android Auto ஹெட் யூனிட் சேவையகத்திற்காக (5277) காத்திருக்கிறது..."
         )
@@ -1189,7 +1192,7 @@ public enum L10n {
             zhHans: "正在与 Android Auto 握手（TLS / 服务发现）...",
             zhHant: "正在與 Android Auto 握手（TLS / 服務探索）...",
             ja: "Android Auto とハンドシェイク中（TLS / サービス検出）...",
-            ms: "Berjabat tangan dengan Android Auto (TLS / Penemuan Perkhidmatan)...",
+            ms: "Sedang Handshake dengan Android Auto (TLS / Penemuan Perkhidmatan)...",
             ko: "Android Auto와 핸드셰이크 중 (TLS / 서비스 검색)...",
             ta: "Android Auto உடன் ஹேண்ட்ஷேக் செய்கிறது (TLS / சேவை தேடல்)..."
         )
@@ -1214,6 +1217,50 @@ public enum L10n {
             ms: "Android Auto terputus sambungan",
             ko: "Android Auto 연결이 해제되었습니다",
             ta: "Android Auto துண்டிக்கப்பட்டது"
+        )
+    }
+    public static var statusHandshakeVersionTimeout: String {
+        tr(
+            en: "Handshake timeout - no response from Headunit Server",
+            zhHans: "握手超时 — 车机服务器无响应",
+            zhHant: "握手逾時 — 車機伺服器無回應",
+            ja: "ハンドシェイクタイムアウト — ヘッドユニット サーバーから応答がありません",
+            ms: "Masa handshake tamat — tiada respons daripada Pelayan Unit Kepala",
+            ko: "핸드셰이크 시간 초과 — 헤드유닛 서버 응답 없음",
+            ta: "ஹேண்ட்ஷேக் நேரம் முடிந்தது — ஹெட் யூனிட் சேவையகத்திடமிருந்து பதிலில்லை"
+        )
+    }
+    public static var statusTlsHandshakeTimeout: String {
+        tr(
+            en: "TLS handshake timeout",
+            zhHans: "TLS 安全握手超时",
+            zhHant: "TLS 安全握手逾時",
+            ja: "TLS ハンドシェイクがタイムアウトしました",
+            ms: "Masa handshake TLS tamat",
+            ko: "TLS 핸드셰이크 시간 초과",
+            ta: "TLS ஹேண்ட்ஷேக் நேரம் முடிந்தது"
+        )
+    }
+    public static var discoveryNoNetworkInterface: String {
+        tr(
+            en: "No valid Wi-Fi network interface found",
+            zhHans: "未找到有效的 Wi-Fi 网络接口",
+            zhHant: "找不到有效的 Wi-Fi 網路介面",
+            ja: "有効な Wi-Fi ネットワークインターフェースが見つかりません",
+            ms: "Tiada antara muka rangkaian Wi-Fi yang sah ditemui",
+            ko: "유효한 Wi-Fi 네트워크 인터페이스를 찾을 수 없습니다",
+            ta: "செல்லுபடியாகும் Wi-Fi பிணைய இடைமுகம் எதுவும் கிடைக்கவில்லை"
+        )
+    }
+    public static var discoveryScanFailed: String {
+        tr(
+            en: "Network discovery scan failed",
+            zhHans: "网络发现扫描失败",
+            zhHant: "網路探索掃描失敗",
+            ja: "ネットワーク検出スキャンに失敗しました",
+            ms: "Imbasan penemuan rangkaian gagal",
+            ko: "네트워크 검색 스캔에 실패했습니다",
+            ta: "பிணையக் கண்டறிதல் ஸ்கேன் தோல்வியடைந்தது"
         )
     }
 
@@ -1383,16 +1430,16 @@ public enum L10n {
             ja: "下部までスクロールし「バージョン」を10回タップして OK",
             ms: "Tatal ke bawah, ketik 'Versi' 10 kali dan sahkan OK",
             ko: "아래로 스크롤하여 '버전'을 10번 탭하고 확인 누르기",
-            ta: "கீழே நகர்த்தி 'Version'-ஐ 10 முறை தட்டி OK என உறுதிப்படுத்தவும்"
+            ta: "கீழே நகர்த்தி 'பதிப்பு' (Version)-ஐ 10 முறை தட்டி OK என உறுதிப்படுத்தவும்"
         )
     }
     public static var guideStep3Title: String {
         tr(
             en: "3. Start Head Unit Server",
-            zhHans: "3. 启动主机服务器",
-            zhHant: "3. 啟動主機伺服器",
-            ja: "3. ヘッドユニットサーバーを開始",
-            ms: "3. Mula Pelayan Head Unit",
+            zhHans: "3. 启动车机服务器",
+            zhHant: "3. 啟動車機伺服器",
+            ja: "3. ヘッドユニット サーバーを起動",
+            ms: "3. Mulakan Pelayan Unit Kepala",
             ko: "3. 헤드유닛 서버 시작",
             ta: "3. ஹெட் யூனிட் சேவையகத்தைத் தொடங்கவும்"
         )
@@ -1400,10 +1447,10 @@ public enum L10n {
     public static var guideStep3Detail: String {
         tr(
             en: "Tap top-right '⋮' menu in Android Auto & start server",
-            zhHans: "点击右上角「⋮」菜单，选择「启动主机服务器」",
-            zhHant: "點擊右上角「⋮」選單，選擇「啟動主機伺服器」",
-            ja: "右上の「⋮」メニューから「ヘッドユニット サーバーを開始」",
-            ms: "Ketik menu '⋮' di penjuru kanan atas Android Auto & mula pelayan",
+            zhHans: "点击右上角「⋮」菜单，选择「启动车机服务器」",
+            zhHant: "點擊右上角「⋮」選單，選擇「啟動車機伺服器」",
+            ja: "右上の「⋮」メニューから「ヘッドユニット サーバーを起動」",
+            ms: "Ketik menu '⋮' di penjuru kanan atas Android Auto & pilih 'Mulakan pelayan unit kepala'",
             ko: "Android Auto 오른쪽 상단 '⋮' 메뉴에서 '헤드유닛 서버 시작' 선택",
             ta: "Android Auto மேல்-வலது '⋮' மெனுவைத் தட்டி சேவையகத்தைத் தொடங்கவும்"
         )
@@ -1424,7 +1471,7 @@ public enum L10n {
             en: "Connect iPad to phone hotspot Wi-Fi & tap Connect",
             zhHans: "将 iPad 连入手机 Wi-Fi 热点后，点击左侧按钮连接",
             zhHant: "將 iPad 連入手機 Wi-Fi 熱點後，點擊左側按鈕連線",
-            ja: "iPad をスマホのテザリングに接続して接続ボタンを押します",
+            ja: "iPad をスマホのテザリング Wi-Fi に繋ぎ、左の接続ボタンをタップ",
             ms: "Sambungkan iPad ke Wi-Fi hotspot telefon & ketik Sambung",
             ko: "iPad를 휴대폰 Wi-Fi 핫스팟에 연결한 후 연결 버튼 탭",
             ta: "iPad-ஐ தொலைபேசி Wi-Fi ஹாட்ஸ்பாட்டில் இணைத்து இணை என்பதைத் தட்டவும்"
@@ -1452,7 +1499,7 @@ public enum L10n {
         tr(en: "Codecs", zhHans: "音视频编解码", zhHant: "影音編解碼", ja: "コーデック", ms: "Kodek", ko: "코덱", ta: "கோடெக்குகள்")
     }
     public static var tileAudioDucking: String {
-        tr(en: "Audio & Ducking", zhHans: "音频与压音", zhHant: "音訊與壓音", ja: "オーディオ設定", ms: "Audio & Pengurangan", ko: "오디오 & 더킹", ta: "ஒலி & குறைப்பு")
+        tr(en: "Audio & Ducking", zhHans: "音频与压音", zhHant: "音訊與壓音", ja: "オーディオ設定", ms: "Audio & Redaman", ko: "오디오 & 더킹", ta: "ஒலி & குறைப்பு")
     }
     public static var tileMicrophone: String {
         tr(en: "Microphone", zhHans: "麦克风来源", zhHant: "麥克風來源", ja: "マイク入力", ms: "Mikrofon", ko: "마이크", ta: "ஒலிவாங்கி")
@@ -1464,7 +1511,7 @@ public enum L10n {
         tr(
             en: "Smooth: \(shortTitle)",
             zhHans: "稳帧: \(shortTitle)",
-            zhHant: "穩幀: \(shortTitle)",
+            zhHant: "順暢: \(shortTitle)",
             ja: "滑らか: \(shortTitle)",
             ms: "Lancar: \(shortTitle)",
             ko: "보정: \(shortTitle)",
@@ -1479,7 +1526,7 @@ public enum L10n {
             ja: "自動 (\(dpi))",
             ms: "Auto (\(dpi))",
             ko: "자동 (\(dpi))",
-            ta: "தானி (\(dpi))"
+            ta: "தானியங்கி (\(dpi))"
         )
     }
 
@@ -1489,20 +1536,20 @@ public enum L10n {
     }
     public static var quickDisplayMessage: String {
         tr(
-            en: "Choose video resolution and maximum frame rate.",
+            en: "Choose video resolution, frame rate limit, and frame smoothing.",
             zhHans: "选择投屏视频分辨率、帧率上限与流畅模式。",
-            zhHant: "選擇投影視訊解析度、幀率上限與流暢模式。",
+            zhHant: "選擇投影視訊解析度、畫面更新率上限與畫面平滑緩衝模式。",
             ja: "映像の解像度・最大フレームレート・スムージングを選択します。",
-            ms: "Pilih resolusi video dan kadar bingkai maksimum.",
-            ko: "비디오 해상도와 최대 프레임 속도를 선택하세요.",
-            ta: "வீடியோ தெளிவுத்திறன் மற்றும் அதிகபட்ச பிரேம் வீதத்தைத் தேர்ந்தெடுக்கவும்."
+            ms: "Pilih resolusi video, had kadar bingkai, dan pelicinan bingkai.",
+            ko: "비디오 해상도, 최대 프레임 속도 및 프레임 보정을 선택하세요.",
+            ta: "வீடியோ தெளிவுத்திறன், பிரேம் வீத வரம்பு மற்றும் சீர்மையைத் தேர்ந்தெடுக்கவும்."
         )
     }
     public static func frameRateOption(_ fpsTitle: String) -> String {
         tr(
             en: "Frame Rate: \(fpsTitle)",
             zhHans: "帧率上限：\(fpsTitle)",
-            zhHant: "幀率上限：\(fpsTitle)",
+            zhHant: "畫面更新率上限：\(fpsTitle)",
             ja: "フレームレート：\(fpsTitle)",
             ms: "Kadar Bingkai: \(fpsTitle)",
             ko: "프레임 속도: \(fpsTitle)",
@@ -1513,7 +1560,7 @@ public enum L10n {
         tr(
             en: "Frame Smoothing: \(modeTitle)",
             zhHans: "帧平滑缓冲：\(modeTitle)",
-            zhHant: "幀平滑緩衝：\(modeTitle)",
+            zhHant: "畫面平滑緩衝：\(modeTitle)",
             ja: "フレーム補間：\(modeTitle)",
             ms: "Pelicinan Bingkai: \(modeTitle)",
             ko: "프레임 보정: \(modeTitle)",
@@ -1581,7 +1628,7 @@ public enum L10n {
     }
 
     public static var quickMicTitle: String {
-        tr(en: "Microphone Source", zhHans: "麦克风来源", zhHant: "麥克風來源", ja: "マイク入力ソース", ms: "Sumber Mikrofon", ko: "마이크 소스", ta: "ஒலிவாங்கி மூலம்")
+        tr(en: "Microphone Source", zhHans: "麦克风来源", zhHant: "麥克風來源", ja: "マイク入力ソース", ms: "Sumber Mikrofon", ko: "마이크 소스", ta: "ஒலிவாங்கி உள்ளீடு")
     }
     public static var quickMicMessage: String {
         tr(
@@ -1612,7 +1659,7 @@ public enum L10n {
             zhHans: "智能日夜模式与驾驶舵向",
             zhHant: "智慧日夜模式與駕駛舵向",
             ja: "スマートモード・運転席位置",
-            ms: "Mod Pintar & Posisi Pemandu",
+            ms: "Mod Pintar & Kedudukan Pemandu",
             ko: "스마트 모드 및 운전석 위치",
             ta: "ஸ்மார்ட் பயன்முறை & ஓட்டுநர் பக்கம்"
         )
@@ -1634,9 +1681,9 @@ public enum L10n {
             zhHans: "驾驶位：左舵驾驶 (LHD)",
             zhHant: "駕駛位：左駕 (LHD)",
             ja: "運転席：左ハンドル (LHD)",
-            ms: "Pemandu: Pemanduan Kiri (LHD)",
+            ms: "Pemandu: Pandu Kiri (LHD)",
             ko: "운전석: 좌핸들 (LHD)",
-            ta: "ஓட்டுநர்: இடது கை ஓட்டுநர் (LHD)"
+            ta: "ஓட்டுநர்: இடதுபுற ஸ்டியரிங் (LHD)"
         )
     }
     public static var driverOptionRhd: String {
@@ -1645,9 +1692,9 @@ public enum L10n {
             zhHans: "驾驶位：右舵驾驶 (RHD)",
             zhHant: "駕駛位：右駕 (RHD)",
             ja: "運転席：右ハンドル (RHD)",
-            ms: "Pemandu: Pemanduan Kanan (RHD)",
+            ms: "Pemandu: Pandu Kanan (RHD)",
             ko: "운전석: 우핸들 (RHD)",
-            ta: "ஓட்டுநர்: வலது கை ஓட்டுநர் (RHD)"
+            ta: "ஓட்டுநர்: வலதுபுற ஸ்டியரிங் (RHD)"
         )
     }
 
@@ -1658,7 +1705,7 @@ public enum L10n {
         tr(en: "Display Fit Mode", zhHans: "画面适应模式", zhHant: "畫面適應模式", ja: "画面フィットモード", ms: "Mod Muat Paparan", ko: "화면 맞춤 모드", ta: "திரை பொருத்தப் பயன்முறை")
     }
     public static var drivingPosition: String {
-        tr(en: "Driving Position", zhHans: "驾驶舵向", zhHant: "駕駛舵向", ja: "運転席位置", ms: "Posisi Pemanduan", ko: "운전석 위치", ta: "ஓட்டுநர் பக்கம்")
+        tr(en: "Driving Position", zhHans: "驾驶舵向", zhHant: "駕駛舵向", ja: "運転席位置", ms: "Kedudukan Pemandu", ko: "운전석 위치", ta: "ஓட்டுநர் பக்கம்")
     }
     public static var autoRecommendedDpi: String {
         tr(en: "Auto Recommended DPI", zhHans: "自动推荐 DPI", zhHant: "自動推薦 DPI", ja: "自動推奨 DPI", ms: "DPI Disyorkan Auto", ko: "자동 권장 DPI", ta: "தானியங்கி பரிந்துரைக்கப்பட்ட DPI")
@@ -1676,12 +1723,12 @@ public enum L10n {
         tr(en: "Coolwalk Split", zhHans: "Coolwalk 分屏", zhHant: "Coolwalk 分割", ja: "Coolwalk 分割", ms: "Pisah Coolwalk", ko: "Coolwalk 분할", ta: "Coolwalk பிரிவு")
     }
     public static var singleFullscreenShort: String {
-        tr(en: "Single Fullscreen", zhHans: "全屏单卡", zhHant: "全螢幕單卡", ja: "シングル全画面", ms: "Skrin Penuh Tunggal", ko: "전체 단일 화면", ta: "ஒற்றை முழுத்திரை")
+        tr(en: "Single Fullscreen", zhHans: "全屏单卡", zhHant: "全螢幕單卡", ja: "シングル全画面", ms: "Skrin Penuh Tunggal", ko: "단일 전체 화면", ta: "ஒற்றை முழுத்திரை")
     }
 
     // MARK: - Audio & Ducking Modal / Mixer Cell
     public static var audioDuckingModalTitle: String {
-        tr(en: "Audio & Ducking Configuration", zhHans: "音频输出与压音调音台", zhHant: "音訊輸出與壓音混音台", ja: "オーディオ・ダッキング設定", ms: "Konfigurasi Audio & Pengurangan", ko: "오디오 및 더킹 구성", ta: "ஒலி & குறைப்பு கட்டமைப்பு")
+        tr(en: "Audio & Ducking Configuration", zhHans: "音频输出与压音调音台", zhHant: "音訊輸出與壓音混音台", ja: "オーディオ・ダッキング設定", ms: "Konfigurasi Audio & Redaman", ko: "오디오 및 더킹 구성", ta: "ஒலி & குறைப்பு கட்டமைப்பு")
     }
     public static var audioOutputDestination: String {
         tr(en: "Audio Output Destination", zhHans: "音频输出设备", zhHant: "音訊輸出裝置", ja: "音声出力先", ms: "Destinasi Output Audio", ko: "오디오 출력 대상", ta: "ஒலி வெளியீட்டு இலக்கு")
@@ -1699,7 +1746,7 @@ public enum L10n {
         tr(en: "Phone & System Alerts", zhHans: "通话与系统提示音", zhHant: "通話與系統提示音", ja: "通話・システム通知", ms: "Telefon & Amaran Sistem", ko: "통화 및 시스템 알림", ta: "அழைப்பு & கணினி எச்சரிக்கைகள்")
     }
     public static var navigationDuckingDrop: String {
-        tr(en: "Navigation Ducking Drop", zhHans: "导航播报压音幅度", zhHant: "導航播報壓音幅度", ja: "ナビ案内時のダッキング量", ms: "Penurunan Pengurangan Navigasi", ko: "내비 안내 시 음량 감소", ta: "வழிகாட்டுதல் ஒலி குறைப்பு")
+        tr(en: "Navigation Ducking Drop", zhHans: "导航播报压音幅度", zhHant: "導航播報壓音幅度", ja: "ナビ案内時のダッキング量", ms: "Tahap Redaman Audio Navigasi", ko: "내비 안내 시 음량 감소", ta: "வழிகாட்டுதல் ஒலி குறைப்பு")
     }
     public static var navigationDuckingSubtitle: String {
         tr(
@@ -1713,10 +1760,10 @@ public enum L10n {
         )
     }
     public static var testNavDucking: String {
-        tr(en: "Test Nav Ducking", zhHans: "试听导航压音", zhHant: "試聽導航壓音", ja: "ダッキングテスト", ms: "Uji Pengurangan Nav", ko: "더킹 테스트", ta: "ஒலி குறைப்பு சோதனை")
+        tr(en: "Test Nav Ducking", zhHans: "试听导航压音", zhHant: "試聽導航壓音", ja: "ダッキングテスト", ms: "Uji Redaman Navigasi", ko: "더킹 테스트", ta: "ஒலி குறைப்பு சோதனை")
     }
     public static var resetAudio: String {
-        tr(en: "Reset Audio", zhHans: "重置音频", zhHant: "重置音訊", ja: "音量リセット", ms: "Tetap Semula Audio", ko: "오디오 재설정", ta: "ஒலி மீட்டமை")
+        tr(en: "Reset Audio", zhHans: "重置音频", zhHant: "重設音訊", ja: "音量リセット", ms: "Tetap Semula Audio", ko: "오디오 재설정", ta: "ஒலி மீட்டமை")
     }
     public static var duckingDisabledPhoneAudio: String {
         tr(
@@ -1755,7 +1802,7 @@ public enum L10n {
         tr(en: "Video & Audio Pipeline", zhHans: "音视频通道管线", zhHant: "影音通道管線", ja: "映像・音声パイプライン", ms: "Saluran Video & Audio", ko: "비디오 & 오디오 파이프라인", ta: "வீடியோ & ஒலிப் பாதை")
     }
     public static var sectionSmartSensors: String {
-        tr(en: "Smart Sensors & Night Mode", zhHans: "智能传感、日夜与语言", zhHant: "智慧感測、日夜與語言", ja: "スマートセンサー・夜間・言語", ms: "Sensor Pintar, Mod Malam & Bahasa", ko: "스마트 센서, 야간 모드 & 언어", ta: "ஸ்மார்ட் சென்சார்கள், இரவு & மொழி")
+        tr(en: "Smart Sensors, Night Mode & Language", zhHans: "智能传感、日夜与语言", zhHant: "智慧感測、日夜與語言", ja: "スマートセンサー・夜間・言語", ms: "Sensor Pintar, Mod Malam & Bahasa", ko: "스마트 센서, 야간 모드 & 언어", ta: "ஸ்மார்ட் சென்சார்கள், இரவு & மொழி")
     }
     public static var sectionConnectionAutomation: String {
         tr(en: "Connection & Automation", zhHans: "连接与自动化", zhHant: "連線與自動化", ja: "接続・自動化", ms: "Sambungan & Automasi", ko: "연결 & 자동화", ta: "இணைப்பு & தானியக்கம்")
@@ -1768,9 +1815,9 @@ public enum L10n {
         tr(
             en: "Handshake parameters (DPI, Resolution, FPS, Driving Position) are locked during active session. Disconnect to modify. Fit mode and smoothing remain adjustable.",
             zhHans: "握手参数（DPI、分辨率、帧率、驾驶舵向）在投屏会话期间已锁定，请断开后修改。画面适应模式与帧平滑可实时调节。",
-            zhHant: "握手參數（DPI、解析度、幀率、駕駛舵向）在投影工作階段期間已鎖定，請中斷連線後修改。畫面適應模式與幀平滑可即時調整。",
+            zhHant: "握手參數（DPI、解析度、畫面更新率、駕駛舵向）在投影工作階段期間已鎖定，請中斷連線後修改。畫面適應模式與平滑緩衝可即時調整。",
             ja: "ハンドシェイク設定（DPI・解像度・FPS・運転席位置）はセッション中ロックされます。変更するには切断してください。フィットモードとフレーム補間は調整可能です。",
-            ms: "Parameter jabat tangan (DPI, Resolusi, FPS, Posisi Pemanduan) dikunci semasa sesi aktif. Putuskan sambungan untuk mengubah. Mod muat dan pelicinan kekal boleh laras.",
+            ms: "Parameter handshake (DPI, Resolusi, FPS, Kedudukan Pemandu) dikunci semasa sesi aktif. Putuskan sambungan untuk mengubah. Mod muat dan pelicinan kekal boleh laras.",
             ko: "핸드셰이크 매개변수(DPI, 해상도, FPS, 운전석 위치)는 세션 중 잠깁니다. 수정하려면 연결을 끊으세요. 화면 맞춤 모드와 프레임 보정은 실시간 조절 가능합니다.",
             ta: "ஹேண்ட்ஷேக் அளவுருக்கள் (DPI, தெளிவுத்திறன், FPS, ஓட்டுநர் பக்கம்) அமர்வின் போது பூட்டப்படும். மாற்ற இணைப்பைத் துண்டிக்கவும். பொருத்தப் பயன்முறை மற்றும் சீர்மையைத் தொடர்ந்து மாற்றலாம்."
         )
@@ -1800,7 +1847,7 @@ public enum L10n {
     public static var footerVideoAudioUnlocked: String {
         tr(
             en: "Hardware decoding and microphone routing preferences. Vehicle identity remains permanent Car (CAR 1) for seamless multi-device coexistence.",
-            zhHans: "配置硬件解码器与麦克风路由策略。车载设备身份恒定为标准汽车 (CAR 1)，确保多设备无缝共存。",
+            zhHans: "选择硬件解码与麦克风收音策略。车载身份始终保持标准汽车 (CAR 1)，避免多设备配置冲突。",
             zhHant: "設定硬體解碼器與麥克風路由策略。車載裝置身分恆定為標準汽車 (CAR 1)，確保多裝置無縫共存。",
             ja: "ハードウェアデコードとマイク入力ルートを設定します。車両プロファイルはマルチデバイス互換のため常に Car (CAR 1) を維持します。",
             ms: "Keutamaan penyahkodan perkakasan dan penghalaan mikrofon. Identiti kenderaan kekal sebagai Car (CAR 1) untuk keserasian berbilang peranti.",
@@ -1842,23 +1889,23 @@ public enum L10n {
     }
     public static var resolutionPickerMessage: String {
         tr(
-            en: "Choose target projection resolution ladder",
-            zhHans: "选择目标投屏视频分辨率阶梯",
-            zhHant: "選擇目標投影視訊解析度階梯",
+            en: "Choose target projection video resolution",
+            zhHans: "选择投屏视频的目标分辨率档位",
+            zhHant: "選擇投影視訊的目標解析度檔位",
             ja: "投影する解像度プリセットを選択します",
-            ms: "Pilih tangga resolusi unjuran sasaran",
+            ms: "Pilih tahap resolusi unjuran sasaran",
             ko: "대상 프로젝션 해상도 프리셋을 선택하세요",
             ta: "இலக்குத் திரை இணைப்புத் தெளிவுத்திறனைத் தேர்ந்தெடுக்கவும்"
         )
     }
     public static var frameRateRow: String {
-        tr(en: "Frame Rate", zhHans: "帧率上限", zhHant: "幀率上限", ja: "フレームレート", ms: "Kadar Bingkai", ko: "프레임 속도", ta: "பிரேம் வீதம்")
+        tr(en: "Frame Rate", zhHans: "帧率上限", zhHant: "畫面更新率上限", ja: "フレームレート", ms: "Kadar Bingkai", ko: "프레임 속도", ta: "பிரேம் வீதம்")
     }
     public static var screenOrientationRow: String {
         tr(en: "Screen Orientation", zhHans: "屏幕方向", zhHant: "螢幕方向", ja: "画面の向き", ms: "Orientasi Skrin", ko: "화면 방향", ta: "திரை திசை")
     }
     public static var frameSmoothingRow: String {
-        tr(en: "Frame Smoothing", zhHans: "帧平滑缓冲", zhHant: "幀平滑緩衝", ja: "フレーム補間", ms: "Pelicinan Bingkai", ko: "프레임 보정", ta: "பிரேம் சீர்மை")
+        tr(en: "Frame Smoothing", zhHans: "帧平滑缓冲", zhHant: "畫面平滑緩衝", ja: "フレーム補間", ms: "Pelicinan Bingkai", ko: "프레임 보정", ta: "பிரேம் சீர்மை")
     }
     public static var edgeSwipeProtectionRow: String {
         tr(
@@ -1881,13 +1928,13 @@ public enum L10n {
         tr(en: "Audio Output", zhHans: "音频输出目标", zhHant: "音訊輸出目標", ja: "音声出力先", ms: "Output Audio", ko: "오디오 출력", ta: "ஒலி வெளியீடு")
     }
     public static var microphoneSourceRow: String {
-        tr(en: "Microphone Source", zhHans: "麦克风来源", zhHant: "麥克風來源", ja: "マイク入力", ms: "Sumber Mikrofon", ko: "마이크 소스", ta: "ஒலிவாங்கி மூலம்")
+        tr(en: "Microphone Source", zhHans: "麦克风来源", zhHant: "麥克風來源", ja: "マイク入力", ms: "Sumber Mikrofon", ko: "마이크 소스", ta: "ஒலிவாங்கி உள்ளீடு")
     }
     public static var nightModeRow: String {
         tr(en: "Night Mode", zhHans: "日夜模式", zhHant: "日夜模式", ja: "夜間モード", ms: "Mod Malam", ko: "야간 모드", ta: "இரவுப் பயன்முறை")
     }
     public static var gpsSourceRow: String {
-        tr(en: "GPS Source", zhHans: "GPS 定位来源", zhHant: "GPS 定位來源", ja: "GPS ソース", ms: "Sumber GPS", ko: "GPS 소스", ta: "GPS மூலம்")
+        tr(en: "GPS Source", zhHans: "GPS 定位来源", zhHant: "GPS 定位來源", ja: "GPS ソース", ms: "Sumber GPS", ko: "GPS 소스", ta: "GPS மூலாதாரம்")
     }
     public static var gpsPhoneOnlyWifiIpad: String {
         tr(
@@ -1910,9 +1957,9 @@ public enum L10n {
         tr(
             en: "Debug Mode (HUD & Floating Bubble)",
             zhHans: "调试模式（性能浮窗与悬浮球）",
-            zhHant: "除錯模式（效能浮窗與懸浮球）",
+            zhHant: "除錯模式（效能浮窗與浮動按鈕）",
             ja: "デバッグモード（HUD・フローティングボタン）",
-            ms: "Mod Nyahpepijat (HUD & Buih Terapung)",
+            ms: "Mod Nyahpepijat (HUD & Butang Terapung)",
             ko: "디버그 모드 (HUD & 플로팅 버튼)",
             ta: "பிழைத்திருத்தம் (HUD & மிதக்கும் குமிழ்)"
         )
@@ -1987,7 +2034,7 @@ public enum L10n {
         tr(
             en: "Reset All Settings to Defaults",
             zhHans: "恢复全部默认设置",
-            zhHant: "恢復全部預設設定",
+            zhHant: "重設所有設定",
             ja: "すべての設定を初期値に戻す",
             ms: "Tetapkan Semula Semua Tetapan",
             ko: "모든 설정 기본값으로 초기화",
@@ -2129,7 +2176,7 @@ public enum L10n {
     }
 
     public static var resetAllSettingsTitle: String {
-        tr(en: "Reset All Settings", zhHans: "恢复全部默认设置", zhHant: "恢復全部預設設定", ja: "すべての設定をリセット", ms: "Tetapkan Semula Semua Tetapan", ko: "모든 설정 재설정", ta: "அனைத்து அமைப்புகளையும் மீட்டமை")
+        tr(en: "Reset All Settings", zhHans: "恢复全部默认设置", zhHant: "重設所有設定", ja: "すべての設定をリセット", ms: "Tetapkan Semula Semua Tetapan", ko: "모든 설정 재설정", ta: "அனைத்து அமைப்புகளையும் மீட்டமை")
     }
     public static var resetAllSettingsMessage: String {
         tr(
@@ -2233,10 +2280,10 @@ public enum L10n {
             en: "Active: \(activeW)×\(activeH) (\(codecW)×\(codecH) crop) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             zhHans: "有效: \(activeW)×\(activeH) (\(codecW)×\(codecH) 裁切) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             zhHant: "有效: \(activeW)×\(activeH) (\(codecW)×\(codecH) 裁切) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
-            ja: "有効: \(activeW)×\(activeH) (\(codecW)×\(codecH) 切抜) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
+            ja: "表示: \(activeW)×\(activeH) (\(codecW)×\(codecH) 切抜) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             ms: "Aktif: \(activeW)×\(activeH) (\(codecW)×\(codecH) pangkas) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             ko: "활성: \(activeW)×\(activeH) (\(codecW)×\(codecH) 자르기) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
-            ta: "செயல்: \(activeW)×\(activeH) (\(codecW)×\(codecH) வெட்டு) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)"
+            ta: "செயலில்: \(activeW)×\(activeH) (\(codecW)×\(codecH) வெட்டு) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)"
         )
     }
     public static func previewStatusHeader(
@@ -2249,10 +2296,10 @@ public enum L10n {
             en: "Active: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             zhHans: "有效: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             zhHant: "有效: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
-            ja: "有効: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
+            ja: "表示: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             ms: "Aktif: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             ko: "활성: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
-            ta: "செயல்: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)"
+            ta: "செயலில்: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)"
         )
     }
 }

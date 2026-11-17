@@ -2214,6 +2214,7 @@ final class QuickLayoutDpiViewController: UIViewController {
 
     @objc private func applyLocalization() {
         title = L10n.layoutDpiModalTitle
+        navigationItem.rightBarButtonItem?.title = L10n.done
         fitLabel.text = L10n.displayFitMode
         driverLabel.text = L10n.drivingPosition
         autoDpiLabel.text = L10n.autoRecommendedDpi
@@ -2232,7 +2233,8 @@ final class QuickLayoutDpiViewController: UIViewController {
         preferredContentSize = CGSize(width: 560, height: 500)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done,
+            title: L10n.done,
+            style: .done,
             target: self,
             action: #selector(doneButtonTapped)
         )
@@ -2472,6 +2474,7 @@ final class QuickAudioConfigViewController: UIViewController {
 
     @objc private func applyLocalization() {
         title = L10n.audioDuckingModalTitle
+        navigationItem.rightBarButtonItem?.title = L10n.done
         destLabel.text = L10n.audioOutputDestination
         destinationSegmentedControl.setTitle(L10n.audioOutIpadShort, forSegmentAt: 0)
         destinationSegmentedControl.setTitle(L10n.audioOutPhoneShort, forSegmentAt: 1)
@@ -2498,7 +2501,8 @@ final class QuickAudioConfigViewController: UIViewController {
         preferredContentSize = CGSize(width: 580, height: 620)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done,
+            title: L10n.done,
+            style: .done,
             target: self,
             action: #selector(doneButtonTapped)
         )

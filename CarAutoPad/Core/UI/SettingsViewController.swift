@@ -72,6 +72,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
 
     @objc private func applyLocalization() {
         title = L10n.projectionSettingsTitle
+        navigationItem.rightBarButtonItem?.title = L10n.done
         tableView.reloadData()
     }
 
@@ -86,7 +87,8 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         preferredContentSize = CGSize(width: 640, height: 740)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done,
+            title: L10n.done,
+            style: .done,
             target: self,
             action: #selector(doneButtonTapped)
         )

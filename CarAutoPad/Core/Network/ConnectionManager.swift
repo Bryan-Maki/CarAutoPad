@@ -69,6 +69,8 @@ public enum ConnectionStatusKind: Equatable {
     case handshakingTls
     case runningWireless
     case disconnectedFromSession
+    case handshakeVersionTimeout
+    case tlsHandshakeTimeout
     case customError(String)
 
     public var isDisconnectedWarning: Bool {
@@ -106,6 +108,10 @@ public enum ConnectionStatusKind: Equatable {
             return L10n.statusRunningWireless
         case .disconnectedFromSession:
             return L10n.statusDisconnectedFromSession
+        case .handshakeVersionTimeout:
+            return L10n.statusHandshakeVersionTimeout
+        case .tlsHandshakeTimeout:
+            return L10n.statusTlsHandshakeTimeout
         case .customError(let message):
             return message
         }
@@ -811,7 +817,13 @@ extension ConnectionManager: AapTransportDelegate {
             microphoneCapture.stop()
             locationCapture.stop()
             self.state = .error(msg)
-            updateStatus(.customError(msg))
+            if msg == "Handshake timeout - no response from Headunit Server" {
+                updateStatus(.handshakeVersionTimeout)
+            } else if msg == "TLS handshake timeout" {
+                updateStatus(.tlsHandshakeTimeout)
+            } else {
+                updateStatus(.customError(msg))
+            }
 
             consecutiveSilentFailures = UnresponsivePeerPolicy.countAfterSilentFailure(
                 previousCount: consecutiveSilentFailures,

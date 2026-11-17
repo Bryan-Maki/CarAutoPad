@@ -103,17 +103,17 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AppLanguage.system.title, "시스템 기본값")
         XCTAssertEqual(ProjectionSettings.driverPositionTitle, "좌핸들 (LHD)")
         XCTAssertEqual(MicrophoneSource.ipad.title, "iPad 마이크")
-        XCTAssertEqual(NightModeSetting.twilight.shortTitle, "일출몰")
+        XCTAssertEqual(NightModeSetting.twilight.shortTitle, "일출/일몰")
 
         L10n.testOverrideLanguage = .tamil
         XCTAssertEqual(L10n.current, .tamil)
         XCTAssertEqual(L10n.settingsButtonTitle, "அமைப்புகள்")
         XCTAssertEqual(L10n.systemDefaultLanguageTitle, "கணினி இயல்புநிலை")
         XCTAssertEqual(AppLanguage.system.title, "கணினி இயல்புநிலை")
-        XCTAssertEqual(ProjectionSettings.driverPositionTitle, "இடது கை ஓட்டுநர் (LHD)")
+        XCTAssertEqual(ProjectionSettings.driverPositionTitle, "இடதுபுற ஸ்டியரிங் (LHD)")
         XCTAssertEqual(MicrophoneSource.ipad.title, "iPad ஒலிவாங்கி")
         XCTAssertEqual(NightModeSetting.twilight.shortTitle, "அந்தி")
-        XCTAssertEqual(MotionBlurMode.light.shortTitle, "மென்")
+        XCTAssertEqual(MotionBlurMode.light.shortTitle, "மென்மை")
 
         L10n.testOverrideLanguage = .english
         XCTAssertEqual(L10n.current, .english)
@@ -350,7 +350,7 @@ final class LocalizationTests: XCTestCase {
 
         L10n.testOverrideLanguage = .malay
         XCTAssertEqual(layoutVC.title, "Konfigurasi Susun Atur & DPI")
-        XCTAssertEqual(audioVC.title, "Konfigurasi Audio & Pengurangan")
+        XCTAssertEqual(audioVC.title, "Konfigurasi Audio & Redaman")
         XCTAssertEqual(logCatsVC.title, "Kategori Log Nyahpepijat")
         XCTAssertEqual(logCatsVC.navigationItem.rightBarButtonItem?.title, "Aktifkan Semua")
     }
@@ -370,6 +370,8 @@ final class LocalizationTests: XCTestCase {
             .handshakingTls,
             .runningWireless,
             .disconnectedFromSession,
+            .handshakeVersionTimeout,
+            .tlsHandshakeTimeout,
             .customError("custom")
         ]
         for kind in kinds {
@@ -430,6 +432,7 @@ final class LocalizationTests: XCTestCase {
 
             // SettingsViewController checks + truncation hardening checks
             XCTAssertEqual(settingsVC.title, L10n.projectionSettingsTitle)
+            XCTAssertEqual(settingsVC.navigationItem.rightBarButtonItem?.title, L10n.done)
             XCTAssertFalse(settingsVC.title?.isEmpty ?? true)
 
             let langCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: smartSec))
@@ -462,8 +465,10 @@ final class LocalizationTests: XCTestCase {
 
             // QuickLayoutDpiViewController & QuickAudioConfigViewController checks
             XCTAssertEqual(layoutVC.title, L10n.layoutDpiModalTitle)
+            XCTAssertEqual(layoutVC.navigationItem.rightBarButtonItem?.title, L10n.done)
             XCTAssertFalse(layoutVC.title?.isEmpty ?? true)
             XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
+            XCTAssertEqual(audioVC.navigationItem.rightBarButtonItem?.title, L10n.done)
             XCTAssertFalse(audioVC.title?.isEmpty ?? true)
 
             XCTAssertTrue(mainVC.quickSpecsHeaderLabel.adjustsFontSizeToFitWidth)
@@ -529,5 +534,31 @@ final class LocalizationTests: XCTestCase {
             XCTAssertEqual(count, 14)
             XCTAssertEqual(L10n.current, .english)
         }
+    }
+
+    func testLocalizedDoneDiscoveryErrorsAndHandshakeTimeouts() {
+        let expectedDone: [(AppLanguage, String)] = [
+            (.english, "Done"),
+            (.simplifiedChinese, "完成"),
+            (.traditionalChinese, "完成"),
+            (.japanese, "完了"),
+            (.malay, "Selesai"),
+            (.korean, "완료"),
+            (.tamil, "முடிந்தது")
+        ]
+        for (lang, doneTitle) in expectedDone {
+            L10n.testOverrideLanguage = lang
+            XCTAssertEqual(L10n.done, doneTitle)
+            XCTAssertFalse(DiscoveryError.noNetworkInterface.localizedDescription.isEmpty)
+            XCTAssertFalse(DiscoveryError.scanFailed.localizedDescription.isEmpty)
+            XCTAssertEqual(ConnectionStatusKind.handshakeVersionTimeout.localizedText, L10n.statusHandshakeVersionTimeout)
+            XCTAssertEqual(ConnectionStatusKind.tlsHandshakeTimeout.localizedText, L10n.statusTlsHandshakeTimeout)
+        }
+
+        L10n.testOverrideLanguage = .simplifiedChinese
+        XCTAssertEqual(DiscoveryError.noNetworkInterface.errorDescription, "未找到有效的 Wi-Fi 网络接口")
+        XCTAssertEqual(DiscoveryError.scanFailed.errorDescription, "网络发现扫描失败")
+        XCTAssertEqual(ConnectionStatusKind.handshakeVersionTimeout.localizedText, "握手超时 — 车机服务器无响应")
+        XCTAssertEqual(ConnectionStatusKind.tlsHandshakeTimeout.localizedText, "TLS 安全握手超时")
     }
 }

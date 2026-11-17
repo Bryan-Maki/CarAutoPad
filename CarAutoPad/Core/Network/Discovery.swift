@@ -394,9 +394,9 @@ public enum DiscoveryError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .noNetworkInterface:
-            return "No valid Wi-Fi network interface found"
+            return L10n.discoveryNoNetworkInterface
         case .scanFailed:
-            return "Network discovery scan failed"
+            return L10n.discoveryScanFailed
         }
     }
 }
