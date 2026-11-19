@@ -226,8 +226,8 @@ public final class IOS27AmbientBackgroundView: UIView {
         bottomRightGlowLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
         bottomRightGlowLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
 
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] _, _ in
-            self?.updatePalette()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: IOS27AmbientBackgroundView, _) in
+            view.updatePalette()
         }
         updatePalette()
     }
@@ -404,8 +404,8 @@ public final class IOS27GlassCardView: UIView {
         specularBorderLayer.mask = specularMaskLayer
         clippedContainer.layer.addSublayer(specularBorderLayer)
 
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] _, _ in
-            self?.updateAppearance()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: IOS27GlassCardView, _) in
+            view.updateAppearance()
         }
         updateAppearance()
     }
@@ -502,8 +502,8 @@ public final class IOS27IconBadgeView: UIView {
         ])
 
         setIcon(iconName, tint: tint)
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] _, _ in
-            self?.refreshColors()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: IOS27IconBadgeView, _) in
+            view.refreshColors()
         }
     }
 
@@ -629,8 +629,8 @@ public final class IOS27MenuCategoryBar: UIView {
             pillsStack.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
         ])
 
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] _, _ in
-            self?.updateSelectionVisuals()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: IOS27MenuCategoryBar, _) in
+            view.updateSelectionVisuals()
         }
     }
 
