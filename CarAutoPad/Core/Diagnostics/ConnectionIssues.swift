@@ -91,6 +91,24 @@ public final class ConnectionIssueStore: @unchecked Sendable {
         persist()
     }
 
+    public func clearTransientSessionIssues() {
+        let transient: Set<ConnectionIssue> = [
+            .noDeviceDiscovered,
+            .connectionRefused5277,
+            .tlsHandshakeFailed,
+            .headunitServerNotAnswering,
+            .headunitServerStuckAfterRetries,
+            .videoLinkTooSlow
+        ]
+        lock.lock()
+        defer { lock.unlock() }
+        let before = issues.count
+        issues.removeAll { transient.contains($0.issue) }
+        if issues.count != before {
+            persist()
+        }
+    }
+
     public func currentIssues() -> [StandingIssue] {
         lock.lock()
         defer { lock.unlock() }

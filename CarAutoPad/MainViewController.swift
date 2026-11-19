@@ -104,6 +104,7 @@ final class MainViewController: UIViewController {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
         view.backgroundColor = CarAutoPadTheme.canvas
+        view.clipsToBounds = true
         return view
     }()
 
@@ -127,54 +128,18 @@ final class MainViewController: UIViewController {
         return v
     }()
 
-    // Portrait / Collapsed Sidebar Top Bar (Figma 03)
-    let compactTopBarView: UIView = {
-        let v = UIView()
-        v.translatesAutoresizingMaskIntoConstraints = false
-        v.backgroundColor = CarAutoPadTheme.canvas
-        v.isHidden = true
-        return v
-    }()
-
-    let compactMenuButton: UIButton = CarAutoPadTheme.makeLiquidGlassCircleButton(
-        symbolName: "sidebar.left",
-        size: 38,
-        pointSize: 16,
-        accessibilityIdentifier: "compactMenuButton"
-    )
-
-    private let compactBrandLabel: UILabel = {
-        let l = UILabel()
-        l.translatesAutoresizingMaskIntoConstraints = false
-        l.text = CarAutoPadDeviceInfo.appName
-        l.font = .systemFont(ofSize: 18, weight: .bold)
-        l.textColor = .label
-        return l
-    }()
-
-    private let compactIpPill: UIView = {
-        let v = UIView()
-        v.translatesAutoresizingMaskIntoConstraints = false
-        v.backgroundColor = CarAutoPadTheme.card
-        v.layer.cornerRadius = 15
-        v.layer.cornerCurve = .continuous
-        return v
-    }()
-
-    private let compactStatusDot: UIView = {
-        let v = UIView()
-        v.translatesAutoresizingMaskIntoConstraints = false
-        v.layer.cornerRadius = 3.5
-        v.backgroundColor = CarAutoPadTheme.accentGreen
-        return v
-    }()
-
-    private let compactIpLabel: UILabel = {
-        let l = UILabel()
-        l.translatesAutoresizingMaskIntoConstraints = false
-        l.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        l.textColor = .secondaryLabel
-        return l
+    // Floating Liquid Glass Sidebar Toggle (shown ONLY when sidebar is collapsed or in portrait — NO top bar / NO IP pill)
+    let compactMenuButton: UIButton = {
+        let btn = CarAutoPadTheme.makeLiquidGlassCircleButton(
+            symbolName: "sidebar.left",
+            size: 38,
+            pointSize: 16,
+            accessibilityIdentifier: "compactMenuButton"
+        )
+        btn.isHidden = true
+        btn.alpha = 0
+        btn.transform = CGAffineTransform(scaleX: 0.84, y: 0.84)
+        return btn
     }()
 
     private let detailContentContainer: UIView = {
@@ -184,7 +149,7 @@ final class MainViewController: UIViewController {
         return v
     }()
 
-    // Slide-over Drawer for Portrait / Collapsed Mode
+    // Slide-over Drawer for Portrait Mode (Interactive 1:1 Pan + Critically Damped Spring)
     private let drawerOverlayView: UIView = {
         let v = UIView()
         v.translatesAutoresizingMaskIntoConstraints = false
@@ -209,9 +174,13 @@ final class MainViewController: UIViewController {
         return sb
     }()
 
-    private var sidebarWidthConstraint: NSLayoutConstraint?
-    private var compactTopBarHeightConstraint: NSLayoutConstraint?
+    private static let sidebarFixedWidth: CGFloat = 276
+    private var sidebarLeadingConstraint: NSLayoutConstraint?
     private var drawerLeadingConstraint: NSLayoutConstraint?
+    private var sidebarAnimator: UIViewPropertyAnimator?
+    private var drawerAnimator: UIViewPropertyAnimator?
+    private var drawerPanStartLeading: CGFloat = 0
+    private var isShowingPersistentSidebar: Bool?
     private(set) var isSidebarCollapsed: Bool = false
     private(set) var selectedSidebarTab: AppSidebarTab = .wirelessConnection
 
@@ -404,42 +373,12 @@ final class MainViewController: UIViewController {
         appShellView.addSubview(sidebarDividerView)
         appShellView.addSubview(mainDetailColumn)
 
-        mainDetailColumn.addSubview(compactTopBarView)
         mainDetailColumn.addSubview(detailContentContainer)
-
-        // Compact Top Bar (Portrait / Collapsed Sidebar)
+        mainDetailColumn.addSubview(compactMenuButton)
         compactMenuButton.addTarget(self, action: #selector(compactMenuButtonTapped), for: .touchUpInside)
-        let compactLeft = UIStackView(arrangedSubviews: [compactMenuButton, compactBrandLabel])
-        compactLeft.axis = .horizontal
-        compactLeft.spacing = 12
-        compactLeft.alignment = .center
 
-        let ipInner = UIStackView(arrangedSubviews: [compactStatusDot, compactIpLabel])
-        ipInner.translatesAutoresizingMaskIntoConstraints = false
-        ipInner.axis = .horizontal
-        ipInner.spacing = 7
-        ipInner.alignment = .center
-        compactIpPill.addSubview(ipInner)
-        NSLayoutConstraint.activate([
-            compactStatusDot.widthAnchor.constraint(equalToConstant: 7),
-            compactStatusDot.heightAnchor.constraint(equalToConstant: 7),
-            ipInner.topAnchor.constraint(equalTo: compactIpPill.topAnchor, constant: 7),
-            ipInner.bottomAnchor.constraint(equalTo: compactIpPill.bottomAnchor, constant: -7),
-            ipInner.leadingAnchor.constraint(equalTo: compactIpPill.leadingAnchor, constant: 12),
-            ipInner.trailingAnchor.constraint(equalTo: compactIpPill.trailingAnchor, constant: -12)
-        ])
-
-        let topBarRow = UIStackView(arrangedSubviews: [compactLeft, compactIpPill])
-        topBarRow.translatesAutoresizingMaskIntoConstraints = false
-        topBarRow.axis = .horizontal
-        topBarRow.distribution = .equalSpacing
-        topBarRow.alignment = .center
-        compactTopBarView.addSubview(topBarRow)
-
-        let sbWidth = sidebarView.widthAnchor.constraint(equalToConstant: 276)
-        sidebarWidthConstraint = sbWidth
-        let topBarH = compactTopBarView.heightAnchor.constraint(equalToConstant: 0)
-        compactTopBarHeightConstraint = topBarH
+        let sbLeading = sidebarView.leadingAnchor.constraint(equalTo: appShellView.leadingAnchor, constant: 0)
+        sidebarLeadingConstraint = sbLeading
 
         NSLayoutConstraint.activate([
             appShellView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -447,10 +386,11 @@ final class MainViewController: UIViewController {
             appShellView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             appShellView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
+            // Fixed 276pt sidebar slides horizontally via leading constraint so text/icons never squish during motion
             sidebarView.topAnchor.constraint(equalTo: appShellView.topAnchor),
             sidebarView.bottomAnchor.constraint(equalTo: appShellView.bottomAnchor),
-            sidebarView.leadingAnchor.constraint(equalTo: appShellView.leadingAnchor),
-            sbWidth,
+            sbLeading,
+            sidebarView.widthAnchor.constraint(equalToConstant: Self.sidebarFixedWidth),
 
             sidebarDividerView.topAnchor.constraint(equalTo: appShellView.topAnchor),
             sidebarDividerView.bottomAnchor.constraint(equalTo: appShellView.bottomAnchor),
@@ -462,28 +402,25 @@ final class MainViewController: UIViewController {
             mainDetailColumn.leadingAnchor.constraint(equalTo: sidebarDividerView.trailingAnchor),
             mainDetailColumn.trailingAnchor.constraint(equalTo: appShellView.trailingAnchor),
 
-            compactTopBarView.topAnchor.constraint(equalTo: mainDetailColumn.safeAreaLayoutGuide.topAnchor),
-            compactTopBarView.leadingAnchor.constraint(equalTo: mainDetailColumn.leadingAnchor),
-            compactTopBarView.trailingAnchor.constraint(equalTo: mainDetailColumn.trailingAnchor),
-            topBarH,
-
-            topBarRow.leadingAnchor.constraint(equalTo: compactTopBarView.leadingAnchor, constant: 24),
-            topBarRow.trailingAnchor.constraint(equalTo: compactTopBarView.trailingAnchor, constant: -24),
-            topBarRow.centerYAnchor.constraint(equalTo: compactTopBarView.centerYAnchor),
-
-            detailContentContainer.topAnchor.constraint(equalTo: compactTopBarView.bottomAnchor),
+            detailContentContainer.topAnchor.constraint(equalTo: mainDetailColumn.topAnchor),
             detailContentContainer.leadingAnchor.constraint(equalTo: mainDetailColumn.leadingAnchor),
             detailContentContainer.trailingAnchor.constraint(equalTo: mainDetailColumn.trailingAnchor),
-            detailContentContainer.bottomAnchor.constraint(equalTo: mainDetailColumn.bottomAnchor)
+            detailContentContainer.bottomAnchor.constraint(equalTo: mainDetailColumn.bottomAnchor),
+
+            compactMenuButton.topAnchor.constraint(equalTo: mainDetailColumn.safeAreaLayoutGuide.topAnchor, constant: 14),
+            compactMenuButton.leadingAnchor.constraint(equalTo: mainDetailColumn.leadingAnchor, constant: 20)
         ])
 
-        // Slide-over Drawer Overlay for Portrait / Collapsed Mode
+        // Slide-over Drawer Overlay for Portrait Mode (with 1:1 swipe-to-dismiss pan gesture)
         appShellView.addSubview(drawerOverlayView)
         drawerOverlayView.addSubview(drawerScrimButton)
         drawerOverlayView.addSubview(drawerSidebarView)
         drawerScrimButton.addTarget(self, action: #selector(closeDrawerTapped), for: .touchUpInside)
 
-        let drawerLead = drawerSidebarView.leadingAnchor.constraint(equalTo: drawerOverlayView.leadingAnchor, constant: -290)
+        let drawerPan = UIPanGestureRecognizer(target: self, action: #selector(handleDrawerPan(_:)))
+        drawerOverlayView.addGestureRecognizer(drawerPan)
+
+        let drawerLead = drawerSidebarView.leadingAnchor.constraint(equalTo: drawerOverlayView.leadingAnchor, constant: -(Self.sidebarFixedWidth + 8))
         drawerLeadingConstraint = drawerLead
 
         NSLayoutConstraint.activate([
@@ -499,7 +436,7 @@ final class MainViewController: UIViewController {
 
             drawerSidebarView.topAnchor.constraint(equalTo: drawerOverlayView.topAnchor),
             drawerSidebarView.bottomAnchor.constraint(equalTo: drawerOverlayView.bottomAnchor),
-            drawerSidebarView.widthAnchor.constraint(equalToConstant: 276),
+            drawerSidebarView.widthAnchor.constraint(equalToConstant: Self.sidebarFixedWidth),
             drawerLead
         ])
 
@@ -670,6 +607,8 @@ final class MainViewController: UIViewController {
         ])
         targetVC.didMove(toParent: self)
         activePanelVC = targetVC
+        let showingPersistent = isShowingPersistentSidebar ?? ((view.bounds.width >= 768) && !isSidebarCollapsed)
+        targetVC.additionalSafeAreaInsets.top = showingPersistent ? 0 : 48
     }
 
     func setSidebarCollapsed(_ collapsed: Bool, animated: Bool) {
@@ -679,61 +618,153 @@ final class MainViewController: UIViewController {
 
     private func updateSidebarPresentationMode(forWidth explicitWidth: CGFloat? = nil, animated: Bool = false) {
         let w = explicitWidth ?? view.bounds.width
+        guard w > 0 else { return }
         let isWideEnough = w >= 768
         let showPersistentSidebar = isWideEnough && !isSidebarCollapsed
 
-        let targetSidebarWidth: CGFloat = showPersistentSidebar ? 276 : 0
-        let targetTopBarHeight: CGFloat = showPersistentSidebar ? 0 : 54
-
-        if sidebarWidthConstraint?.constant == targetSidebarWidth && compactTopBarHeightConstraint?.constant == targetTopBarHeight {
+        if isShowingPersistentSidebar == showPersistentSidebar && !animated {
             return
         }
+        isShowingPersistentSidebar = showPersistentSidebar
 
-        sidebarWidthConstraint?.constant = targetSidebarWidth
-        compactTopBarHeightConstraint?.constant = targetTopBarHeight
-        sidebarView.isHidden = !showPersistentSidebar
-        sidebarDividerView.isHidden = !showPersistentSidebar
-        compactTopBarView.isHidden = showPersistentSidebar
+        let closedLeading: CGFloat = -(Self.sidebarFixedWidth + 1)
+        let targetLeading: CGFloat = showPersistentSidebar ? 0 : closedLeading
+        let targetTopInset: CGFloat = showPersistentSidebar ? 0 : 48
 
         if showPersistentSidebar && !drawerOverlayView.isHidden {
             setDrawerOpen(false, animated: false)
         }
 
+        // Interruptible critically damped Apple spring (/apple-design §3, §4, §7, §12)
+        if let existing = sidebarAnimator, existing.isRunning {
+            existing.stopAnimation(true)
+        }
+        sidebarAnimator = nil
+
         if animated {
-            UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.9, initialSpringVelocity: 0.2) {
+            // Keep both layers visible while sliding so nothing pops abruptly
+            sidebarView.isHidden = false
+            sidebarDividerView.isHidden = false
+            compactMenuButton.isHidden = false
+            compactMenuButton.isUserInteractionEnabled = !showPersistentSidebar
+            appShellView.layoutIfNeeded()
+
+            sidebarLeadingConstraint?.constant = targetLeading
+            activePanelVC?.additionalSafeAreaInsets.top = targetTopInset
+
+            let timing = UISpringTimingParameters(dampingRatio: 1.0)
+            let animator = UIViewPropertyAnimator(duration: 0.38, timingParameters: timing)
+            animator.addAnimations { [weak self] in
+                guard let self = self else { return }
                 self.appShellView.layoutIfNeeded()
+                self.sidebarView.alpha = showPersistentSidebar ? 1.0 : 0.0
+                self.sidebarDividerView.alpha = showPersistentSidebar ? 1.0 : 0.0
+                self.compactMenuButton.alpha = showPersistentSidebar ? 0.0 : 1.0
+                self.compactMenuButton.transform = showPersistentSidebar
+                    ? CGAffineTransform(scaleX: 0.84, y: 0.84)
+                    : .identity
             }
+            animator.addCompletion { [weak self] position in
+                guard let self = self, position == .end else { return }
+                self.sidebarView.isHidden = !showPersistentSidebar
+                self.sidebarDividerView.isHidden = !showPersistentSidebar
+                self.compactMenuButton.isHidden = showPersistentSidebar
+                self.sidebarAnimator = nil
+            }
+            sidebarAnimator = animator
+            animator.startAnimation()
+        } else {
+            sidebarLeadingConstraint?.constant = targetLeading
+            activePanelVC?.additionalSafeAreaInsets.top = targetTopInset
+            sidebarView.alpha = showPersistentSidebar ? 1.0 : 0.0
+            sidebarDividerView.alpha = showPersistentSidebar ? 1.0 : 0.0
+            sidebarView.isHidden = !showPersistentSidebar
+            sidebarDividerView.isHidden = !showPersistentSidebar
+            compactMenuButton.alpha = showPersistentSidebar ? 0.0 : 1.0
+            compactMenuButton.transform = showPersistentSidebar
+                ? CGAffineTransform(scaleX: 0.84, y: 0.84)
+                : .identity
+            compactMenuButton.isHidden = showPersistentSidebar
+            compactMenuButton.isUserInteractionEnabled = !showPersistentSidebar
         }
     }
 
-    private func setDrawerOpen(_ open: Bool, animated: Bool) {
+    private func setDrawerOpen(_ open: Bool, animated: Bool, initialVelocity: CGFloat = 0) {
+        let closedLeading: CGFloat = -(Self.sidebarFixedWidth + 8)
+        let targetLeading: CGFloat = open ? 0 : closedLeading
+
+        if let existing = drawerAnimator, existing.isRunning {
+            existing.stopAnimation(true)
+        }
+        drawerAnimator = nil
+
         if open {
             drawerOverlayView.isHidden = false
             appShellView.bringSubviewToFront(drawerOverlayView)
-            drawerLeadingConstraint?.constant = 0
-            if animated {
-                drawerScrimButton.alpha = 0
-                UIView.animate(withDuration: 0.28, delay: 0, usingSpringWithDamping: 0.88, initialSpringVelocity: 0.3) {
-                    self.drawerScrimButton.alpha = 1
-                    self.drawerOverlayView.layoutIfNeeded()
-                }
-            } else {
-                drawerScrimButton.alpha = 1
-                drawerOverlayView.layoutIfNeeded()
+        }
+
+        if animated {
+            drawerOverlayView.layoutIfNeeded()
+            drawerLeadingConstraint?.constant = targetLeading
+            let clampedVel = min(max(initialVelocity, -12), 12)
+            let timing = UISpringTimingParameters(
+                dampingRatio: 1.0,
+                initialVelocity: CGVector(dx: clampedVel, dy: 0)
+            )
+            let animator = UIViewPropertyAnimator(duration: 0.36, timingParameters: timing)
+            animator.addAnimations { [weak self] in
+                guard let self = self else { return }
+                self.drawerScrimButton.alpha = open ? 1.0 : 0.0
+                self.drawerOverlayView.layoutIfNeeded()
             }
-        } else {
-            drawerLeadingConstraint?.constant = -290
-            if animated {
-                UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
-                    self.drawerScrimButton.alpha = 0
-                    self.drawerOverlayView.layoutIfNeeded()
-                } completion: { _ in
+            animator.addCompletion { [weak self] position in
+                guard let self = self, position == .end else { return }
+                if !open {
                     self.drawerOverlayView.isHidden = true
                 }
-            } else {
-                drawerScrimButton.alpha = 0
-                drawerOverlayView.isHidden = true
+                self.drawerAnimator = nil
             }
+            drawerAnimator = animator
+            animator.startAnimation()
+        } else {
+            drawerLeadingConstraint?.constant = targetLeading
+            drawerScrimButton.alpha = open ? 1.0 : 0.0
+            drawerOverlayView.layoutIfNeeded()
+            drawerOverlayView.isHidden = !open
+        }
+    }
+
+    @objc private func handleDrawerPan(_ gesture: UIPanGestureRecognizer) {
+        let closedLeading: CGFloat = -(Self.sidebarFixedWidth + 8)
+        let totalSpan = abs(closedLeading)
+        let translation = gesture.translation(in: drawerOverlayView)
+        let velocityX = gesture.velocity(in: drawerOverlayView).x
+
+        switch gesture.state {
+        case .began:
+            if let existing = drawerAnimator, existing.isRunning {
+                existing.stopAnimation(true)
+                drawerAnimator = nil
+            }
+            drawerPanStartLeading = drawerLeadingConstraint?.constant ?? 0
+        case .changed:
+            let nextLeading = min(0, max(closedLeading, drawerPanStartLeading + translation.x))
+            drawerLeadingConstraint?.constant = nextLeading
+            let progress = max(0, min(1, 1.0 - (abs(nextLeading) / totalSpan)))
+            drawerScrimButton.alpha = progress
+            drawerOverlayView.layoutIfNeeded()
+        case .ended, .cancelled:
+            let currentLeading = drawerLeadingConstraint?.constant ?? 0
+            // Apple Designing Fluid Interfaces exponential-decay momentum projection (/apple-design §6)
+            let decelRate: CGFloat = 0.99
+            let projected = currentLeading + (velocityX / 1000.0) * decelRate / (1.0 - decelRate)
+            let shouldStayOpen = projected > (closedLeading * 0.45)
+            let targetLeading: CGFloat = shouldStayOpen ? 0 : closedLeading
+            let remaining = targetLeading - currentLeading
+            let relVel = abs(remaining) > 1.0 ? (velocityX / remaining) : 0
+            setDrawerOpen(shouldStayOpen, animated: true, initialVelocity: relVel)
+        default:
+            break
         }
     }
 
@@ -753,7 +784,6 @@ final class MainViewController: UIViewController {
     // MARK: - Localization & Panel Sync
 
     @objc func applyLocalization() {
-        compactBrandLabel.text = CarAutoPadDeviceInfo.appName
         sidebarView.applyLocalization()
         drawerSidebarView.applyLocalization()
         wirelessPanelVC.applyLocalization()
@@ -782,30 +812,6 @@ final class MainViewController: UIViewController {
 
         sidebarView.updateConnectionState(state, statusKind: kind, localIp: localIp, peerName: peerName, peerEndpoint: peerEndpoint)
         drawerSidebarView.updateConnectionState(state, statusKind: kind, localIp: localIp, peerName: peerName, peerEndpoint: peerEndpoint)
-
-        switch state {
-        case .discovering, .waitingForWirelessHelper, .connecting, .handshaking:
-            compactStatusDot.backgroundColor = CarAutoPadTheme.accentOrange
-            compactIpLabel.text = L10n.sidebarScanningPort5277
-            compactIpLabel.textColor = .secondaryLabel
-        case .error:
-            compactStatusDot.backgroundColor = CarAutoPadTheme.accentOrange
-            compactIpLabel.text = localIp
-            compactIpLabel.textColor = CarAutoPadTheme.accentOrange
-        case .disconnected, .disconnecting:
-            if kind.isDisconnectedWarning {
-                compactStatusDot.backgroundColor = CarAutoPadTheme.accentOrange
-                compactIpLabel.textColor = CarAutoPadTheme.accentOrange
-            } else {
-                compactStatusDot.backgroundColor = CarAutoPadTheme.accentGreen
-                compactIpLabel.textColor = .secondaryLabel
-            }
-            compactIpLabel.text = localIp
-        case .running:
-            compactStatusDot.backgroundColor = CarAutoPadTheme.accentGreen
-            compactIpLabel.text = peerName
-            compactIpLabel.textColor = .label
-        }
     }
 
     // MARK: - Settings Change Impact Handler
@@ -1149,6 +1155,7 @@ final class MainViewController: UIViewController {
         } else {
             dismissedIssueEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         }
+        ConnectionIssueStore.shared.clearTransientSessionIssues()
         updateConnectionIssueBanner()
     }
 

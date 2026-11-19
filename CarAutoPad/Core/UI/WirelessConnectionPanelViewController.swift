@@ -97,7 +97,6 @@ final class WirelessConnectionPanelViewController: UIViewController {
     let guideStepsStack = UIStackView()
 
     private(set) var isGuideStepsExpanded: Bool = false
-    private var didUserManuallyToggleGuide: Bool = false
     private var lastState: ConnectionState = .disconnected
     private var contentLeadingConstraint: NSLayoutConstraint?
     private var contentTrailingConstraint: NSLayoutConstraint?
@@ -574,13 +573,8 @@ final class WirelessConnectionPanelViewController: UIViewController {
             issueTitleLabel.text = issue.title
             issueAdviceLabel.text = issue.resolutionAdvice
             issueBannerCard.isHidden = false
-            // Auto-expand setup steps when an issue banner appears (unless user explicitly collapsed it)
-            if !didUserManuallyToggleGuide && !isGuideStepsExpanded {
-                setGuideStepsExpanded(true, animated: true)
-            }
         } else {
             issueBannerCard.isHidden = true
-            didUserManuallyToggleGuide = false
         }
     }
 
@@ -614,7 +608,6 @@ final class WirelessConnectionPanelViewController: UIViewController {
     }
 
     @objc private func toggleGuideStepsTapped() {
-        didUserManuallyToggleGuide = true
         setGuideStepsExpanded(!isGuideStepsExpanded, animated: true)
     }
 

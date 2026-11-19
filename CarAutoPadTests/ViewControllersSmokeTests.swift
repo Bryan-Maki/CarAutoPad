@@ -61,10 +61,11 @@ final class ViewControllersSmokeTests: XCTestCase {
         mainVC.view.layoutIfNeeded()
         mainVC.viewDidLayoutSubviews()
 
-        // Landscape wide: persistent 5-item sidebar visible, compact top bar hidden
+        // Landscape wide: persistent 5-item sidebar visible, floating glass menu button hidden
         XCTAssertFalse(mainVC.sidebarView.isHidden)
-        XCTAssertTrue(mainVC.compactTopBarView.isHidden)
+        XCTAssertTrue(mainVC.compactMenuButton.isHidden)
         XCTAssertEqual(mainVC.sidebarView.navStackView.arrangedSubviews.count, 5)
+        XCTAssertEqual(mainVC.sidebarView.frame.width, 276, accuracy: 1.0)
 
         // Verify each sidebar row contains strictly 1 UILabel (clean [Icon + Title], zero trailing small labels)
         for tab in AppSidebarTab.allCases {
@@ -83,19 +84,26 @@ final class ViewControllersSmokeTests: XCTestCase {
             XCTAssertEqual(mainVC.sidebarView.selectedTab, tab)
         }
 
-        // Collapse sidebar in landscape
+        // Collapse sidebar in landscape: sidebar slides off-screen at fixed 276pt width; ONLY floating menu button appears (no IP bar)
         mainVC.setSidebarCollapsed(true, animated: false)
+        mainVC.view.layoutIfNeeded()
         XCTAssertTrue(mainVC.sidebarView.isHidden)
-        XCTAssertFalse(mainVC.compactTopBarView.isHidden)
-        mainVC.setSidebarCollapsed(false, animated: false)
-        XCTAssertFalse(mainVC.sidebarView.isHidden)
+        XCTAssertEqual(mainVC.sidebarView.frame.width, 276, accuracy: 1.0)
+        XCTAssertFalse(mainVC.compactMenuButton.isHidden)
+        XCTAssertEqual(mainVC.compactMenuButton.alpha, 1.0, accuracy: 0.01)
 
-        // Portrait narrow layout: collapses to compact top bar + menu button
+        // Re-open sidebar cleanly
+        mainVC.setSidebarCollapsed(false, animated: false)
+        mainVC.view.layoutIfNeeded()
+        XCTAssertFalse(mainVC.sidebarView.isHidden)
+        XCTAssertTrue(mainVC.compactMenuButton.isHidden)
+
+        // Portrait narrow layout: persistent sidebar hidden, floating glass menu button shown
         mainVC.view.frame = CGRect(x: 0, y: 0, width: 700, height: 1024)
         mainVC.view.layoutIfNeeded()
         mainVC.viewDidLayoutSubviews()
         XCTAssertTrue(mainVC.sidebarView.isHidden)
-        XCTAssertFalse(mainVC.compactTopBarView.isHidden)
+        XCTAssertFalse(mainVC.compactMenuButton.isHidden)
     }
 
     @MainActor
@@ -113,11 +121,22 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertFalse(wireless.heroPrimaryButton.isHidden)
         XCTAssertTrue(wireless.scanningBarContainer.isHidden)
 
-        // Default ready state: Android setup steps collapsed
+        // Default ready state: Android setup steps strictly collapsed
         XCTAssertFalse(wireless.isGuideStepsExpanded)
         XCTAssertTrue(wireless.guideStepsContainer.isHidden)
         XCTAssertTrue(wireless.guideCountBadgeLabel.isHidden)
         XCTAssertEqual(wireless.guideStepsStack.arrangedSubviews.count, 4)
+
+        // Connection issue raised -> shows banner WITHOUT auto-expanding setup steps
+        ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
+        mainVC.updateConnectionIssueBanner()
+        XCTAssertFalse(wireless.issueBannerCard.isHidden)
+        XCTAssertFalse(wireless.isGuideStepsExpanded, "Setup steps must remain collapsed unless user explicitly expands them")
+
+        // Clearing transient session issues on launch removes stale noDeviceDiscovered banner
+        ConnectionIssueStore.shared.clearTransientSessionIssues()
+        mainVC.updateConnectionIssueBanner()
+        XCTAssertTrue(wireless.issueBannerCard.isHidden)
 
         // Tap disclosure header -> expands
         wireless.guideHeaderControl.sendActions(for: .touchUpInside)
@@ -129,13 +148,6 @@ final class ViewControllersSmokeTests: XCTestCase {
         wireless.guideHeaderControl.sendActions(for: .touchUpInside)
         XCTAssertFalse(wireless.isGuideStepsExpanded)
         XCTAssertTrue(wireless.guideStepsContainer.isHidden)
-
-        // Connection issue raised -> shows banner and auto-expands steps
-        wireless.updateIssueBanner(issue: nil) // resets manual toggle lock
-        ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
-        mainVC.updateConnectionIssueBanner()
-        XCTAssertFalse(wireless.issueBannerCard.isHidden)
-        XCTAssertTrue(wireless.isGuideStepsExpanded)
 
         // Scanning state swaps 68pt CTA to 68pt progress + cancel bar
         wireless.updateConnectionState(.discovering, statusDetail: L10n.statusScanning(stationIp: "192.168.43.128"))

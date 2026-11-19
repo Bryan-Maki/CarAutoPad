@@ -281,6 +281,9 @@ class ConnectionManager {
     @objc private func handleNetworkReachabilityChanged(_ notification: Notification) {
         let snapshot = NetworkReachabilityMonitor.shared.currentSnapshot
         guard let stationIp = snapshot.stationIpv4, !stationIp.isEmpty else { return }
+        // Only auto-discover after a network recovery when this session previously had an active/attempted device.
+        // Never silently trigger background discovery (and "No device found" alerts) on a fresh cold launch.
+        guard lastConnectedDevice != nil else { return }
         if state == .disconnected && ProjectionSettings.autoReconnect && !isUserInitiatedDisconnect {
             AppLog.i("Network reconnected with valid IP \(stationIp), triggering auto-discovery", tag: "ConnectionManager")
             startDiscovery(userInitiated: false)

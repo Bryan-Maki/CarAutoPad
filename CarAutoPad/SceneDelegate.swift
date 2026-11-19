@@ -17,6 +17,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
 
         UserDefaults.standard.removeObject(forKey: "projection-app-language")
+        ConnectionIssueStore.shared.clearTransientSessionIssues()
         let rootViewController = MainViewController()
 
         window = UIWindow(windowScene: windowScene)
