@@ -351,7 +351,7 @@ final class MainViewController: UIViewController {
         videoContainerView.addSubview(videoRenderer)
 
         touchOverlayView.isMultipleTouchEnabled = true
-        touchOverlayView.onTouchEvent = { [weak self] pointers, action, actionIndex, touchTs in
+        touchOverlayView.onTouchWithTimestamp = { [weak self] pointers, action, actionIndex, touchTs in
             self?.connectionManager.sendTouchEvent(
                 pointers: pointers,
                 action: action,
@@ -850,7 +850,7 @@ final class MainViewController: UIViewController {
         menu.updateSessionInfo(
             peerName: connectionManager.connectedPeerDisplayName,
             endpoint: connectionManager.connectedPeerEndpointText,
-            fps: videoRenderer.currentFps > 0 ? videoRenderer.currentFps : Double(ProjectionSettings.effectiveFpsLimit == .fps60 ? 60 : 30),
+            fps: videoRenderer.currentFps > 0 ? Double(videoRenderer.currentFps) : Double(ProjectionSettings.effectiveFpsLimit == .fps60 ? 60 : 30),
             decodeMs: videoRenderer.decodeLatency.medianMs
         )
         menu.onNightModeChanged = { [weak self] in
@@ -1127,7 +1127,7 @@ final class MainViewController: UIViewController {
         quickMenuOverlay?.updateSessionInfo(
             peerName: connectionManager.connectedPeerDisplayName,
             endpoint: connectionManager.connectedPeerEndpointText,
-            fps: fps > 0 ? fps : Double(ProjectionSettings.effectiveFpsLimit == .fps60 ? 60 : 30),
+            fps: fps > 0 ? Double(fps) : Double(ProjectionSettings.effectiveFpsLimit == .fps60 ? 60 : 30),
             decodeMs: lat.medianMs
         )
     }
