@@ -12,11 +12,15 @@ final class MainViewController: UIViewController {
     private var lastVideoFrameTs: TimeInterval = 0
     private var hasReceivedFirstVideoFrame = false
     private var lastVideoRecoveryTs: TimeInterval = 0
+    private var dismissedIssueEpochMs: Int64 = 0
+
+    // MARK: - Fullscreen Active Projection Views (Direct Subviews Preserved for Touch & HUD Contracts)
 
     private let videoContainerView: UIView = {
         let view = UIView()
         view.backgroundColor = .black
         view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
         return view
     }()
 
@@ -27,9 +31,21 @@ final class MainViewController: UIViewController {
         return view
     }()
 
+    private let performanceOverlayBlurView: UIVisualEffectView = {
+        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterialDark))
+        blur.translatesAutoresizingMaskIntoConstraints = false
+        blur.isUserInteractionEnabled = false
+        blur.layer.cornerRadius = 12
+        blur.layer.cornerCurve = .continuous
+        blur.clipsToBounds = true
+        blur.isHidden = true
+        return blur
+    }()
+
     private let performanceOverlayView = PerformanceOverlayView()
     private var performanceTimer: Timer?
 
+    // Liquid Glass Draggable Debug Bubble (Figma 10 — ZERO neon halo!)
     private var debugBubbleCenterXConstraint: NSLayoutConstraint?
     private var debugBubbleCenterYConstraint: NSLayoutConstraint?
     private var debugBubblePanStartCenter: CGPoint = .zero
@@ -43,32 +59,853 @@ final class MainViewController: UIViewController {
         button.layer.cornerRadius = 24
         button.layer.cornerCurve = .continuous
         button.layer.masksToBounds = false
-        button.backgroundColor = UIColor(red: 0.08, green: 0.10, blue: 0.15, alpha: 0.72)
-        button.layer.borderWidth = 1.0
-        button.layer.borderColor = UIColor.white.withAlphaComponent(0.36).cgColor
+        button.backgroundColor = UIColor(red: 28.0 / 255.0, green: 28.0 / 255.0, blue: 30.0 / 255.0, alpha: 0.72)
+        button.layer.borderWidth = 0.75
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.22).cgColor
         button.layer.shadowColor = UIColor.black.cgColor
-        button.layer.shadowOpacity = 0.40
-        button.layer.shadowOffset = CGSize(width: 0, height: 4)
-        button.layer.shadowRadius = 10.0
+        button.layer.shadowOpacity = 0.42
+        button.layer.shadowOffset = CGSize(width: 0, height: 6)
+        button.layer.shadowRadius = 14.0
 
-        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
-        let icon = UIImage(systemName: "wrench.and.screwdriver.fill", withConfiguration: symbolConfig)
+        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterialDark))
+        blur.translatesAutoresizingMaskIntoConstraints = false
+        blur.isUserInteractionEnabled = false
+        blur.layer.cornerRadius = 24
+        blur.layer.cornerCurve = .continuous
+        blur.clipsToBounds = true
+        button.insertSubview(blur, at: 0)
+        NSLayoutConstraint.activate([
+            blur.topAnchor.constraint(equalTo: button.topAnchor),
+            blur.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+            blur.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            blur.trailingAnchor.constraint(equalTo: button.trailingAnchor)
+        ])
+
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 19, weight: .medium)
+        let icon = UIImage(systemName: "wrench.and.screwdriver", withConfiguration: symbolConfig)
         button.setImage(icon, for: .normal)
         button.tintColor = .white
+        if let iv = button.imageView {
+            button.bringSubviewToFront(iv)
+        }
         button.isHidden = true
 
         button.addTarget(self, action: #selector(debugBubbleTapped), for: .touchUpInside)
-
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleDebugBubblePan(_:)))
         button.addGestureRecognizer(panGesture)
         return button
     }()
 
+    private(set) var quickMenuOverlay: ProjectionQuickMenuView?
+
+    // MARK: - iPadOS 27 Adaptive Split View Shell (Figma 01 - 09)
+
+    private let appShellView: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = CarAutoPadTheme.canvas
+        return view
+    }()
+
+    let sidebarView: SidebarNavigationView = {
+        let sb = SidebarNavigationView()
+        sb.translatesAutoresizingMaskIntoConstraints = false
+        return sb
+    }()
+
+    private let sidebarDividerView: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.backgroundColor = CarAutoPadTheme.edgeDivider
+        return v
+    }()
+
+    private let mainDetailColumn: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.backgroundColor = CarAutoPadTheme.canvas
+        return v
+    }()
+
+    // Portrait / Collapsed Sidebar Top Bar (Figma 03)
+    let compactTopBarView: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.backgroundColor = CarAutoPadTheme.canvas
+        v.isHidden = true
+        return v
+    }()
+
+    let compactMenuButton: UIButton = CarAutoPadTheme.makeLiquidGlassCircleButton(
+        symbolName: "sidebar.left",
+        size: 38,
+        pointSize: 16,
+        accessibilityIdentifier: "compactMenuButton"
+    )
+
+    private let compactBrandLabel: UILabel = {
+        let l = UILabel()
+        l.translatesAutoresizingMaskIntoConstraints = false
+        l.text = CarAutoPadDeviceInfo.appName
+        l.font = .systemFont(ofSize: 18, weight: .bold)
+        l.textColor = .label
+        return l
+    }()
+
+    private let compactIpPill: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.backgroundColor = CarAutoPadTheme.card
+        v.layer.cornerRadius = 15
+        v.layer.cornerCurve = .continuous
+        return v
+    }()
+
+    private let compactStatusDot: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.layer.cornerRadius = 3.5
+        v.backgroundColor = CarAutoPadTheme.accentGreen
+        return v
+    }()
+
+    private let compactIpLabel: UILabel = {
+        let l = UILabel()
+        l.translatesAutoresizingMaskIntoConstraints = false
+        l.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        l.textColor = .secondaryLabel
+        return l
+    }()
+
+    private let detailContentContainer: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.backgroundColor = CarAutoPadTheme.canvas
+        return v
+    }()
+
+    // Slide-over Drawer for Portrait / Collapsed Mode
+    private let drawerOverlayView: UIView = {
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.isHidden = true
+        return v
+    }()
+
+    private let drawerScrimButton: UIButton = {
+        let b = UIButton(type: .custom)
+        b.translatesAutoresizingMaskIntoConstraints = false
+        b.backgroundColor = UIColor.black.withAlphaComponent(0.45)
+        return b
+    }()
+
+    private let drawerSidebarView: SidebarNavigationView = {
+        let sb = SidebarNavigationView()
+        sb.translatesAutoresizingMaskIntoConstraints = false
+        sb.layer.shadowColor = UIColor.black.cgColor
+        sb.layer.shadowOpacity = 0.45
+        sb.layer.shadowOffset = CGSize(width: 8, height: 0)
+        sb.layer.shadowRadius = 24
+        return sb
+    }()
+
+    private var sidebarWidthConstraint: NSLayoutConstraint?
+    private var compactTopBarHeightConstraint: NSLayoutConstraint?
+    private var drawerLeadingConstraint: NSLayoutConstraint?
+    private(set) var isSidebarCollapsed: Bool = false
+    private(set) var selectedSidebarTab: AppSidebarTab = .wirelessConnection
+
+    // Embedded Tab Child View Controllers
+    let wirelessPanelVC = WirelessConnectionPanelViewController()
+    let displayPanelVC = DisplayLayoutPanelViewController()
+    let audioPanelVC = AudioMixerPanelViewController()
+    let smartPanelVC = SmartLanguagePanelViewController()
+    let aboutPanelVC = AboutAndDiagnosticsViewController()
+    private var activePanelVC: UIViewController?
+
+    // MARK: - Lifecycle
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = CarAutoPadTheme.canvas
+        HeadUnitScreenConfig.shared.videoFitMode = ProjectionSettings.videoFitMode
+
+        setupProjectionStage()
+        setupAdaptiveShell()
+        wireChildPanels()
+        selectSidebarTab(.wirelessConnection)
+
+        connectionManager.delegate = self
+        Discovery.triggerLocalNetworkPermission()
+
+        wireVideoAndGeometryCallbacks()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNetworkReachabilityChanged(_:)),
+            name: .carAutoPadNetworkReachabilityDidChange,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyLocalization),
+            name: .appLanguageDidChange,
+            object: nil
+        )
+
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: MainViewController, _: UITraitCollection) in
+            if self.connectionManager.state == .running && ProjectionSettings.nightMode == .system {
+                self.connectionManager.updateNightMode(userInterfaceStyle: self.traitCollection.userInterfaceStyle, force: true)
+            }
+        }
+
+        applyLocalization()
+        updateUIForConnectionState(connectionManager.state)
+        videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
+        syncVideoAndTouchGeometry()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        performanceTimer?.invalidate()
+        videoWatchdogTimer?.invalidate()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyOrientationLock()
+        refreshAllPanels()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        touchOverlayView.frame = videoContainerView.bounds
+        touchOverlayView.isUserInteractionEnabled = true
+
+        updateSidebarPresentationMode()
+
+        let screen = view.window?.screen ?? UIScreen.main
+        let nativeScale = screen.nativeScale
+        let w: Int
+        let h: Int
+        switch ProjectionSettings.orientation {
+        case .landscape:
+            w = Int((max(view.bounds.width, view.bounds.height) * nativeScale).rounded())
+            h = Int((min(view.bounds.width, view.bounds.height) * nativeScale).rounded())
+        case .portrait:
+            w = Int((min(view.bounds.width, view.bounds.height) * nativeScale).rounded())
+            h = Int((max(view.bounds.width, view.bounds.height) * nativeScale).rounded())
+        case .system:
+            w = Int((view.bounds.width * nativeScale).rounded())
+            h = Int((view.bounds.height * nativeScale).rounded())
+        }
+        if w > 0 && h > 0 {
+            _ = HeadUnitScreenConfig.shared.updateDimensions(width: w, height: h)
+        }
+        syncVideoAndTouchGeometry()
+        if !videoContainerView.isHidden {
+            videoContainerView.bringSubviewToFront(touchOverlayView)
+            videoContainerView.bringSubviewToFront(performanceOverlayBlurView)
+            videoContainerView.bringSubviewToFront(performanceOverlayView)
+        }
+        view.bringSubviewToFront(debugBubbleButton)
+        if let menu = quickMenuOverlay {
+            view.bringSubviewToFront(menu)
+        }
+        clampDebugBubbleToSafeBounds(animated: false)
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            guard let self = self else { return }
+            let scale = (self.view.window?.screen ?? UIScreen.main).nativeScale
+            let w = Int((size.width * scale).rounded())
+            let h = Int((size.height * scale).rounded())
+            if w > 0 && h > 0 {
+                _ = HeadUnitScreenConfig.shared.updateDimensions(width: w, height: h)
+            }
+            self.syncVideoAndTouchGeometry()
+            self.videoRenderer.applyGeometry()
+            self.updateSidebarPresentationMode(forWidth: size.width)
+        }, completion: { [weak self] _ in
+            guard let self = self else { return }
+            let scale = (self.view.window?.screen ?? UIScreen.main).nativeScale
+            let w = Int((self.view.bounds.width * scale).rounded())
+            let h = Int((self.view.bounds.height * scale).rounded())
+            if w > 0 && h > 0 {
+                _ = HeadUnitScreenConfig.shared.updateDimensions(width: w, height: h)
+            }
+            self.syncVideoAndTouchGeometry()
+            self.videoRenderer.applyGeometry()
+            self.displayPanelVC.syncWithCurrentSettings()
+        })
+    }
+
+    // MARK: - Setup Projection Stage & Adaptive Split View Shell
+
+    private func setupProjectionStage() {
+        view.addSubview(videoContainerView)
+
+        videoRenderer.translatesAutoresizingMaskIntoConstraints = false
+        videoContainerView.addSubview(videoRenderer)
+
+        touchOverlayView.isMultipleTouchEnabled = true
+        touchOverlayView.onTouchEvent = { [weak self] pointers, action, actionIndex, touchTs in
+            self?.connectionManager.sendTouchEvent(
+                pointers: pointers,
+                action: action,
+                actionIndex: actionIndex,
+                touchTimestamp: touchTs
+            )
+        }
+        videoContainerView.addSubview(touchOverlayView)
+
+        performanceOverlayView.translatesAutoresizingMaskIntoConstraints = false
+        performanceOverlayView.isHidden = true
+        videoContainerView.addSubview(performanceOverlayBlurView)
+        videoContainerView.addSubview(performanceOverlayView)
+
+        view.addSubview(debugBubbleButton)
+
+        let bubbleCenterX = debugBubbleButton.centerXAnchor.constraint(equalTo: view.leadingAnchor, constant: 40)
+        let bubbleCenterY = debugBubbleButton.centerYAnchor.constraint(equalTo: view.topAnchor, constant: 140)
+        debugBubbleCenterXConstraint = bubbleCenterX
+        debugBubbleCenterYConstraint = bubbleCenterY
+
+        NSLayoutConstraint.activate([
+            videoContainerView.topAnchor.constraint(equalTo: view.topAnchor),
+            videoContainerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            videoContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            videoContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
+            videoRenderer.topAnchor.constraint(equalTo: videoContainerView.topAnchor),
+            videoRenderer.bottomAnchor.constraint(equalTo: videoContainerView.bottomAnchor),
+            videoRenderer.leadingAnchor.constraint(equalTo: videoContainerView.leadingAnchor),
+            videoRenderer.trailingAnchor.constraint(equalTo: videoContainerView.trailingAnchor),
+
+            performanceOverlayView.topAnchor.constraint(equalTo: videoContainerView.safeAreaLayoutGuide.topAnchor, constant: 16),
+            performanceOverlayView.leadingAnchor.constraint(equalTo: videoContainerView.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            performanceOverlayBlurView.topAnchor.constraint(equalTo: performanceOverlayView.topAnchor),
+            performanceOverlayBlurView.bottomAnchor.constraint(equalTo: performanceOverlayView.bottomAnchor),
+            performanceOverlayBlurView.leadingAnchor.constraint(equalTo: performanceOverlayView.leadingAnchor),
+            performanceOverlayBlurView.trailingAnchor.constraint(equalTo: performanceOverlayView.trailingAnchor),
+
+            debugBubbleButton.widthAnchor.constraint(equalToConstant: 48),
+            debugBubbleButton.heightAnchor.constraint(equalToConstant: 48),
+            bubbleCenterX,
+            bubbleCenterY
+        ])
+    }
+
+    private func setupAdaptiveShell() {
+        view.addSubview(appShellView)
+        appShellView.addSubview(sidebarView)
+        appShellView.addSubview(sidebarDividerView)
+        appShellView.addSubview(mainDetailColumn)
+
+        mainDetailColumn.addSubview(compactTopBarView)
+        mainDetailColumn.addSubview(detailContentContainer)
+
+        // Compact Top Bar (Portrait / Collapsed Sidebar)
+        compactMenuButton.addTarget(self, action: #selector(compactMenuButtonTapped), for: .touchUpInside)
+        let compactLeft = UIStackView(arrangedSubviews: [compactMenuButton, compactBrandLabel])
+        compactLeft.axis = .horizontal
+        compactLeft.spacing = 12
+        compactLeft.alignment = .center
+
+        let ipInner = UIStackView(arrangedSubviews: [compactStatusDot, compactIpLabel])
+        ipInner.translatesAutoresizingMaskIntoConstraints = false
+        ipInner.axis = .horizontal
+        ipInner.spacing = 7
+        ipInner.alignment = .center
+        compactIpPill.addSubview(ipInner)
+        NSLayoutConstraint.activate([
+            compactStatusDot.widthAnchor.constraint(equalToConstant: 7),
+            compactStatusDot.heightAnchor.constraint(equalToConstant: 7),
+            ipInner.topAnchor.constraint(equalTo: compactIpPill.topAnchor, constant: 7),
+            ipInner.bottomAnchor.constraint(equalTo: compactIpPill.bottomAnchor, constant: -7),
+            ipInner.leadingAnchor.constraint(equalTo: compactIpPill.leadingAnchor, constant: 12),
+            ipInner.trailingAnchor.constraint(equalTo: compactIpPill.trailingAnchor, constant: -12)
+        ])
+
+        let topBarRow = UIStackView(arrangedSubviews: [compactLeft, compactIpPill])
+        topBarRow.translatesAutoresizingMaskIntoConstraints = false
+        topBarRow.axis = .horizontal
+        topBarRow.distribution = .equalSpacing
+        topBarRow.alignment = .center
+        compactTopBarView.addSubview(topBarRow)
+
+        let sbWidth = sidebarView.widthAnchor.constraint(equalToConstant: 276)
+        sidebarWidthConstraint = sbWidth
+        let topBarH = compactTopBarView.heightAnchor.constraint(equalToConstant: 0)
+        compactTopBarHeightConstraint = topBarH
+
+        NSLayoutConstraint.activate([
+            appShellView.topAnchor.constraint(equalTo: view.topAnchor),
+            appShellView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            appShellView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            appShellView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
+            sidebarView.topAnchor.constraint(equalTo: appShellView.topAnchor),
+            sidebarView.bottomAnchor.constraint(equalTo: appShellView.bottomAnchor),
+            sidebarView.leadingAnchor.constraint(equalTo: appShellView.leadingAnchor),
+            sbWidth,
+
+            sidebarDividerView.topAnchor.constraint(equalTo: appShellView.topAnchor),
+            sidebarDividerView.bottomAnchor.constraint(equalTo: appShellView.bottomAnchor),
+            sidebarDividerView.leadingAnchor.constraint(equalTo: sidebarView.trailingAnchor),
+            sidebarDividerView.widthAnchor.constraint(equalToConstant: 1),
+
+            mainDetailColumn.topAnchor.constraint(equalTo: appShellView.topAnchor),
+            mainDetailColumn.bottomAnchor.constraint(equalTo: appShellView.bottomAnchor),
+            mainDetailColumn.leadingAnchor.constraint(equalTo: sidebarDividerView.trailingAnchor),
+            mainDetailColumn.trailingAnchor.constraint(equalTo: appShellView.trailingAnchor),
+
+            compactTopBarView.topAnchor.constraint(equalTo: mainDetailColumn.safeAreaLayoutGuide.topAnchor),
+            compactTopBarView.leadingAnchor.constraint(equalTo: mainDetailColumn.leadingAnchor),
+            compactTopBarView.trailingAnchor.constraint(equalTo: mainDetailColumn.trailingAnchor),
+            topBarH,
+
+            topBarRow.leadingAnchor.constraint(equalTo: compactTopBarView.leadingAnchor, constant: 24),
+            topBarRow.trailingAnchor.constraint(equalTo: compactTopBarView.trailingAnchor, constant: -24),
+            topBarRow.centerYAnchor.constraint(equalTo: compactTopBarView.centerYAnchor),
+
+            detailContentContainer.topAnchor.constraint(equalTo: compactTopBarView.bottomAnchor),
+            detailContentContainer.leadingAnchor.constraint(equalTo: mainDetailColumn.leadingAnchor),
+            detailContentContainer.trailingAnchor.constraint(equalTo: mainDetailColumn.trailingAnchor),
+            detailContentContainer.bottomAnchor.constraint(equalTo: mainDetailColumn.bottomAnchor)
+        ])
+
+        // Slide-over Drawer Overlay for Portrait / Collapsed Mode
+        appShellView.addSubview(drawerOverlayView)
+        drawerOverlayView.addSubview(drawerScrimButton)
+        drawerOverlayView.addSubview(drawerSidebarView)
+        drawerScrimButton.addTarget(self, action: #selector(closeDrawerTapped), for: .touchUpInside)
+
+        let drawerLead = drawerSidebarView.leadingAnchor.constraint(equalTo: drawerOverlayView.leadingAnchor, constant: -290)
+        drawerLeadingConstraint = drawerLead
+
+        NSLayoutConstraint.activate([
+            drawerOverlayView.topAnchor.constraint(equalTo: appShellView.topAnchor),
+            drawerOverlayView.bottomAnchor.constraint(equalTo: appShellView.bottomAnchor),
+            drawerOverlayView.leadingAnchor.constraint(equalTo: appShellView.leadingAnchor),
+            drawerOverlayView.trailingAnchor.constraint(equalTo: appShellView.trailingAnchor),
+
+            drawerScrimButton.topAnchor.constraint(equalTo: drawerOverlayView.topAnchor),
+            drawerScrimButton.bottomAnchor.constraint(equalTo: drawerOverlayView.bottomAnchor),
+            drawerScrimButton.leadingAnchor.constraint(equalTo: drawerOverlayView.leadingAnchor),
+            drawerScrimButton.trailingAnchor.constraint(equalTo: drawerOverlayView.trailingAnchor),
+
+            drawerSidebarView.topAnchor.constraint(equalTo: drawerOverlayView.topAnchor),
+            drawerSidebarView.bottomAnchor.constraint(equalTo: drawerOverlayView.bottomAnchor),
+            drawerSidebarView.widthAnchor.constraint(equalToConstant: 276),
+            drawerLead
+        ])
+
+        // Wire Both Persistent & Drawer Sidebars
+        sidebarView.onSelectTab = { [weak self] tab in
+            self?.selectSidebarTab(tab)
+        }
+        sidebarView.onToggleCollapse = { [weak self] in
+            self?.setSidebarCollapsed(true, animated: true)
+        }
+        sidebarView.onDisconnectTapped = { [weak self] in
+            self?.disconnectSession()
+        }
+
+        drawerSidebarView.onSelectTab = { [weak self] tab in
+            self?.selectSidebarTab(tab)
+            self?.setDrawerOpen(false, animated: true)
+        }
+        drawerSidebarView.onToggleCollapse = { [weak self] in
+            self?.setDrawerOpen(false, animated: true)
+        }
+        drawerSidebarView.onDisconnectTapped = { [weak self] in
+            self?.setDrawerOpen(false, animated: true)
+            self?.disconnectSession()
+        }
+    }
+
+    private func wireChildPanels() {
+        wirelessPanelVC.onStartDiscovery = { [weak self] in
+            self?.connectionManager.startDiscovery()
+        }
+        wirelessPanelVC.onCancelDiscovery = { [weak self] in
+            guard let self = self else { return }
+            if self.connectionManager.state == .discovering {
+                self.connectionManager.stopDiscovery()
+            } else {
+                self.disconnectSession()
+            }
+        }
+        wirelessPanelVC.onDirectConnect = { [weak self] ip in
+            self?.connectionManager.connect(to: ip, port: Discovery.headunitPort)
+        }
+        wirelessPanelVC.onDismissIssueBanner = { [weak self] in
+            self?.dismissConnectionIssueBanner()
+        }
+
+        displayPanelVC.connectionManager = connectionManager
+        displayPanelVC.onSettingsChanged = { [weak self] impact in
+            self?.handleSettingsImpact(impact)
+        }
+
+        audioPanelVC.connectionManager = connectionManager
+        audioPanelVC.onSettingsChanged = { [weak self] impact in
+            self?.handleSettingsImpact(impact)
+        }
+
+        smartPanelVC.onSettingsChanged = { [weak self] impact in
+            self?.handleSettingsImpact(impact)
+        }
+
+        aboutPanelVC.connectionManager = connectionManager
+        aboutPanelVC.onSettingsChanged = { [weak self] impact in
+            self?.handleSettingsImpact(impact)
+        }
+        aboutPanelVC.onProvideDiagnosticLines = { [weak self] in
+            self?.combinedDiagnosticLines() ?? []
+        }
+        aboutPanelVC.onProvideVideoDiagnostics = { [weak self] in
+            let codec = ProjectionSettings.videoCodecPreference == .hevc ? "HEVC" : "H.264"
+            return (codec, self?.videoRenderer.droppedFrames ?? 0)
+        }
+    }
+
+    private func wireVideoAndGeometryCallbacks() {
+        videoRenderer.onFrameDisplayed = { [weak self] in
+            guard let self = self else { return }
+            guard !self.hasReceivedFirstVideoFrame else { return }
+            let block = {
+                guard !self.hasReceivedFirstVideoFrame else { return }
+                self.hasReceivedFirstVideoFrame = true
+                self.lastVideoFrameTs = Date().timeIntervalSince1970
+                self.stopVideoWatchdog()
+            }
+            if Thread.isMainThread { block() } else { DispatchQueue.main.async(execute: block) }
+        }
+        videoRenderer.onKeyframeRequested = { [weak self] in
+            self?.connectionManager.requestVideoRecovery()
+        }
+        videoRenderer.onProvideNetStats = { [weak self] in
+            self?.connectionManager.takeVideo1sNetStats() ?? (0, 0, 0.0)
+        }
+        videoRenderer.onVideoSizeResolved = { [weak self] size in
+            let w = Int(size.width)
+            let h = Int(size.height)
+            if w > 0 && h > 0 {
+                AppLog.i("MainViewController: Video size resolved from SPS: \(w)x\(h)", tag: "MainViewController")
+                self?.videoRenderer.setNeedsLayout()
+            }
+        }
+        HeadUnitScreenConfig.shared.onMarginsDivergedDetailed = { [weak self] left, top, right, bottom in
+            self?.connectionManager.sendUpdateUiConfigRequest(left: left, top: top, right: right, bottom: bottom)
+            self?.syncVideoAndTouchGeometry()
+            self?.videoRenderer.applyGeometry()
+        }
+        HeadUnitScreenConfig.shared.onFallbackAdopted = { [weak self] in
+            self?.syncVideoAndTouchGeometry()
+            self?.videoRenderer.applyGeometry()
+        }
+        videoRenderer.onDecoderFallbackRequested = { [weak self] width, height, reason in
+            guard let self = self else { return }
+            AppLog.w("MainViewController: Decoder fallback requested: resolution=\(ProjectionSettings.resolution.title), stream=\(width)x\(height), reason=\(reason)", tag: "MainViewController")
+            if let fallback = DecoderConfigLadder.fallbackPreset(from: ProjectionSettings.resolution, currentWidth: width, currentHeight: height) {
+                AppLog.i("MainViewController: Stepping down resolution from \(ProjectionSettings.resolution.title) to \(fallback.title)", tag: "MainViewController")
+                ProjectionSettings.resolution = fallback
+                self.displayPanelVC.syncWithCurrentSettings()
+                if self.connectionManager.state == .running {
+                    self.connectionManager.reconnectForSettingsChange()
+                }
+            }
+        }
+    }
+
+    // MARK: - Sidebar Navigation & Responsive Layout
+
+    func selectSidebarTab(_ tab: AppSidebarTab) {
+        selectedSidebarTab = tab
+        sidebarView.setSelectedTab(tab)
+        drawerSidebarView.setSelectedTab(tab)
+
+        let targetVC: UIViewController
+        switch tab {
+        case .wirelessConnection:
+            targetVC = wirelessPanelVC
+        case .displayLayout:
+            displayPanelVC.syncWithCurrentSettings()
+            targetVC = displayPanelVC
+        case .audioMixer:
+            audioPanelVC.syncWithCurrentSettings()
+            targetVC = audioPanelVC
+        case .smartLanguage:
+            smartPanelVC.syncWithCurrentSettings()
+            targetVC = smartPanelVC
+        case .about:
+            if aboutPanelVC.isShowingDiagnosticsSubpage && !ProjectionSettings.isHiddenDiagnosticsUnlocked {
+                aboutPanelVC.showAboutView(animated: false)
+            } else {
+                aboutPanelVC.refreshDynamicData()
+            }
+            targetVC = aboutPanelVC
+        }
+
+        guard activePanelVC !== targetVC else { return }
+
+        if let prev = activePanelVC {
+            prev.willMove(toParent: nil)
+            prev.view.removeFromSuperview()
+            prev.removeFromParent()
+        }
+
+        addChild(targetVC)
+        targetVC.view.translatesAutoresizingMaskIntoConstraints = false
+        detailContentContainer.addSubview(targetVC.view)
+        NSLayoutConstraint.activate([
+            targetVC.view.topAnchor.constraint(equalTo: detailContentContainer.topAnchor),
+            targetVC.view.bottomAnchor.constraint(equalTo: detailContentContainer.bottomAnchor),
+            targetVC.view.leadingAnchor.constraint(equalTo: detailContentContainer.leadingAnchor),
+            targetVC.view.trailingAnchor.constraint(equalTo: detailContentContainer.trailingAnchor)
+        ])
+        targetVC.didMove(toParent: self)
+        activePanelVC = targetVC
+    }
+
+    func setSidebarCollapsed(_ collapsed: Bool, animated: Bool) {
+        isSidebarCollapsed = collapsed
+        updateSidebarPresentationMode(animated: animated)
+    }
+
+    private func updateSidebarPresentationMode(forWidth explicitWidth: CGFloat? = nil, animated: Bool = false) {
+        let w = explicitWidth ?? view.bounds.width
+        let isWideEnough = w >= 768
+        let showPersistentSidebar = isWideEnough && !isSidebarCollapsed
+
+        let targetSidebarWidth: CGFloat = showPersistentSidebar ? 276 : 0
+        let targetTopBarHeight: CGFloat = showPersistentSidebar ? 0 : 54
+
+        if sidebarWidthConstraint?.constant == targetSidebarWidth && compactTopBarHeightConstraint?.constant == targetTopBarHeight {
+            return
+        }
+
+        sidebarWidthConstraint?.constant = targetSidebarWidth
+        compactTopBarHeightConstraint?.constant = targetTopBarHeight
+        sidebarView.isHidden = !showPersistentSidebar
+        sidebarDividerView.isHidden = !showPersistentSidebar
+        compactTopBarView.isHidden = showPersistentSidebar
+
+        if showPersistentSidebar && !drawerOverlayView.isHidden {
+            setDrawerOpen(false, animated: false)
+        }
+
+        if animated {
+            UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.9, initialSpringVelocity: 0.2) {
+                self.appShellView.layoutIfNeeded()
+            }
+        }
+    }
+
+    private func setDrawerOpen(_ open: Bool, animated: Bool) {
+        if open {
+            drawerOverlayView.isHidden = false
+            appShellView.bringSubviewToFront(drawerOverlayView)
+            drawerLeadingConstraint?.constant = 0
+            if animated {
+                drawerScrimButton.alpha = 0
+                UIView.animate(withDuration: 0.28, delay: 0, usingSpringWithDamping: 0.88, initialSpringVelocity: 0.3) {
+                    self.drawerScrimButton.alpha = 1
+                    self.drawerOverlayView.layoutIfNeeded()
+                }
+            } else {
+                drawerScrimButton.alpha = 1
+                drawerOverlayView.layoutIfNeeded()
+            }
+        } else {
+            drawerLeadingConstraint?.constant = -290
+            if animated {
+                UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
+                    self.drawerScrimButton.alpha = 0
+                    self.drawerOverlayView.layoutIfNeeded()
+                } completion: { _ in
+                    self.drawerOverlayView.isHidden = true
+                }
+            } else {
+                drawerScrimButton.alpha = 0
+                drawerOverlayView.isHidden = true
+            }
+        }
+    }
+
+    @objc private func compactMenuButtonTapped() {
+        let isWide = view.bounds.width >= 768
+        if isWide && isSidebarCollapsed {
+            setSidebarCollapsed(false, animated: true)
+        } else {
+            setDrawerOpen(true, animated: true)
+        }
+    }
+
+    @objc private func closeDrawerTapped() {
+        setDrawerOpen(false, animated: true)
+    }
+
+    // MARK: - Localization & Panel Sync
+
+    @objc func applyLocalization() {
+        compactBrandLabel.text = CarAutoPadDeviceInfo.appName
+        sidebarView.applyLocalization()
+        drawerSidebarView.applyLocalization()
+        wirelessPanelVC.applyLocalization()
+        displayPanelVC.applyLocalization()
+        audioPanelVC.applyLocalization()
+        smartPanelVC.applyLocalization()
+        aboutPanelVC.applyLocalization()
+        quickMenuOverlay?.applyLocalization()
+        updateSidebarAndCompactStatus()
+    }
+
+    func refreshAllPanels() {
+        displayPanelVC.syncWithCurrentSettings()
+        audioPanelVC.syncWithCurrentSettings()
+        smartPanelVC.syncWithCurrentSettings()
+        aboutPanelVC.refreshDynamicData()
+        updateSidebarAndCompactStatus()
+    }
+
+    private func updateSidebarAndCompactStatus() {
+        let localIp = CarAutoPadDeviceInfo.localIpDisplayName
+        let state = connectionManager.state
+        let kind = connectionManager.statusKind
+        let peerName = connectionManager.connectedPeerDisplayName
+        let peerEndpoint = connectionManager.connectedPeerEndpointText
+
+        sidebarView.updateConnectionState(state, statusKind: kind, localIp: localIp, peerName: peerName, peerEndpoint: peerEndpoint)
+        drawerSidebarView.updateConnectionState(state, statusKind: kind, localIp: localIp, peerName: peerName, peerEndpoint: peerEndpoint)
+
+        switch state {
+        case .discovering, .waitingForWirelessHelper, .connecting, .handshaking:
+            compactStatusDot.backgroundColor = CarAutoPadTheme.accentOrange
+            compactIpLabel.text = L10n.sidebarScanningPort5277
+            compactIpLabel.textColor = .secondaryLabel
+        case .error:
+            compactStatusDot.backgroundColor = CarAutoPadTheme.accentOrange
+            compactIpLabel.text = localIp
+            compactIpLabel.textColor = CarAutoPadTheme.accentOrange
+        case .disconnected, .disconnecting:
+            if kind.isDisconnectedWarning {
+                compactStatusDot.backgroundColor = CarAutoPadTheme.accentOrange
+                compactIpLabel.textColor = CarAutoPadTheme.accentOrange
+            } else {
+                compactStatusDot.backgroundColor = CarAutoPadTheme.accentGreen
+                compactIpLabel.textColor = .secondaryLabel
+            }
+            compactIpLabel.text = localIp
+        case .running:
+            compactStatusDot.backgroundColor = CarAutoPadTheme.accentGreen
+            compactIpLabel.text = peerName
+            compactIpLabel.textColor = .label
+        }
+    }
+
+    // MARK: - Settings Change Impact Handler
+
+    private func handleSettingsImpact(_ impact: SettingsViewController.ChangeImpact) {
+        refreshAllPanels()
+        quickMenuOverlay?.syncWithCurrentSettings()
+        switch impact {
+        case .uiOnly:
+            updatePerformanceOverlayState()
+            refreshSystemGestureDeferral()
+        case .nightModeChanged:
+            connectionManager.updateNightMode(userInterfaceStyle: traitCollection.userInterfaceStyle, force: true)
+        case .geometryChanged:
+            applyOrientationLock()
+            syncVideoAndTouchGeometry()
+            videoRenderer.applyGeometry()
+        case .motionBlurChanged:
+            videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
+        case .audioVolumeOrDuckingChanged:
+            PCMAudioPlayer.shared.refreshVolumes()
+        case .requiresReconnect:
+            if connectionManager.state == .running {
+                connectionManager.reconnectForSettingsChange()
+            }
+        }
+    }
+
+    // MARK: - Debug Bubble & Liquid Glass Quick Menu Popover (Figma 10)
+
     @objc private func debugBubbleTapped() {
-        presentSettingsMenu()
+        if quickMenuOverlay != nil {
+            dismissProjectionQuickMenu(animated: true)
+        } else {
+            presentProjectionQuickMenu()
+        }
+    }
+
+    func presentProjectionQuickMenu() {
+        guard quickMenuOverlay == nil else { return }
+        let menu = ProjectionQuickMenuView()
+        menu.updateSessionInfo(
+            peerName: connectionManager.connectedPeerDisplayName,
+            endpoint: connectionManager.connectedPeerEndpointText,
+            fps: videoRenderer.currentFps > 0 ? videoRenderer.currentFps : Double(ProjectionSettings.effectiveFpsLimit == .fps60 ? 60 : 30),
+            decodeMs: videoRenderer.decodeLatency.medianMs
+        )
+        menu.onNightModeChanged = { [weak self] in
+            self?.handleSettingsImpact(.nightModeChanged)
+        }
+        menu.onHudToggled = { [weak self] isOn in
+            guard let self = self else { return }
+            self.performanceOverlayView.isHidden = !isOn
+            self.performanceOverlayBlurView.isHidden = !isOn
+        }
+        menu.onAudioChanged = { [weak self] in
+            self?.handleSettingsImpact(.audioVolumeOrDuckingChanged)
+        }
+        menu.onOpenFullSettings = { [weak self] in
+            self?.dismissProjectionQuickMenu(animated: true)
+            self?.presentSettingsMenu()
+        }
+        menu.onDisconnectTapped = { [weak self] in
+            self?.dismissProjectionQuickMenu(animated: true)
+            self?.disconnectSession()
+        }
+        menu.onDismissRequested = { [weak self] in
+            self?.dismissProjectionQuickMenu(animated: true)
+        }
+
+        view.addSubview(menu)
+        NSLayoutConstraint.activate([
+            menu.topAnchor.constraint(equalTo: view.topAnchor),
+            menu.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            menu.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            menu.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
+        menu.position(relativeTo: debugBubbleButton, snappedToRight: debugBubbleSnappedToRight)
+        view.bringSubviewToFront(menu)
+        view.bringSubviewToFront(debugBubbleButton)
+        quickMenuOverlay = menu
+        menu.animateIn(snappedToRight: debugBubbleSnappedToRight)
+    }
+
+    func dismissProjectionQuickMenu(animated: Bool) {
+        guard let menu = quickMenuOverlay else { return }
+        quickMenuOverlay = nil
+        if animated {
+            menu.animateOut(snappedToRight: debugBubbleSnappedToRight) {
+                menu.removeFromSuperview()
+            }
+        } else {
+            menu.removeFromSuperview()
+        }
     }
 
     @objc func handleDebugBubblePan(_ gesture: UIPanGestureRecognizer) {
+        if quickMenuOverlay != nil {
+            dismissProjectionQuickMenu(animated: false)
+        }
         let translation = gesture.translation(in: view)
         switch gesture.state {
         case .began:
@@ -92,7 +929,6 @@ final class MainViewController: UIViewController {
             clampDebugBubbleToSafeBounds(animated: true)
         default:
             isPanningDebugBubble = false
-            break
         }
     }
 
@@ -109,7 +945,7 @@ final class MainViewController: UIViewController {
         let maxY = view.bounds.height - safeArea.bottom - bubbleRadius - margin
 
         let currentX = debugBubbleCenterXConstraint?.constant ?? maxX
-        let currentY = debugBubbleCenterYConstraint?.constant ?? (minY + 60)
+        let currentY = debugBubbleCenterYConstraint?.constant ?? (minY + 120)
 
         let snapToRight = (currentX >= (view.bounds.width / 2.0))
         debugBubbleSnappedToRight = snapToRight
@@ -130,7 +966,7 @@ final class MainViewController: UIViewController {
             UIView.animate(
                 withDuration: 0.35,
                 delay: 0,
-                usingSpringWithDamping: 0.75,
+                usingSpringWithDamping: 0.78,
                 initialSpringVelocity: 0.5,
                 options: [.allowUserInteraction, .beginFromCurrentState]
             ) {
@@ -141,589 +977,212 @@ final class MainViewController: UIViewController {
         }
     }
 
-    private let ambientBackgroundView: IOS27AmbientBackgroundView = {
-        let view = IOS27AmbientBackgroundView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
+    // MARK: - Full Settings FormSheet (from Quick Menu during Active Projection)
 
-    private let homeScrollView: UIScrollView = {
-        let scrollView = UIScrollView()
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.backgroundColor = .clear
-        scrollView.alwaysBounceVertical = true
-        scrollView.showsVerticalScrollIndicator = false
-        return scrollView
-    }()
-
-    private let homeContentView: UIView = {
-        let view = UIView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
-
-    private let dashboardContentContainer: UIView = {
-        let view = UIView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
-
-    private let headerContainerView: IOS27GlassCardView = {
-        let view = IOS27GlassCardView(style: .medium, cornerRadius: 22)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
-
-    private let appIconImageView: UIImageView = {
-        let iv = UIImageView()
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        iv.contentMode = .scaleAspectFit
-        iv.layer.cornerRadius = 12
-        iv.layer.cornerCurve = .continuous
-        iv.layer.borderWidth = 0.8
-        iv.layer.borderColor = UIColor.white.withAlphaComponent(0.28).cgColor
-        iv.clipsToBounds = true
-        if let icon = UIImage(named: "AppIcon") {
-            iv.image = icon
-        } else {
-            let config = UIImage.SymbolConfiguration(pointSize: 26, weight: .bold)
-            iv.image = UIImage(systemName: "car.fill", withConfiguration: config)
-            iv.tintColor = IOS27Theme.accentBlue
-            iv.backgroundColor = IOS27Theme.accentBlue.withAlphaComponent(0.14)
+    func presentSettingsMenu() {
+        guard presentedViewController == nil else { return }
+        let settingsVC = SettingsViewController()
+        settingsVC.connectionManager = connectionManager
+        settingsVC.onSettingsChanged = { [weak self] impact in
+            self?.handleSettingsImpact(impact)
         }
-        return iv
-    }()
+        settingsVC.onProvideDiagnosticLines = { [weak self] in
+            self?.combinedDiagnosticLines() ?? []
+        }
 
-    private let titleLabel: UILabel = {
-        let label = UILabel()
-        label.text = "CarAutoPad"
-        label.font = .systemFont(ofSize: 26, weight: .bold)
-        label.textColor = .label
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
+        let nav = UINavigationController(rootViewController: settingsVC)
+        nav.modalPresentationStyle = .formSheet
+        nav.preferredContentSize = CGSize(width: 680, height: 760)
+        present(nav, animated: true)
+    }
 
-    private(set) var subtitleLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.appSubtitle
-        label.font = .systemFont(ofSize: 13.5, weight: .medium)
-        label.textColor = .secondaryLabel
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.75
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
+    private func disconnectSession() {
+        connectionManager.screenConfig.clearCustomNegotiatedResolution()
+        connectionManager.disconnect()
+    }
 
-    private let statusPillView: IOS27GlassCardView = {
-        let view = IOS27GlassCardView(style: .capsule, cornerRadius: 17)
-        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
+    private func combinedDiagnosticLines() -> [String] {
+        return connectionManager.diagnosticLines() + [""] + videoRenderer.diagnosticLines()
+    }
 
-    private(set) var statusDotView: UIView = {
-        let view = UIView()
-        view.backgroundColor = .systemGreen
-        view.layer.cornerRadius = 4
-        view.clipsToBounds = true
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
+    // MARK: - Connection State & HUD Management
 
-    private(set) var statusLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.statusReadyToConnect
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.textColor = .secondaryLabel
-        label.lineBreakMode = .byTruncatingTail
-        label.numberOfLines = 1
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
+    private func updateUIForConnectionState(_ state: ConnectionState) {
+        UIApplication.shared.isIdleTimerDisabled = (state == .running)
 
-    private(set) lazy var settingsButton: UIButton = {
-        var config = UIButton.Configuration.tinted()
-        config.title = L10n.settingsButtonTitle
-        config.titleLineBreakMode = .byClipping
-        config.image = UIImage(
-            systemName: "slider.horizontal.3",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        )
-        config.imagePadding = 6
-        config.cornerStyle = .capsule
-        config.buttonSize = .medium
-        config.baseBackgroundColor = IOS27Theme.vibrantPrimaryFill
-        config.baseForegroundColor = .label
-        config.background.strokeColor = IOS27Theme.vibrantSeparatorColor
-        config.background.strokeWidth = 0.8
+        switch state {
+        case .disconnected:
+            stopVideoWatchdog()
+            dismissProjectionQuickMenu(animated: false)
+            hasReceivedFirstVideoFrame = false
+            videoContainerView.isHidden = true
+            appShellView.isHidden = false
+            view.bringSubviewToFront(appShellView)
+            connectionManager.screenConfig.clearCustomNegotiatedResolution()
+            videoRenderer.reset()
+            audioPlayer.reset()
+            refreshSystemGestureDeferral()
 
-        let button = UIButton(configuration: config)
-        button.setContentCompressionResistancePriority(.required, for: .horizontal)
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(settingsButtonTapped), for: .touchUpInside)
-        return button
-    }()
+        case .discovering, .waitingForWirelessHelper, .connecting, .handshaking:
+            stopVideoWatchdog()
+            dismissProjectionQuickMenu(animated: false)
+            videoContainerView.isHidden = true
+            appShellView.isHidden = false
+            view.bringSubviewToFront(appShellView)
+            refreshSystemGestureDeferral()
 
-    private let connectionIssueBannerView: IOS27GlassCardView = {
-        let v = IOS27GlassCardView(style: .small, cornerRadius: 18, tintColor: .systemOrange)
-        v.translatesAutoresizingMaskIntoConstraints = false
-        v.isHidden = true
-        return v
-    }()
+        case .running:
+            ConnectionIssueStore.shared.clearAll()
+            startVideoWatchdog()
+            appShellView.isHidden = true
+            videoContainerView.isHidden = false
+            view.bringSubviewToFront(videoContainerView)
+            view.layoutIfNeeded()
+            videoContainerView.layoutIfNeeded()
+            syncVideoAndTouchGeometry()
+            videoRenderer.applyGeometry()
+            refreshSystemGestureDeferral()
 
-    private let connectionIssueTitleLabel: UILabel = {
-        let l = UILabel()
-        l.font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
-        l.textColor = .systemOrange
-        l.numberOfLines = 0
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
+        case .disconnecting:
+            stopVideoWatchdog()
+            dismissProjectionQuickMenu(animated: false)
+            videoContainerView.isHidden = true
+            appShellView.isHidden = false
+            view.bringSubviewToFront(appShellView)
+            audioPlayer.reset()
+            refreshSystemGestureDeferral()
 
-    private let connectionIssueAdviceLabel: UILabel = {
-        let l = UILabel()
-        l.font = UIFont.systemFont(ofSize: 12, weight: .regular)
-        l.textColor = .secondaryLabel
-        l.numberOfLines = 0
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
-
-    private lazy var connectionIssueDismissButton: UIButton = {
-        var config = UIButton.Configuration.tinted()
-        config.title = L10n.dismiss
-        config.cornerStyle = .capsule
-        config.buttonSize = .small
-        config.baseBackgroundColor = UIColor.systemOrange.withAlphaComponent(0.18)
-        config.baseForegroundColor = .systemOrange
-        let b = UIButton(configuration: config)
-        b.setContentCompressionResistancePriority(.required, for: .horizontal)
-        b.setContentHuggingPriority(.required, for: .horizontal)
-        b.translatesAutoresizingMaskIntoConstraints = false
-        b.addTarget(self, action: #selector(dismissConnectionIssueBanner), for: .touchUpInside)
-        return b
-    }()
-
-    private var dismissedIssueEpochMs: Int64?
-    private var bannerZeroHeightConstraint: NSLayoutConstraint?
-
-    private let dashboardGridStack: UIStackView = {
-        let stack = UIStackView()
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.axis = .horizontal
-        stack.distribution = .fillEqually
-        stack.alignment = .fill
-        stack.spacing = 20
-        return stack
-    }()
-
-    private let connectionHubCard: IOS27GlassCardView = {
-        let card = IOS27GlassCardView(style: .large, cornerRadius: IOS27Theme.largeGlassCornerRadius)
-        card.translatesAutoresizingMaskIntoConstraints = false
-        return card
-    }()
-
-    private(set) var hubTitleLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.wirelessConnectionHub
-        label.font = .systemFont(ofSize: 18, weight: .bold)
-        label.textColor = .label
-        label.textAlignment = .left
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.75
-        label.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-        label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
-
-    private let hubIconView = IOS27IconBadgeView(iconName: "wifi", tint: IOS27Theme.accentBlue, size: 34, cornerRadius: 10, symbolPointSize: 16)
-
-    private let directIpLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.directConnectLabel
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.textColor = .secondaryLabel
-        label.numberOfLines = 0
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
-
-    private let directIpTextField: UITextField = {
-        let textField = UITextField()
-        textField.placeholder = "192.168.43.1"
-        textField.text = NetworkAddresses.currentHotspotGatewayIpv4()
-        textField.textAlignment = .center
-        textField.font = .monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
-        textField.backgroundColor = IOS27Theme.recessedFieldFill
-        textField.layer.cornerRadius = 14
-        textField.layer.cornerCurve = .continuous
-        textField.layer.borderWidth = 0.8
-        textField.layer.borderColor = IOS27Theme.vibrantSeparatorColor.cgColor
-        textField.keyboardType = .numbersAndPunctuation
-        textField.autocorrectionType = .no
-        textField.autocapitalizationType = .none
-        textField.clearButtonMode = .whileEditing
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        return textField
-    }()
-
-    private lazy var resetGatewayIpButton: UIButton = {
-        var config = UIButton.Configuration.tinted()
-        config.image = UIImage(
-            systemName: "arrow.counterclockwise",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        )
-        config.cornerStyle = .medium
-        config.buttonSize = .medium
-        config.baseBackgroundColor = IOS27Theme.vibrantSecondaryFill
-        config.baseForegroundColor = .secondaryLabel
-        config.background.cornerRadius = 14
-        config.background.strokeColor = IOS27Theme.vibrantSeparatorColor
-        config.background.strokeWidth = 0.8
-        let button = UIButton(configuration: config)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addAction(UIAction { [weak self] _ in
-            self?.directIpTextField.text = NetworkAddresses.currentHotspotGatewayIpv4()
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
-        }, for: .touchUpInside)
-        return button
-    }()
-
-    private(set) lazy var directConnectButton: UIButton = {
-        var config = UIButton.Configuration.filled()
-        config.title = L10n.directConnectButton
-        config.titleLineBreakMode = .byWordWrapping
-        config.titleAlignment = .center
-        config.image = UIImage(systemName: "arrow.right.circle.fill")
-        config.imagePadding = 6
-        config.cornerStyle = .capsule
-        config.buttonSize = .large
-        config.baseBackgroundColor = IOS27Theme.accentBlue
-
-        let button = UIButton(configuration: config)
-        button.titleLabel?.adjustsFontSizeToFitWidth = true
-        button.titleLabel?.minimumScaleFactor = 0.8
-        button.layer.shadowColor = IOS27Theme.accentBlue.cgColor
-        button.layer.shadowOffset = CGSize(width: 0, height: 6)
-        button.layer.shadowRadius = 12
-        button.layer.shadowOpacity = 0.24
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(directConnectButtonTapped), for: .touchUpInside)
-        return button
-    }()
-
-    private let orDividerLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.orAutoDiscover
-        label.font = .systemFont(ofSize: 11, weight: .bold)
-        label.textColor = .tertiaryLabel
-        label.textAlignment = .center
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.75
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
-
-    private(set) lazy var connectButton: UIButton = {
-        var config = UIButton.Configuration.filled()
-        config.title = L10n.scanForHeadunitServer
-        config.titleLineBreakMode = .byWordWrapping
-        config.titleAlignment = .center
-        config.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
-        config.imagePadding = 8
-        config.cornerStyle = .capsule
-        config.buttonSize = .large
-        config.baseBackgroundColor = IOS27Theme.accentIndigo
-
-        let button = UIButton(configuration: config)
-        button.titleLabel?.adjustsFontSizeToFitWidth = true
-        button.titleLabel?.minimumScaleFactor = 0.8
-        button.layer.shadowColor = IOS27Theme.accentIndigo.cgColor
-        button.layer.shadowOffset = CGSize(width: 0, height: 6)
-        button.layer.shadowRadius = 14
-        button.layer.shadowOpacity = 0.28
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(connectButtonTapped), for: .touchUpInside)
-        return button
-    }()
-
-    private let activityIndicator: UIActivityIndicatorView = {
-        let indicator = UIActivityIndicatorView(style: .medium)
-        indicator.hidesWhenStopped = true
-        indicator.translatesAutoresizingMaskIntoConstraints = false
-        return indicator
-    }()
-
-    private(set) lazy var disconnectButton: UIButton = {
-        var config = UIButton.Configuration.filled()
-        config.title = L10n.cancelDisconnect
-        config.titleLineBreakMode = .byWordWrapping
-        config.titleAlignment = .center
-        config.cornerStyle = .capsule
-        config.buttonSize = .large
-        config.baseBackgroundColor = IOS27Theme.accentRed
-
-        let button = UIButton(configuration: config)
-        button.titleLabel?.adjustsFontSizeToFitWidth = true
-        button.titleLabel?.minimumScaleFactor = 0.8
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(disconnectButtonTapped), for: .touchUpInside)
-        button.isHidden = true
-        return button
-    }()
-
-    private let serverGuideCard: IOS27GlassCardView = {
-        let card = IOS27GlassCardView(style: .large, cornerRadius: IOS27Theme.largeGlassCornerRadius)
-        card.translatesAutoresizingMaskIntoConstraints = false
-        return card
-    }()
-
-    private(set) var guideTitleLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.androidPhoneSetupGuide
-        label.font = .systemFont(ofSize: 18, weight: .bold)
-        label.textColor = .label
-        label.textAlignment = .left
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.75
-        label.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-        label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
-
-    private let guideIconView = IOS27IconBadgeView(iconName: "info.circle.fill", tint: IOS27Theme.accentTeal, size: 34, cornerRadius: 10, symbolPointSize: 16)
-
-    private let appBrandStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.spacing = 12
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private let rightHeaderStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.spacing = 10
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private let hubContentStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 12
-        stack.alignment = .fill
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private let guideContentStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 14
-        stack.alignment = .fill
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private(set) var guideStepsStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 14
-        stack.distribution = .fillEqually
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private(set) var quickSpecsHeaderLabel: UILabel = {
-        let label = UILabel()
-        label.text = L10n.currentConfigurationHeader
-        label.font = .systemFont(ofSize: 12, weight: .bold)
-        label.textColor = .secondaryLabel
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.75
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
-
-    private let quickSpecsStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 10
-        stack.distribution = .fillEqually
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private var displayTile: QuickSpecTileView!
-    private var layoutTile: QuickSpecTileView!
-    private var codecsTile: QuickSpecTileView!
-    private var audioTile: QuickSpecTileView!
-    private var micTile: QuickSpecTileView!
-    private var modeTile: QuickSpecTileView!
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        HeadUnitScreenConfig.shared.videoFitMode = ProjectionSettings.videoFitMode
-        setupUI()
-        setupConstraints()
-        connectionManager.delegate = self
-
-        Discovery.triggerLocalNetworkPermission()
-
-        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
-        tap.cancelsTouchesInView = false
-        tap.delaysTouchesBegan = false
-        tap.delaysTouchesEnded = false
-        homeScrollView.addGestureRecognizer(tap)
-
-        videoRenderer.onFrameDisplayed = { [weak self] in
-            guard let self = self else { return }
-            guard !self.hasReceivedFirstVideoFrame else { return }
-            let block = {
-                guard !self.hasReceivedFirstVideoFrame else { return }
-                self.hasReceivedFirstVideoFrame = true
-                self.lastVideoFrameTs = Date().timeIntervalSince1970
-                self.stopVideoWatchdog()
+        case .error(let message):
+            let lower = message.lowercased()
+            if lower.contains("5277") || lower.contains("refused") {
+                ConnectionIssueStore.shared.raise(issue: .connectionRefused5277)
+            } else if lower.contains("tls") || lower.contains("handshake") {
+                ConnectionIssueStore.shared.raise(issue: .tlsHandshakeFailed)
             }
-            if Thread.isMainThread {
-                block()
-            } else {
-                DispatchQueue.main.async(execute: block)
-            }
+            stopVideoWatchdog()
+            dismissProjectionQuickMenu(animated: false)
+            videoContainerView.isHidden = true
+            appShellView.isHidden = false
+            view.bringSubviewToFront(appShellView)
+            audioPlayer.reset()
+            refreshSystemGestureDeferral()
         }
-        videoRenderer.onKeyframeRequested = { [weak self] in
-            self?.connectionManager.requestVideoRecovery()
-        }
-        videoRenderer.onProvideNetStats = { [weak self] in
-            self?.connectionManager.takeVideo1sNetStats() ?? (0, 0, 0.0)
-        }
-        videoRenderer.onVideoSizeResolved = { [weak self] size in
-            guard let self = self else { return }
-            let w = Int(size.width)
-            let h = Int(size.height)
-            if w > 0 && h > 0 {
-                AppLog.i("MainViewController: Video size resolved from SPS: \(w)x\(h)", tag: "MainViewController")
-                self.videoRenderer.setNeedsLayout()
-            }
-        }
-        HeadUnitScreenConfig.shared.onMarginsDivergedDetailed = { [weak self] left, top, right, bottom in
-            self?.connectionManager.sendUpdateUiConfigRequest(left: left, top: top, right: right, bottom: bottom)
-            self?.syncVideoAndTouchGeometry()
-            self?.videoRenderer.applyGeometry()
-        }
-        HeadUnitScreenConfig.shared.onFallbackAdopted = { [weak self] in
-            self?.syncVideoAndTouchGeometry()
-            self?.videoRenderer.applyGeometry()
-        }
-        videoRenderer.onDecoderFallbackRequested = { [weak self] width, height, reason in
-            guard let self = self else { return }
-            AppLog.w("MainViewController: Decoder fallback requested: resolution=\(ProjectionSettings.resolution.title), stream=\(width)x\(height), reason=\(reason)", tag: "MainViewController")
-            if let fallback = DecoderConfigLadder.fallbackPreset(from: ProjectionSettings.resolution, currentWidth: width, currentHeight: height) {
-                AppLog.i("MainViewController: Stepping down resolution from \(ProjectionSettings.resolution.title) to \(fallback.title)", tag: "MainViewController")
-                ProjectionSettings.resolution = fallback
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
+
+        wirelessPanelVC.updateConnectionState(state, statusDetail: connectionManager.statusDetail)
+        updateSidebarAndCompactStatus()
+        displayPanelVC.syncWithCurrentSettings()
+        audioPanelVC.syncWithCurrentSettings()
+        aboutPanelVC.refreshDynamicData()
+        updatePerformanceOverlayState()
+        updateConnectionIssueBanner()
+    }
+
+    func updatePerformanceOverlayState() {
+        let shouldShow = ProjectionSettings.isDebugModeEnabled && connectionManager.state == .running
+        performanceOverlayView.isHidden = !shouldShow
+        performanceOverlayBlurView.isHidden = !shouldShow
+        debugBubbleButton.isHidden = !shouldShow
+        if shouldShow {
+            view.bringSubviewToFront(debugBubbleButton)
+            videoContainerView.bringSubviewToFront(performanceOverlayBlurView)
+            videoContainerView.bringSubviewToFront(performanceOverlayView)
+            if performanceTimer == nil {
+                performanceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                    self?.refreshPerformanceOverlay()
                 }
             }
+            refreshPerformanceOverlay()
+        } else {
+            dismissProjectionQuickMenu(animated: false)
+            performanceTimer?.invalidate()
+            performanceTimer = nil
         }
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleNetworkReachabilityChanged(_:)),
-            name: .carAutoPadNetworkReachabilityDidChange,
-            object: nil
+    }
+
+    private func refreshPerformanceOverlay() {
+        guard !performanceOverlayView.isHidden || quickMenuOverlay != nil else { return }
+        let fps = videoRenderer.currentFps
+        let mbps = connectionManager.currentRxMbps
+        let lat = videoRenderer.decodeLatency
+        let pcmMs = audioPlayer.mediaBufferDepthMs
+        let kf = videoRenderer.keyframeRepairs
+        let drop = videoRenderer.droppedFrames
+        let activeW = max(1, videoRenderer.codecWidth - videoRenderer.widthMargin)
+        let activeH = max(1, videoRenderer.codecHeight - videoRenderer.heightMargin)
+        let resText = (videoRenderer.widthMargin > 0 || videoRenderer.heightMargin > 0)
+            ? "\(activeW)x\(activeH) (\(videoRenderer.codecWidth)x\(videoRenderer.codecHeight))"
+            : "\(videoRenderer.codecWidth)x\(videoRenderer.codecHeight)"
+
+        let snapshot = PerformanceSnapshot(
+            fps: fps,
+            rxMbps: mbps,
+            decodeMedianMs: lat.medianMs,
+            decodeP95Ms: lat.p95Ms,
+            audioBufferMs: pcmMs,
+            keyframeRepairs: kf,
+            droppedFrames: drop,
+            resolutionText: resText
         )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applyLocalization),
-            name: .appLanguageDidChange,
-            object: nil
+        performanceOverlayView.update(snapshot: snapshot)
+        quickMenuOverlay?.updateSessionInfo(
+            peerName: connectionManager.connectedPeerDisplayName,
+            endpoint: connectionManager.connectedPeerEndpointText,
+            fps: fps > 0 ? fps : Double(ProjectionSettings.effectiveFpsLimit == .fps60 ? 60 : 30),
+            decodeMs: lat.medianMs
         )
-        applyLocalization()
-        updateUIForConnectionState(.disconnected)
-        videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
-        syncVideoAndTouchGeometry()
-        refreshQuickSpecTiles()
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        applyOrientationLock()
-        refreshQuickSpecTiles()
+    func updateConnectionIssueBanner() {
+        let standing = ConnectionIssueStore.shared.currentIssues()
+        let isConnected = (connectionManager.state == .running)
+        let active = ConnectionIssueBannerPolicy.bannerFor(
+            standing: standing,
+            sessionConnected: isConnected,
+            dismissedAtEpochMs: dismissedIssueEpochMs
+        )
+        wirelessPanelVC.updateIssueBanner(issue: active?.issue)
     }
 
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        touchOverlayView.frame = videoContainerView.bounds
-        touchOverlayView.isUserInteractionEnabled = true
-
-        let isLandscape = view.bounds.width > view.bounds.height
-        if dashboardGridStack.axis != (isLandscape ? .horizontal : .vertical) {
-            dashboardGridStack.axis = isLandscape ? .horizontal : .vertical
-            dashboardGridStack.distribution = isLandscape ? .fillEqually : .fill
+    private func dismissConnectionIssueBanner() {
+        if let latest = ConnectionIssueStore.shared.currentIssues().max(by: { $0.raisedAtEpochMs < $1.raisedAtEpochMs }) {
+            dismissedIssueEpochMs = latest.raisedAtEpochMs
+        } else {
+            dismissedIssueEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         }
-
-        let screen = view.window?.screen ?? UIScreen.main
-        let nativeScale = screen.nativeScale
-        let w: Int
-        let h: Int
-        switch ProjectionSettings.orientation {
-        case .landscape:
-            w = Int((max(view.bounds.width, view.bounds.height) * nativeScale).rounded())
-            h = Int((min(view.bounds.width, view.bounds.height) * nativeScale).rounded())
-        case .portrait:
-            w = Int((min(view.bounds.width, view.bounds.height) * nativeScale).rounded())
-            h = Int((max(view.bounds.width, view.bounds.height) * nativeScale).rounded())
-        case .system:
-            w = Int((view.bounds.width * nativeScale).rounded())
-            h = Int((view.bounds.height * nativeScale).rounded())
-        }
-        if w > 0 && h > 0 {
-            _ = HeadUnitScreenConfig.shared.updateDimensions(width: w, height: h)
-        }
-        syncVideoAndTouchGeometry()
-        if !videoContainerView.isHidden {
-            videoContainerView.bringSubviewToFront(touchOverlayView)
-            videoContainerView.bringSubviewToFront(performanceOverlayView)
-        }
-        view.bringSubviewToFront(debugBubbleButton)
-        clampDebugBubbleToSafeBounds(animated: false)
+        updateConnectionIssueBanner()
     }
 
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        super.viewWillTransition(to: size, with: coordinator)
-
-        coordinator.animate(alongsideTransition: { [weak self] _ in
+    @objc private func handleNetworkReachabilityChanged(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            let scale = (self.view.window?.screen ?? UIScreen.main).nativeScale
-            let w = Int((size.width * scale).rounded())
-            let h = Int((size.height * scale).rounded())
-            if w > 0 && h > 0 {
-                _ = HeadUnitScreenConfig.shared.updateDimensions(width: w, height: h)
+            let snapshot = NetworkReachabilityMonitor.shared.currentSnapshot
+            if let gw = snapshot.gatewayIpv4, !gw.isEmpty {
+                self.wirelessPanelVC.updateSuggestedGateway(gw)
             }
-            self.syncVideoAndTouchGeometry()
-            self.videoRenderer.applyGeometry()
-        }, completion: { [weak self] _ in
-            guard let self = self else { return }
-            let scale = (self.view.window?.screen ?? UIScreen.main).nativeScale
-            let w = Int((self.view.bounds.width * scale).rounded())
-            let h = Int((self.view.bounds.height * scale).rounded())
-            if w > 0 && h > 0 {
-                _ = HeadUnitScreenConfig.shared.updateDimensions(width: w, height: h)
-            }
-            self.syncVideoAndTouchGeometry()
-            self.videoRenderer.applyGeometry()
-        })
+            self.updateSidebarAndCompactStatus()
+            self.aboutPanelVC.refreshDynamicData()
+            self.updateConnectionIssueBanner()
+        }
+    }
+
+    // MARK: - Orientation, Status Bar, Edge Swipe Deferral, Geometry & Watchdog
+
+    override var prefersStatusBarHidden: Bool {
+        return connectionManager.state == .running
+    }
+
+    override var prefersHomeIndicatorAutoHidden: Bool {
+        return false
+    }
+
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
+        return (connectionManager.state == .running && ProjectionSettings.isEdgeSwipeProtectionEnabled) ? .all : []
+    }
+
+    func refreshSystemGestureDeferral() {
+        setNeedsStatusBarAppearanceUpdate()
+        setNeedsUpdateOfHomeIndicatorAutoHidden()
+        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
     }
 
     override var shouldAutorotate: Bool {
@@ -732,23 +1191,17 @@ final class MainViewController: UIViewController {
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         switch ProjectionSettings.orientation {
-        case .landscape:
-            return .landscape
-        case .portrait:
-            return .portrait
-        case .system:
-            return .all
+        case .landscape: return .landscape
+        case .portrait: return .portrait
+        case .system: return .all
         }
     }
 
     override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
         switch ProjectionSettings.orientation {
-        case .landscape:
-            return .landscapeRight
-        case .portrait:
-            return .portrait
-        case .system:
-            return .unknown
+        case .landscape: return .landscapeRight
+        case .portrait: return .portrait
+        case .system: return .unknown
         }
     }
 
@@ -757,23 +1210,10 @@ final class MainViewController: UIViewController {
         touchOverlayView.isMultipleTouchEnabled = true
 
         let targetMask = supportedInterfaceOrientations
-        if #available(iOS 16.0, *) {
-            guard let window = view.window, let scene = window.windowScene else { return }
-            let prefs = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: targetMask)
-            scene.requestGeometryUpdate(prefs) { error in
-                AppLog.e("MainViewController: Failed to apply orientation lock: \(error)", tag: "MainViewController")
-            }
-        } else {
-            let orientation: UIInterfaceOrientation
-            switch ProjectionSettings.orientation {
-            case .landscape: orientation = .landscapeRight
-            case .portrait: orientation = .portrait
-            case .system: orientation = .unknown
-            }
-            if orientation != .unknown {
-                UIDevice.current.setValue(orientation.rawValue, forKey: "orientation")
-                UIViewController.attemptRotationToDeviceOrientation()
-            }
+        guard let window = view.window, let scene = window.windowScene else { return }
+        let prefs = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: targetMask)
+        scene.requestGeometryUpdate(prefs) { error in
+            AppLog.e("MainViewController: Failed to apply orientation lock: \(error)", tag: "MainViewController")
         }
     }
 
@@ -795,649 +1235,6 @@ final class MainViewController: UIViewController {
         touchOverlayView.codecHeight = cfg.negotiatedHeight
         touchOverlayView.widthMargin = wMargin
         touchOverlayView.heightMargin = hMargin
-    }
-
-    @objc private func dismissKeyboard() {
-        view.endEditing(true)
-    }
-
-    private func setupUI() {
-        view.backgroundColor = IOS27Theme.groupedBackdropColor
-
-        videoRenderer.isUserInteractionEnabled = false
-        touchOverlayView.isUserInteractionEnabled = true
-
-        videoContainerView.addSubview(videoRenderer)
-        videoContainerView.addSubview(touchOverlayView)
-        videoContainerView.addSubview(performanceOverlayView)
-        videoRenderer.translatesAutoresizingMaskIntoConstraints = false
-        touchOverlayView.translatesAutoresizingMaskIntoConstraints = false
-        performanceOverlayView.translatesAutoresizingMaskIntoConstraints = false
-
-        touchOverlayView.onTouchWithTimestamp = { [weak self] pointers, action, actionIndex, timestamp in
-            self?.connectionManager.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex, touchTimestamp: timestamp)
-        }
-
-        let appTitleStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
-        appTitleStack.axis = .vertical
-        appTitleStack.spacing = 2
-        appTitleStack.translatesAutoresizingMaskIntoConstraints = false
-
-        appBrandStack.addArrangedSubview(appIconImageView)
-        appBrandStack.addArrangedSubview(appTitleStack)
-
-        statusPillView.addSubview(statusDotView)
-        statusPillView.addSubview(statusLabel)
-        NSLayoutConstraint.activate([
-            statusDotView.leadingAnchor.constraint(equalTo: statusPillView.leadingAnchor, constant: 12),
-            statusDotView.centerYAnchor.constraint(equalTo: statusPillView.centerYAnchor),
-            statusDotView.widthAnchor.constraint(equalToConstant: 8),
-            statusDotView.heightAnchor.constraint(equalToConstant: 8),
-
-            statusLabel.leadingAnchor.constraint(equalTo: statusDotView.trailingAnchor, constant: 8),
-            statusLabel.trailingAnchor.constraint(equalTo: statusPillView.trailingAnchor, constant: -14),
-            statusLabel.centerYAnchor.constraint(equalTo: statusPillView.centerYAnchor)
-        ])
-
-        rightHeaderStack.addArrangedSubview(statusPillView)
-        rightHeaderStack.addArrangedSubview(settingsButton)
-
-        headerContainerView.addSubview(appBrandStack)
-        headerContainerView.addSubview(rightHeaderStack)
-
-        connectionIssueBannerView.addSubview(connectionIssueTitleLabel)
-        connectionIssueBannerView.addSubview(connectionIssueAdviceLabel)
-        connectionIssueBannerView.addSubview(connectionIssueDismissButton)
-
-        let hubHeaderSpacer = UIView()
-        hubHeaderSpacer.translatesAutoresizingMaskIntoConstraints = false
-        let hubHeaderStack = UIStackView(arrangedSubviews: [hubIconView, hubTitleLabel, hubHeaderSpacer])
-        hubHeaderStack.axis = .horizontal
-        hubHeaderStack.spacing = 10
-        hubHeaderStack.alignment = .center
-        hubHeaderStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let ipInputContainer = UIStackView(arrangedSubviews: [directIpTextField, resetGatewayIpButton])
-        ipInputContainer.axis = .horizontal
-        ipInputContainer.spacing = 8
-        ipInputContainer.alignment = .fill
-        ipInputContainer.translatesAutoresizingMaskIntoConstraints = false
-
-        let indicatorStack = UIStackView(arrangedSubviews: [activityIndicator, disconnectButton])
-        indicatorStack.axis = .vertical
-        indicatorStack.spacing = 10
-        indicatorStack.alignment = .center
-        indicatorStack.translatesAutoresizingMaskIntoConstraints = false
-
-        hubContentStack.addArrangedSubview(hubHeaderStack)
-        hubContentStack.addArrangedSubview(directIpLabel)
-        hubContentStack.addArrangedSubview(ipInputContainer)
-        hubContentStack.addArrangedSubview(directConnectButton)
-        hubContentStack.addArrangedSubview(orDividerLabel)
-        hubContentStack.addArrangedSubview(connectButton)
-        hubContentStack.addArrangedSubview(indicatorStack)
-        connectionHubCard.addSubview(hubContentStack)
-
-        let guideHeaderSpacer = UIView()
-        guideHeaderSpacer.translatesAutoresizingMaskIntoConstraints = false
-        let guideHeaderStack = UIStackView(arrangedSubviews: [guideIconView, guideTitleLabel, guideHeaderSpacer])
-        guideHeaderStack.axis = .horizontal
-        guideHeaderStack.spacing = 10
-        guideHeaderStack.alignment = .center
-        guideHeaderStack.translatesAutoresizingMaskIntoConstraints = false
-
-        setupGuideSteps()
-
-        guideContentStack.addArrangedSubview(guideHeaderStack)
-        guideContentStack.addArrangedSubview(guideStepsStack)
-        serverGuideCard.addSubview(guideContentStack)
-
-        dashboardGridStack.addArrangedSubview(connectionHubCard)
-        dashboardGridStack.addArrangedSubview(serverGuideCard)
-
-        setupQuickSpecTiles()
-
-        dashboardContentContainer.addSubview(headerContainerView)
-        dashboardContentContainer.addSubview(connectionIssueBannerView)
-        dashboardContentContainer.addSubview(dashboardGridStack)
-        dashboardContentContainer.addSubview(quickSpecsHeaderLabel)
-        dashboardContentContainer.addSubview(quickSpecsStack)
-
-        homeContentView.addSubview(dashboardContentContainer)
-        homeScrollView.addSubview(homeContentView)
-
-        view.addSubview(videoContainerView)
-        view.addSubview(ambientBackgroundView)
-        view.addSubview(homeScrollView)
-        view.addSubview(debugBubbleButton)
-
-        videoContainerView.isHidden = true
-        ambientBackgroundView.isHidden = false
-        homeScrollView.isHidden = false
-    }
-
-    private func setupGuideSteps() {
-        for subview in guideStepsStack.arrangedSubviews {
-            guideStepsStack.removeArrangedSubview(subview)
-            subview.removeFromSuperview()
-        }
-        let steps = [
-            (icon: "gearshape.2.fill", tint: IOS27Theme.accentIndigo, title: L10n.guideStep1Title, detail: L10n.guideStep1Detail),
-            (icon: "checkmark.seal.fill", tint: IOS27Theme.accentBlue, title: L10n.guideStep2Title, detail: L10n.guideStep2Detail),
-            (icon: "play.tv.fill", tint: IOS27Theme.accentGreen, title: L10n.guideStep3Title, detail: L10n.guideStep3Detail),
-            (icon: "personalhotspot", tint: IOS27Theme.accentOrange, title: L10n.guideStep4Title, detail: L10n.guideStep4Detail)
-        ]
-
-        for step in steps {
-            let row = makeGuideStepRow(icon: step.icon, iconTint: step.tint, title: step.title, detail: step.detail)
-            guideStepsStack.addArrangedSubview(row)
-        }
-    }
-
-    private func makeGuideStepRow(icon: String, iconTint: UIColor, title: String, detail: String) -> UIView {
-        let container = UIView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.backgroundColor = IOS27Theme.vibrantSecondaryFill
-        container.layer.cornerRadius = IOS27Theme.smallGlassCornerRadius
-        container.layer.cornerCurve = .continuous
-        container.layer.borderWidth = 0.7
-        container.layer.borderColor = IOS27Theme.vibrantSeparatorColor.cgColor
-
-        let badge = IOS27IconBadgeView(iconName: icon, tint: iconTint, size: 36, cornerRadius: 10, symbolPointSize: 16)
-
-        let titleLbl = UILabel()
-        titleLbl.text = title
-        titleLbl.font = .systemFont(ofSize: 13.5, weight: .semibold)
-        titleLbl.textColor = .label
-        titleLbl.numberOfLines = 0
-        titleLbl.translatesAutoresizingMaskIntoConstraints = false
-
-        let detailLbl = UILabel()
-        detailLbl.text = detail
-        detailLbl.font = .systemFont(ofSize: 11.5, weight: .regular)
-        detailLbl.textColor = .secondaryLabel
-        detailLbl.numberOfLines = 0
-        detailLbl.translatesAutoresizingMaskIntoConstraints = false
-
-        let textStack = UIStackView(arrangedSubviews: [titleLbl, detailLbl])
-        textStack.axis = .vertical
-        textStack.spacing = 2
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-
-        container.addSubview(badge)
-        container.addSubview(textStack)
-
-        NSLayoutConstraint.activate([
-            badge.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-            badge.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-
-            textStack.leadingAnchor.constraint(equalTo: badge.trailingAnchor, constant: 12),
-            textStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
-            textStack.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
-            textStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10)
-        ])
-
-        return container
-    }
-
-    private func setupQuickSpecTiles() {
-        displayTile = QuickSpecTileView(icon: "display", title: L10n.tileDisplay, tint: .systemBlue)
-        displayTile.tag = 0
-        displayTile.onTap = { [weak self, weak displayTile] _ in
-            guard let self = self, let sender = displayTile else { return }
-            self.presentQuickDisplayConfig(from: sender)
-        }
-
-        layoutTile = QuickSpecTileView(icon: "aspectratio", title: L10n.tileLayoutDpi, tint: .systemPurple)
-        layoutTile.tag = 1
-        layoutTile.onTap = { [weak self, weak layoutTile] _ in
-            guard let self = self, let sender = layoutTile else { return }
-            self.presentQuickLayoutAndDpiModal(from: sender)
-        }
-
-        codecsTile = QuickSpecTileView(icon: "waveform.path.ecg", title: L10n.tileCodecs, tint: .systemPink)
-        codecsTile.tag = 2
-        codecsTile.onTap = { [weak self, weak codecsTile] _ in
-            guard let self = self, let sender = codecsTile else { return }
-            self.presentQuickCodecsConfig(from: sender)
-        }
-
-        audioTile = QuickSpecTileView(icon: "speaker.wave.2.fill", title: L10n.tileAudioDucking, tint: .systemGreen)
-        audioTile.tag = 3
-        audioTile.onTap = { [weak self, weak audioTile] _ in
-            guard let self = self, let sender = audioTile else { return }
-            self.presentQuickAudioOutputConfig(from: sender)
-        }
-
-        micTile = QuickSpecTileView(icon: "mic.fill", title: L10n.tileMicrophone, tint: .systemTeal)
-        micTile.tag = 4
-        micTile.onTap = { [weak self, weak micTile] _ in
-            guard let self = self, let sender = micTile else { return }
-            self.presentQuickMicrophoneConfig(from: sender)
-        }
-
-        modeTile = QuickSpecTileView(icon: "moon.stars.fill", title: L10n.tileSmartMode, tint: .systemOrange)
-        modeTile.tag = 5
-        modeTile.onTap = { [weak self, weak modeTile] _ in
-            guard let self = self, let sender = modeTile else { return }
-            self.presentQuickSmartModeConfig(from: sender)
-        }
-
-        let topRow = UIStackView(arrangedSubviews: [displayTile, layoutTile, codecsTile])
-        topRow.axis = .horizontal
-        topRow.spacing = 10
-        topRow.distribution = .fillEqually
-
-        let bottomRow = UIStackView(arrangedSubviews: [audioTile, micTile, modeTile])
-        bottomRow.axis = .horizontal
-        bottomRow.spacing = 10
-        bottomRow.distribution = .fillEqually
-
-        quickSpecsStack.addArrangedSubview(topRow)
-        quickSpecsStack.addArrangedSubview(bottomRow)
-    }
-
-    private func setupConstraints() {
-        let containerMaxWidthConstraint = dashboardContentContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 1320)
-        let containerWidthConstraint = dashboardContentContainer.widthAnchor.constraint(equalTo: homeContentView.safeAreaLayoutGuide.widthAnchor, constant: -64)
-        containerWidthConstraint.priority = .defaultHigh
-
-        let containerCenterY = dashboardContentContainer.centerYAnchor.constraint(equalTo: homeContentView.centerYAnchor)
-        containerCenterY.priority = .defaultHigh
-
-        let bubbleCenterX = debugBubbleButton.centerXAnchor.constraint(equalTo: view.leadingAnchor, constant: 10000)
-        let bubbleCenterY = debugBubbleButton.centerYAnchor.constraint(equalTo: view.topAnchor, constant: 120)
-        self.debugBubbleCenterXConstraint = bubbleCenterX
-        self.debugBubbleCenterYConstraint = bubbleCenterY
-
-        NSLayoutConstraint.activate([
-            videoContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            videoContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            videoContainerView.topAnchor.constraint(equalTo: view.topAnchor),
-            videoContainerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            videoRenderer.leadingAnchor.constraint(equalTo: videoContainerView.leadingAnchor),
-            videoRenderer.trailingAnchor.constraint(equalTo: videoContainerView.trailingAnchor),
-            videoRenderer.topAnchor.constraint(equalTo: videoContainerView.topAnchor),
-            videoRenderer.bottomAnchor.constraint(equalTo: videoContainerView.bottomAnchor),
-
-            touchOverlayView.leadingAnchor.constraint(equalTo: videoContainerView.leadingAnchor),
-            touchOverlayView.trailingAnchor.constraint(equalTo: videoContainerView.trailingAnchor),
-            touchOverlayView.topAnchor.constraint(equalTo: videoContainerView.topAnchor),
-            touchOverlayView.bottomAnchor.constraint(equalTo: videoContainerView.bottomAnchor),
-
-            performanceOverlayView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-            performanceOverlayView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
-
-            debugBubbleButton.widthAnchor.constraint(equalToConstant: 48),
-            debugBubbleButton.heightAnchor.constraint(equalToConstant: 48),
-            bubbleCenterX,
-            bubbleCenterY,
-
-            homeScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            homeScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            homeScrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            homeScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            ambientBackgroundView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            ambientBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            ambientBackgroundView.topAnchor.constraint(equalTo: view.topAnchor),
-            ambientBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            homeContentView.leadingAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.leadingAnchor),
-            homeContentView.trailingAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.trailingAnchor),
-            homeContentView.topAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.topAnchor),
-            homeContentView.bottomAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.bottomAnchor),
-            homeContentView.widthAnchor.constraint(equalTo: homeScrollView.frameLayoutGuide.widthAnchor),
-            homeContentView.heightAnchor.constraint(greaterThanOrEqualTo: homeScrollView.frameLayoutGuide.heightAnchor),
-
-            dashboardContentContainer.centerXAnchor.constraint(equalTo: homeContentView.centerXAnchor),
-            dashboardContentContainer.leadingAnchor.constraint(greaterThanOrEqualTo: homeContentView.safeAreaLayoutGuide.leadingAnchor, constant: 32),
-            dashboardContentContainer.trailingAnchor.constraint(lessThanOrEqualTo: homeContentView.safeAreaLayoutGuide.trailingAnchor, constant: -32),
-            dashboardContentContainer.topAnchor.constraint(greaterThanOrEqualTo: homeContentView.safeAreaLayoutGuide.topAnchor, constant: 24),
-            dashboardContentContainer.bottomAnchor.constraint(lessThanOrEqualTo: homeContentView.safeAreaLayoutGuide.bottomAnchor, constant: -24),
-            homeContentView.bottomAnchor.constraint(greaterThanOrEqualTo: dashboardContentContainer.bottomAnchor, constant: 24),
-            containerMaxWidthConstraint,
-            containerWidthConstraint,
-            containerCenterY,
-
-            headerContainerView.topAnchor.constraint(equalTo: dashboardContentContainer.topAnchor),
-            headerContainerView.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor),
-            headerContainerView.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
-            headerContainerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 68),
-
-            appIconImageView.widthAnchor.constraint(equalToConstant: 46),
-            appIconImageView.heightAnchor.constraint(equalToConstant: 46),
-            statusPillView.heightAnchor.constraint(equalToConstant: 36),
-            settingsButton.heightAnchor.constraint(equalToConstant: 36),
-            settingsButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 100),
-
-            appBrandStack.leadingAnchor.constraint(equalTo: headerContainerView.leadingAnchor, constant: 16),
-            appBrandStack.centerYAnchor.constraint(equalTo: headerContainerView.centerYAnchor),
-            appBrandStack.topAnchor.constraint(greaterThanOrEqualTo: headerContainerView.topAnchor, constant: 10),
-            appBrandStack.bottomAnchor.constraint(lessThanOrEqualTo: headerContainerView.bottomAnchor, constant: -10),
-            rightHeaderStack.trailingAnchor.constraint(equalTo: headerContainerView.trailingAnchor, constant: -16),
-            rightHeaderStack.centerYAnchor.constraint(equalTo: headerContainerView.centerYAnchor),
-            appBrandStack.trailingAnchor.constraint(lessThanOrEqualTo: rightHeaderStack.leadingAnchor, constant: -12),
-
-            connectionIssueBannerView.topAnchor.constraint(equalTo: headerContainerView.bottomAnchor, constant: 14),
-            connectionIssueBannerView.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor),
-            connectionIssueBannerView.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
-
-            connectionIssueTitleLabel.topAnchor.constraint(equalTo: connectionIssueBannerView.topAnchor, constant: 12),
-            connectionIssueTitleLabel.leadingAnchor.constraint(equalTo: connectionIssueBannerView.leadingAnchor, constant: 16),
-            connectionIssueTitleLabel.trailingAnchor.constraint(equalTo: connectionIssueDismissButton.leadingAnchor, constant: -10),
-
-            connectionIssueDismissButton.centerYAnchor.constraint(equalTo: connectionIssueTitleLabel.centerYAnchor),
-            connectionIssueDismissButton.trailingAnchor.constraint(equalTo: connectionIssueBannerView.trailingAnchor, constant: -14),
-
-            connectionIssueAdviceLabel.topAnchor.constraint(equalTo: connectionIssueTitleLabel.bottomAnchor, constant: 6),
-            connectionIssueAdviceLabel.leadingAnchor.constraint(equalTo: connectionIssueBannerView.leadingAnchor, constant: 16),
-            connectionIssueAdviceLabel.trailingAnchor.constraint(equalTo: connectionIssueBannerView.trailingAnchor, constant: -16),
-            connectionIssueAdviceLabel.bottomAnchor.constraint(equalTo: connectionIssueBannerView.bottomAnchor, constant: -12),
-
-            dashboardGridStack.topAnchor.constraint(equalTo: connectionIssueBannerView.bottomAnchor, constant: 16),
-            dashboardGridStack.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor),
-            dashboardGridStack.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
-            dashboardGridStack.heightAnchor.constraint(greaterThanOrEqualToConstant: 320),
-
-            hubContentStack.topAnchor.constraint(equalTo: connectionHubCard.topAnchor, constant: 22),
-            hubContentStack.leadingAnchor.constraint(equalTo: connectionHubCard.leadingAnchor, constant: 22),
-            hubContentStack.trailingAnchor.constraint(equalTo: connectionHubCard.trailingAnchor, constant: -22),
-            hubContentStack.bottomAnchor.constraint(equalTo: connectionHubCard.bottomAnchor, constant: -22),
-
-            directIpTextField.heightAnchor.constraint(equalToConstant: 50),
-            resetGatewayIpButton.widthAnchor.constraint(equalToConstant: 50),
-            directConnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
-            connectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54),
-            disconnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
-            disconnectButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 240),
-
-            guideContentStack.topAnchor.constraint(equalTo: serverGuideCard.topAnchor, constant: 22),
-            guideContentStack.leadingAnchor.constraint(equalTo: serverGuideCard.leadingAnchor, constant: 22),
-            guideContentStack.trailingAnchor.constraint(equalTo: serverGuideCard.trailingAnchor, constant: -22),
-            guideContentStack.bottomAnchor.constraint(equalTo: serverGuideCard.bottomAnchor, constant: -22),
-
-            quickSpecsHeaderLabel.topAnchor.constraint(equalTo: dashboardGridStack.bottomAnchor, constant: 24),
-            quickSpecsHeaderLabel.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor, constant: 6),
-            quickSpecsHeaderLabel.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
-
-            quickSpecsStack.topAnchor.constraint(equalTo: quickSpecsHeaderLabel.bottomAnchor, constant: 10),
-            quickSpecsStack.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor),
-            quickSpecsStack.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
-            quickSpecsStack.bottomAnchor.constraint(equalTo: dashboardContentContainer.bottomAnchor, constant: -12)
-        ])
-
-        bannerZeroHeightConstraint = connectionIssueBannerView.heightAnchor.constraint(equalToConstant: 0)
-        bannerZeroHeightConstraint?.isActive = true
-    }
-
-    @objc func applyLocalization() {
-        subtitleLabel.text = L10n.appSubtitle
-
-        var settingsCfg = settingsButton.configuration
-        settingsCfg?.title = L10n.settingsButtonTitle
-        settingsButton.configuration = settingsCfg
-
-        var dismissCfg = connectionIssueDismissButton.configuration
-        dismissCfg?.title = L10n.dismiss
-        connectionIssueDismissButton.configuration = dismissCfg
-
-        hubTitleLabel.text = L10n.wirelessConnectionHub
-        directIpLabel.text = L10n.directConnectLabel
-
-        var directCfg = directConnectButton.configuration
-        directCfg?.title = L10n.directConnectButton
-        directConnectButton.configuration = directCfg
-
-        orDividerLabel.text = L10n.orAutoDiscover
-
-        var connectCfg = connectButton.configuration
-        connectCfg?.title = L10n.scanForHeadunitServer
-        connectButton.configuration = connectCfg
-
-        var disconnectCfg = disconnectButton.configuration
-        disconnectCfg?.title = L10n.cancelDisconnect
-        disconnectButton.configuration = disconnectCfg
-
-        guideTitleLabel.text = L10n.androidPhoneSetupGuide
-        setupGuideSteps()
-
-        quickSpecsHeaderLabel.text = L10n.currentConfigurationHeader
-        displayTile?.title = L10n.tileDisplay
-        layoutTile?.title = L10n.tileLayoutDpi
-        codecsTile?.title = L10n.tileCodecs
-        audioTile?.title = L10n.tileAudioDucking
-        micTile?.title = L10n.tileMicrophone
-        modeTile?.title = L10n.tileSmartMode
-
-        refreshQuickSpecTiles()
-        updateConnectionIssueBanner()
-        connectionManager.refreshLocalizedStatus()
-        updateStatusPillAndButtons(for: connectionManager.state)
-    }
-
-    func refreshQuickSpecTiles() {
-        let res = ProjectionSettings.resolution.title
-        let fps = ProjectionSettings.fpsLimit.title
-        var displayValue = "\(res) • \(fps)"
-        if ProjectionSettings.motionBlurMode != .off {
-            displayValue += " • \(L10n.smoothTileValue(ProjectionSettings.motionBlurMode.shortTitle))"
-        }
-        displayTile?.value = displayValue
-
-        let fit = ProjectionSettings.videoFitMode.title
-        let dpi = ProjectionSettings.isAutoDpi ? L10n.autoDpiTileValue(ProjectionSettings.effectiveDpi) : "\(ProjectionSettings.dpi) DPI"
-        layoutTile?.value = "\(fit) • \(dpi)"
-
-        let vCodec = ProjectionSettings.videoCodecPreference.title
-        let aCodec = ProjectionSettings.audioCodecPreference.title
-        codecsTile?.value = "\(vCodec) • \(aCodec)"
-
-        audioTile?.value = ProjectionSettings.audioChannelsSummaryText
-
-        let mic = ProjectionSettings.microphoneSource.title
-        micTile?.value = "\(mic)"
-
-        let night = ProjectionSettings.nightMode.title
-        let rhd = (ProjectionSettings.driverPosition == .right) ? L10n.rhdAbbrev : L10n.lhdAbbrev
-        modeTile?.value = "\(night) • \(rhd)"
-    }
-
-    private func updateStatusPillAndButtons(for state: ConnectionState) {
-        let currentIp = NetworkAddresses.stationIpv4() ?? L10n.noWifiText
-        switch state {
-        case .disconnected:
-            if connectionManager.isAutoReconnectScheduled {
-                statusDotView.backgroundColor = .systemOrange
-                statusLabel.text = connectionManager.statusDetail
-                statusLabel.textColor = .systemOrange
-                connectButton.isEnabled = false
-                directConnectButton.isEnabled = false
-                disconnectButton.isHidden = false
-                activityIndicator.startAnimating()
-            } else {
-                if connectionManager.statusKind.isDisconnectedWarning {
-                    statusDotView.backgroundColor = .systemOrange
-                    statusLabel.text = connectionManager.statusDetail
-                    statusLabel.textColor = .systemOrange
-                } else if connectionManager.statusKind == .disconnectedFromSession {
-                    statusDotView.backgroundColor = .systemGreen
-                    statusLabel.text = connectionManager.statusDetail
-                    statusLabel.textColor = .secondaryLabel
-                } else {
-                    statusDotView.backgroundColor = .systemGreen
-                    statusLabel.text = L10n.statusIpadIpReady(currentIp)
-                    statusLabel.textColor = .secondaryLabel
-                }
-                connectButton.isEnabled = true
-                directConnectButton.isEnabled = true
-                disconnectButton.isHidden = true
-                activityIndicator.stopAnimating()
-            }
-
-        case .discovering:
-            statusDotView.backgroundColor = .systemIndigo
-            statusLabel.text = L10n.statusScanningPort5277
-            statusLabel.textColor = .systemIndigo
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-
-        case .waitingForWirelessHelper:
-            statusDotView.backgroundColor = .systemOrange
-            statusLabel.text = connectionManager.statusDetail.isEmpty ? L10n.statusWaitingForWireless : connectionManager.statusDetail
-            statusLabel.textColor = .systemOrange
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-
-        case .connecting:
-            statusDotView.backgroundColor = .systemBlue
-            statusLabel.text = L10n.statusConnectingTo(connectionManager.connectedDevice?.displayName ?? L10n.defaultPhoneName)
-            statusLabel.textColor = .systemBlue
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-
-        case .handshaking:
-            statusDotView.backgroundColor = .systemBlue
-            statusLabel.text = L10n.stateHandshaking
-            statusLabel.textColor = .systemBlue
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = false
-            activityIndicator.startAnimating()
-
-        case .running:
-            break
-
-        case .disconnecting:
-            statusDotView.backgroundColor = .systemGray
-            statusLabel.text = L10n.stateDisconnecting
-            statusLabel.textColor = .secondaryLabel
-            connectButton.isEnabled = false
-            directConnectButton.isEnabled = false
-            disconnectButton.isHidden = true
-            activityIndicator.startAnimating()
-
-        case .error(let message):
-            if connectionManager.isAutoReconnectScheduled {
-                statusDotView.backgroundColor = .systemOrange
-                statusLabel.text = connectionManager.statusDetail
-                statusLabel.textColor = .systemOrange
-                connectButton.isEnabled = false
-                directConnectButton.isEnabled = false
-                disconnectButton.isHidden = false
-                activityIndicator.startAnimating()
-            } else {
-                statusDotView.backgroundColor = .systemRed
-                statusLabel.text = connectionManager.statusDetail.isEmpty ? message : connectionManager.statusDetail
-                statusLabel.textColor = .systemRed
-                connectButton.isEnabled = true
-                directConnectButton.isEnabled = true
-                disconnectButton.isHidden = true
-                activityIndicator.stopAnimating()
-            }
-        }
-    }
-
-    private func showHomeDashboardSurface() {
-        videoContainerView.isHidden = true
-        ambientBackgroundView.isHidden = false
-        homeScrollView.isHidden = false
-        view.bringSubviewToFront(ambientBackgroundView)
-        view.bringSubviewToFront(homeScrollView)
-        view.bringSubviewToFront(debugBubbleButton)
-    }
-
-    private func updateUIForConnectionState(_ state: ConnectionState) {
-        UIApplication.shared.isIdleTimerDisabled = (state == .running)
-        ambientBackgroundView.isHidden = (state == .running)
-
-        switch state {
-        case .disconnected:
-            stopVideoWatchdog()
-            hasReceivedFirstVideoFrame = false
-            showHomeDashboardSurface()
-            connectionManager.screenConfig.clearCustomNegotiatedResolution()
-            videoRenderer.reset()
-            audioPlayer.reset()
-            settingsButton.isHidden = false
-            if directIpTextField.text?.isEmpty ?? true {
-                directIpTextField.text = NetworkAddresses.currentHotspotGatewayIpv4()
-            }
-            updateStatusPillAndButtons(for: state)
-            refreshSystemGestureDeferral()
-
-        case .discovering, .waitingForWirelessHelper, .connecting, .handshaking:
-            stopVideoWatchdog()
-            showHomeDashboardSurface()
-            settingsButton.isHidden = false
-            updateStatusPillAndButtons(for: state)
-            refreshSystemGestureDeferral()
-
-        case .running:
-            ConnectionIssueStore.shared.clearAll()
-            startVideoWatchdog()
-            homeScrollView.isHidden = true
-            videoContainerView.isHidden = false
-            view.bringSubviewToFront(videoContainerView)
-            activityIndicator.stopAnimating()
-            disconnectButton.isHidden = true
-            view.layoutIfNeeded()
-            videoContainerView.layoutIfNeeded()
-            syncVideoAndTouchGeometry()
-            videoRenderer.applyGeometry()
-            refreshSystemGestureDeferral()
-
-        case .disconnecting:
-            stopVideoWatchdog()
-            showHomeDashboardSurface()
-            audioPlayer.reset()
-            settingsButton.isHidden = false
-            updateStatusPillAndButtons(for: state)
-            refreshSystemGestureDeferral()
-
-        case .error(let message):
-            let lower = message.lowercased()
-            if lower.contains("5277") || lower.contains("refused") {
-                ConnectionIssueStore.shared.raise(issue: .connectionRefused5277)
-            } else if lower.contains("tls") || lower.contains("handshake") {
-                ConnectionIssueStore.shared.raise(issue: .tlsHandshakeFailed)
-            }
-            stopVideoWatchdog()
-            showHomeDashboardSurface()
-            audioPlayer.reset()
-            settingsButton.isHidden = false
-            updateStatusPillAndButtons(for: state)
-            refreshSystemGestureDeferral()
-        }
-
-        updatePerformanceOverlayState()
-        updateConnectionIssueBanner()
-        refreshQuickSpecTiles()
-    }
-
-    override var prefersStatusBarHidden: Bool {
-        return connectionManager.state == .running
-    }
-
-    override var prefersHomeIndicatorAutoHidden: Bool {
-        return false
-    }
-
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
-        return (connectionManager.state == .running && ProjectionSettings.isEdgeSwipeProtectionEnabled) ? .all : []
-    }
-
-    func refreshSystemGestureDeferral() {
-        setNeedsStatusBarAppearanceUpdate()
-        setNeedsUpdateOfHomeIndicatorAutoHidden()
-        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
     }
 
     private func startVideoWatchdog() {
@@ -1469,414 +1266,12 @@ final class MainViewController: UIViewController {
         }
     }
 
-    @objc private func connectButtonTapped() {
-        connectionManager.startDiscovery()
-    }
+    // MARK: - Physical Keyboard & Steering Wheel Keymap Forwarding
 
-    @objc private func directConnectButtonTapped() {
-        guard let targetIp = directIpTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines), !targetIp.isEmpty else {
-            return
-        }
-        connectionManager.connect(to: targetIp, port: Discovery.headunitPort)
-    }
-
-    @objc private func disconnectButtonTapped() {
-        connectionManager.screenConfig.clearCustomNegotiatedResolution()
-        connectionManager.disconnect()
-    }
-
-    @objc func settingsButtonTapped() {
-        presentSettingsMenu()
-    }
-
-    func presentSettingsMenu() {
-        guard presentedViewController == nil else { return }
-        let settingsVC = SettingsViewController()
-        settingsVC.connectionManager = connectionManager
-        settingsVC.onSettingsChanged = { [weak self] impact in
-            guard let self = self else { return }
-            self.refreshQuickSpecTiles()
-            switch impact {
-            case .uiOnly:
-                self.updatePerformanceOverlayState()
-                self.refreshSystemGestureDeferral()
-            case .nightModeChanged:
-                self.connectionManager.updateNightMode(userInterfaceStyle: self.traitCollection.userInterfaceStyle, force: true)
-            case .geometryChanged:
-                self.applyOrientationLock()
-                self.syncVideoAndTouchGeometry()
-                self.videoRenderer.applyGeometry()
-            case .motionBlurChanged:
-                self.videoRenderer.motionBlurMode = ProjectionSettings.motionBlurMode
-                self.refreshQuickSpecTiles()
-            case .audioVolumeOrDuckingChanged:
-                PCMAudioPlayer.shared.refreshVolumes()
-                self.refreshQuickSpecTiles()
-            case .requiresReconnect:
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            }
-        }
-        settingsVC.onProvideDiagnosticLines = { [weak self] in
-            self?.combinedDiagnosticLines() ?? []
-        }
-
-        let nav = UINavigationController(rootViewController: settingsVC)
-        nav.modalPresentationStyle = .formSheet
-        nav.preferredContentSize = CGSize(width: 640, height: 740)
-        nav.sheetPresentationController?.preferredCornerRadius = IOS27Theme.sheetCornerRadius
-        present(nav, animated: true)
-    }
-
-    private func combinedDiagnosticLines() -> [String] {
-        connectionManager.diagnosticLines()
-            + [""]
-            + videoRenderer.diagnosticLines()
-    }
-
-    func presentQuickDisplayConfig(from sender: UIView) {
-        let alert = UIAlertController(
-            title: L10n.quickDisplayTitle,
-            message: L10n.quickDisplayMessage,
-            preferredStyle: .actionSheet
-        )
-        alert.popoverPresentationController?.sourceView = sender
-        alert.popoverPresentationController?.sourceRect = sender.bounds
-
-        let resolutions: [(title: String, res: ResolutionPreset)] = [
-            (L10n.resolutionAutoRecommended, .auto),
-            ("720p (1280×720)", .r1280x720),
-            ("1080p (1920×1080)", .r1920x1080),
-            ("1440p (2560×1440)", .r2560x1440),
-            ("4K (3840×2160)", .r3840x2160)
-        ]
-
-        for item in resolutions {
-            let isCurrent = (ProjectionSettings.resolution == item.res)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.resolution = item.res
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            })
-        }
-
-        let fpsOptions: [(title: String, fps: ProjectionFpsLimit)] = [
-            (L10n.frameRateOption(ProjectionFpsLimit.fps60.title), .fps60),
-            (L10n.frameRateOption(ProjectionFpsLimit.fps30.title), .fps30)
-        ]
-        for item in fpsOptions {
-            let isCurrent = (ProjectionSettings.fpsLimit == item.fps)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.fpsLimit = item.fps
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            })
-        }
-
-        let blurOptions: [(title: String, mode: MotionBlurMode)] = MotionBlurMode.allCases.map {
-            (L10n.frameSmoothingOption($0.title), $0)
-        }
-        for item in blurOptions {
-            let isCurrent = (ProjectionSettings.motionBlurMode == item.mode)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.motionBlurMode = item.mode
-                self.videoRenderer.motionBlurMode = item.mode
-                self.refreshQuickSpecTiles()
-            })
-        }
-
-        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
-        present(alert, animated: true)
-    }
-
-    func presentQuickLayoutAndDpiModal(from sender: UIView? = nil) {
-        let vc = QuickLayoutDpiViewController()
-        vc.connectionManager = connectionManager
-        vc.onSettingsChanged = { [weak self] in
-            guard let self = self else { return }
-            self.refreshQuickSpecTiles()
-            self.syncVideoAndTouchGeometry()
-            self.videoRenderer.applyGeometry()
-        }
-        let nav = UINavigationController(rootViewController: vc)
-        nav.modalPresentationStyle = .formSheet
-        nav.preferredContentSize = CGSize(width: 560, height: 500)
-        nav.sheetPresentationController?.preferredCornerRadius = IOS27Theme.sheetCornerRadius
-        if let pop = nav.popoverPresentationController, let source = sender {
-            pop.sourceView = source
-            pop.sourceRect = source.bounds
-        }
-        present(nav, animated: true)
-    }
-
-    func presentQuickCodecsConfig(from sender: UIView) {
-        let alert = UIAlertController(
-            title: L10n.quickCodecsTitle,
-            message: L10n.quickCodecsMessage,
-            preferredStyle: .actionSheet
-        )
-        alert.popoverPresentationController?.sourceView = sender
-        alert.popoverPresentationController?.sourceRect = sender.bounds
-
-        let videoOptions: [(title: String, val: VideoCodecPreference)] = [
-            (L10n.videoCodecOptionH264, .h264),
-            (L10n.videoCodecOptionHevc, .hevc)
-        ]
-        for item in videoOptions {
-            let isCurrent = (ProjectionSettings.videoCodecPreference == item.val)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.videoCodecPreference = item.val
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            })
-        }
-
-        let audioOptions: [(title: String, val: AudioCodecPreference)] = [
-            (L10n.audioCodecOptionAac, .aac),
-            (L10n.audioCodecOptionPcm, .pcm)
-        ]
-        for item in audioOptions {
-            let isCurrent = (ProjectionSettings.audioCodecPreference == item.val)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.audioCodecPreference = item.val
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            })
-        }
-
-        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
-        present(alert, animated: true)
-    }
-
-    func presentQuickAudioOutputConfig(from sender: UIView) {
-        let vc = QuickAudioConfigViewController()
-        vc.connectionManager = connectionManager
-        vc.onSettingsChanged = { [weak self] in
-            guard let self = self else { return }
-            self.refreshQuickSpecTiles()
-            if self.connectionManager.state == .running {
-                self.connectionManager.reconnectForSettingsChange()
-            }
-        }
-        vc.onVolumeOrDuckingChanged = { [weak self] in
-            guard let self = self else { return }
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.refreshQuickSpecTiles()
-        }
-        let nav = UINavigationController(rootViewController: vc)
-        nav.modalPresentationStyle = .formSheet
-        nav.preferredContentSize = CGSize(width: 580, height: 620)
-        nav.sheetPresentationController?.preferredCornerRadius = IOS27Theme.sheetCornerRadius
-        if let popover = nav.popoverPresentationController {
-            popover.sourceView = sender
-            popover.sourceRect = sender.bounds
-        }
-        present(nav, animated: true)
-    }
-
-    func presentQuickMicrophoneConfig(from sender: UIView) {
-        let alert = UIAlertController(
-            title: L10n.quickMicTitle,
-            message: L10n.quickMicMessage,
-            preferredStyle: .actionSheet
-        )
-        alert.popoverPresentationController?.sourceView = sender
-        alert.popoverPresentationController?.sourceRect = sender.bounds
-
-        let sources: [(title: String, src: MicrophoneSource)] = [
-            (L10n.micFollowAutoTitle, .followAudioOutput),
-            (MicrophoneSource.ipad.title, .ipad),
-            (MicrophoneSource.phone.title, .phone)
-        ]
-        for item in sources {
-            let isCurrent = (ProjectionSettings.microphoneSource == item.src)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.microphoneSource = item.src
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            })
-        }
-
-        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
-        present(alert, animated: true)
-    }
-
-    func presentQuickSmartModeConfig(from sender: UIView) {
-        let alert = UIAlertController(
-            title: L10n.quickSmartModeTitle,
-            message: L10n.quickSmartModeMessage,
-            preferredStyle: .actionSheet
-        )
-        alert.popoverPresentationController?.sourceView = sender
-        alert.popoverPresentationController?.sourceRect = sender.bounds
-
-        let nightModes: [(title: String, mode: NightModeSetting)] = [
-            (NightModeSetting.auto.title, .auto),
-            (NightModeSetting.twilight.title, .twilight),
-            (NightModeSetting.day.title, .day),
-            (NightModeSetting.night.title, .night),
-            (NightModeSetting.system.title, .system)
-        ]
-        for item in nightModes {
-            let isCurrent = (ProjectionSettings.nightMode == item.mode)
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.nightMode = item.mode
-                self.connectionManager.updateNightMode(userInterfaceStyle: self.traitCollection.userInterfaceStyle, force: true)
-                self.refreshQuickSpecTiles()
-            })
-        }
-
-        let positions: [(title: String, isRhd: Bool)] = [
-            (L10n.driverOptionLhd, false),
-            (L10n.driverOptionRhd, true)
-        ]
-        for item in positions {
-            let isCurrent = (ProjectionSettings.driverPosition == (item.isRhd ? .right : .left))
-            let prefix = isCurrent ? "✓ " : ""
-            alert.addAction(UIAlertAction(title: "\(prefix)\(item.title)", style: .default) { [weak self] _ in
-                guard let self = self else { return }
-                ProjectionSettings.driverPosition = item.isRhd ? .right : .left
-                self.refreshQuickSpecTiles()
-                if self.connectionManager.state == .running {
-                    self.connectionManager.reconnectForSettingsChange()
-                }
-            })
-        }
-
-        alert.addAction(UIAlertAction(title: L10n.cancel, style: .cancel))
-        present(alert, animated: true)
-    }
-
-    func updatePerformanceOverlayState() {
-        let shouldShow = ProjectionSettings.isDebugModeEnabled && connectionManager.state == .running
-        performanceOverlayView.isHidden = !shouldShow
-        debugBubbleButton.isHidden = !shouldShow
-        if shouldShow {
-            view.bringSubviewToFront(debugBubbleButton)
-            videoContainerView.bringSubviewToFront(performanceOverlayView)
-            if performanceTimer == nil {
-                performanceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-                    self?.refreshPerformanceOverlay()
-                }
-            }
-            refreshPerformanceOverlay()
-        } else {
-            performanceTimer?.invalidate()
-            performanceTimer = nil
-        }
-    }
-
-    private func refreshPerformanceOverlay() {
-        guard !performanceOverlayView.isHidden else { return }
-        let fps = videoRenderer.currentFps
-        let mbps = connectionManager.currentRxMbps
-        let lat = videoRenderer.decodeLatency
-        let pcmMs = audioPlayer.mediaBufferDepthMs
-        let kf = videoRenderer.keyframeRepairs
-        let drop = videoRenderer.droppedFrames
-        let activeW = max(1, videoRenderer.codecWidth - videoRenderer.widthMargin)
-        let activeH = max(1, videoRenderer.codecHeight - videoRenderer.heightMargin)
-        let resText = (videoRenderer.widthMargin > 0 || videoRenderer.heightMargin > 0)
-            ? "\(activeW)x\(activeH) (\(videoRenderer.codecWidth)x\(videoRenderer.codecHeight))"
-            : "\(videoRenderer.codecWidth)x\(videoRenderer.codecHeight)"
-
-        let snapshot = PerformanceSnapshot(
-            fps: fps,
-            rxMbps: mbps,
-            decodeMedianMs: lat.medianMs,
-            decodeP95Ms: lat.p95Ms,
-            audioBufferMs: pcmMs,
-            keyframeRepairs: kf,
-            droppedFrames: drop,
-            resolutionText: resText
-        )
-        performanceOverlayView.update(snapshot: snapshot)
-    }
-
-    private func updateConnectionIssueBanner() {
-        let standing = ConnectionIssueStore.shared.currentIssues()
-        let isConnected = (connectionManager.state == .running)
-        if let issue = ConnectionIssueBannerPolicy.bannerFor(
-            standing: standing,
-            sessionConnected: isConnected,
-            dismissedAtEpochMs: dismissedIssueEpochMs
-        ) {
-            connectionIssueTitleLabel.text = issue.issue.title
-            connectionIssueAdviceLabel.text = issue.issue.resolutionAdvice
-            connectionIssueBannerView.isHidden = false
-            bannerZeroHeightConstraint?.isActive = false
-        } else {
-            connectionIssueBannerView.isHidden = true
-            bannerZeroHeightConstraint?.isActive = true
-        }
-    }
-
-    @objc private func dismissConnectionIssueBanner() {
-        if let latest = ConnectionIssueStore.shared.currentIssues().max(by: { $0.raisedAtEpochMs < $1.raisedAtEpochMs }) {
-            dismissedIssueEpochMs = latest.raisedAtEpochMs
-        } else {
-            dismissedIssueEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
-        }
-        updateConnectionIssueBanner()
-    }
-
-    @objc private func handleNetworkReachabilityChanged(_ notification: Notification) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            let snapshot = NetworkReachabilityMonitor.shared.currentSnapshot
-            let ipText = snapshot.stationIpv4 ?? L10n.noWifiText
-            if self.connectionManager.state == .disconnected && !self.connectionManager.isAutoReconnectScheduled {
-                if self.connectionManager.statusKind.isDisconnectedWarning {
-                    // Keep failure advice
-                } else {
-                    self.statusLabel.text = L10n.statusIpadIpReady(ipText)
-                }
-            }
-            if let gw = snapshot.gatewayIpv4, !gw.isEmpty {
-                let current = self.directIpTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if current.isEmpty || current.hasSuffix(".1") || current == "192.168.43.1" {
-                    self.directIpTextField.text = gw
-                }
-            }
-            self.updateConnectionIssueBanner()
-        }
-    }
-
-    override var canBecomeFirstResponder: Bool {
-        return true
-    }
+    override var canBecomeFirstResponder: Bool { true }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        guard connectionManager.state == .running else {
-            super.pressesBegan(presses, with: event)
-            return
-        }
-        if directIpTextField.isFirstResponder {
+        guard connectionManager.state == .running, !wirelessPanelVC.directIpTextField.isFirstResponder else {
             super.pressesBegan(presses, with: event)
             return
         }
@@ -1887,17 +1282,11 @@ final class MainViewController: UIViewController {
                 handled = true
             }
         }
-        if !handled {
-            super.pressesBegan(presses, with: event)
-        }
+        if !handled { super.pressesBegan(presses, with: event) }
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        guard connectionManager.state == .running else {
-            super.pressesEnded(presses, with: event)
-            return
-        }
-        if directIpTextField.isFirstResponder {
+        guard connectionManager.state == .running, !wirelessPanelVC.directIpTextField.isFirstResponder else {
             super.pressesEnded(presses, with: event)
             return
         }
@@ -1908,17 +1297,11 @@ final class MainViewController: UIViewController {
                 handled = true
             }
         }
-        if !handled {
-            super.pressesEnded(presses, with: event)
-        }
+        if !handled { super.pressesEnded(presses, with: event) }
     }
 
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        guard connectionManager.state == .running else {
-            super.pressesCancelled(presses, with: event)
-            return
-        }
-        if directIpTextField.isFirstResponder {
+        guard connectionManager.state == .running, !wirelessPanelVC.directIpTextField.isFirstResponder else {
             super.pressesCancelled(presses, with: event)
             return
         }
@@ -1929,16 +1312,16 @@ final class MainViewController: UIViewController {
                 handled = true
             }
         }
-        if !handled {
-            super.pressesCancelled(presses, with: event)
-        }
+        if !handled { super.pressesCancelled(presses, with: event) }
     }
 }
+
+// MARK: - ConnectionManagerDelegate
 
 extension MainViewController: ConnectionManagerDelegate {
     func connectionManager(_ manager: ConnectionManager, didChangeState state: ConnectionState) {
         if Thread.isMainThread {
-            self.updateUIForConnectionState(state)
+            updateUIForConnectionState(state)
         } else {
             DispatchQueue.main.async { [weak self] in
                 self?.updateUIForConnectionState(state)
@@ -1949,28 +1332,22 @@ extension MainViewController: ConnectionManagerDelegate {
     func connectionManager(_ manager: ConnectionManager, didUpdateStatus status: String) {
         let update = { [weak self] in
             guard let self = self else { return }
-            if self.connectionManager.state != .running {
-                self.statusLabel.text = status
-            }
+            self.wirelessPanelVC.updateConnectionState(self.connectionManager.state, statusDetail: status)
+            self.updateSidebarAndCompactStatus()
         }
-        if Thread.isMainThread {
-            update()
-        } else {
-            DispatchQueue.main.async(execute: update)
-        }
+        if Thread.isMainThread { update() } else { DispatchQueue.main.async(execute: update) }
     }
 
     func connectionManager(_ manager: ConnectionManager, didDiscoverDevice device: DiscoveredDevice) {
         let update = { [weak self] in
             guard let self = self else { return }
-            self.statusLabel.text = L10n.statusFoundDeviceConnecting(device.displayName)
+            self.wirelessPanelVC.updateConnectionState(
+                self.connectionManager.state,
+                statusDetail: L10n.statusFoundDeviceConnecting(device.displayName)
+            )
             self.updateConnectionIssueBanner()
         }
-        if Thread.isMainThread {
-            update()
-        } else {
-            DispatchQueue.main.async(execute: update)
-        }
+        if Thread.isMainThread { update() } else { DispatchQueue.main.async(execute: update) }
     }
 
     func connectionManager(_ manager: ConnectionManager, didReceiveVideoData data: Data) {
@@ -1995,943 +1372,5 @@ extension MainViewController: ConnectionManagerDelegate {
 
     func connectionManagerWillEnterForeground(_ manager: ConnectionManager) {
         videoRenderer.enterForeground()
-    }
-}
-
-final class QuickSpecTileView: UIControl {
-
-    var onTap: ((UIView) -> Void)?
-
-    var title: String = "" {
-        didSet {
-            titleLabel.text = title
-        }
-    }
-
-    var value: String = "" {
-        didSet {
-            valueLabel.text = value
-        }
-    }
-
-    private let glassBackground: IOS27GlassCardView
-    private let iconBadgeView: IOS27IconBadgeView
-
-    private let titleLabel: UILabel = {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: 12, weight: .semibold)
-        l.textColor = .secondaryLabel
-        l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.75
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
-
-    private let valueLabel: UILabel = {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: 14, weight: .bold)
-        l.textColor = .label
-        l.numberOfLines = 2
-        l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.75
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
-
-    private let menuIndicatorView: UIImageView = {
-        let cfg = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
-        let iv = UIImageView(image: UIImage(systemName: "chevron.up.chevron.down", withConfiguration: cfg))
-        iv.tintColor = .tertiaryLabel
-        iv.contentMode = .scaleAspectFit
-        iv.setContentHuggingPriority(.required, for: .horizontal)
-        iv.setContentCompressionResistancePriority(.required, for: .horizontal)
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        return iv
-    }()
-
-    init(icon: String, title: String, tint: UIColor) {
-        self.glassBackground = IOS27GlassCardView(style: .medium, cornerRadius: 18, tintColor: tint)
-        self.iconBadgeView = IOS27IconBadgeView(iconName: icon, tint: tint, size: 40, cornerRadius: 12, symbolPointSize: 18)
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.text = title
-        setupViews()
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    private func setupViews() {
-        glassBackground.isUserInteractionEnabled = false
-        glassBackground.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(glassBackground)
-
-        let textStack = UIStackView(arrangedSubviews: [titleLabel, valueLabel])
-        textStack.axis = .vertical
-        textStack.spacing = 3
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let rowStack = UIStackView(arrangedSubviews: [iconBadgeView, textStack, menuIndicatorView])
-        rowStack.axis = .horizontal
-        rowStack.spacing = 12
-        rowStack.alignment = .center
-        rowStack.isUserInteractionEnabled = false
-        rowStack.translatesAutoresizingMaskIntoConstraints = false
-
-        addSubview(rowStack)
-
-        NSLayoutConstraint.activate([
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 80),
-
-            glassBackground.topAnchor.constraint(equalTo: topAnchor),
-            glassBackground.bottomAnchor.constraint(equalTo: bottomAnchor),
-            glassBackground.leadingAnchor.constraint(equalTo: leadingAnchor),
-            glassBackground.trailingAnchor.constraint(equalTo: trailingAnchor),
-
-            rowStack.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            rowStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
-            rowStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
-            rowStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14)
-        ])
-
-        addTarget(self, action: #selector(tileTapped), for: .touchUpInside)
-    }
-
-    @objc private func tileTapped() {
-        let generator = UISelectionFeedbackGenerator()
-        generator.selectionChanged()
-        onTap?(self)
-    }
-
-    override var isHighlighted: Bool {
-        didSet {
-            UIView.animate(
-                withDuration: 0.22,
-                delay: 0,
-                usingSpringWithDamping: 0.72,
-                initialSpringVelocity: 0.4,
-                options: [.allowUserInteraction, .beginFromCurrentState]
-            ) {
-                self.alpha = self.isHighlighted ? 0.78 : 1.0
-                self.transform = self.isHighlighted ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
-            }
-        }
-    }
-}
-
-final class QuickLayoutDpiViewController: UIViewController {
-
-    var onSettingsChanged: (() -> Void)?
-    var connectionManager: ConnectionManager = ConnectionManager.shared
-
-    private let scrollView: UIScrollView = {
-        let sv = UIScrollView()
-        sv.translatesAutoresizingMaskIntoConstraints = false
-        sv.alwaysBounceVertical = false
-        sv.showsVerticalScrollIndicator = false
-        return sv
-    }()
-
-    private let contentStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 12
-        stack.alignment = .fill
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private let previewView: DpiPreviewView = {
-        let v = DpiPreviewView()
-        v.translatesAutoresizingMaskIntoConstraints = false
-        return v
-    }()
-
-    private let fitLabel: UILabel = {
-        let l = UILabel()
-        l.text = L10n.displayFitMode
-        l.font = .systemFont(ofSize: 12, weight: .semibold)
-        l.textColor = .secondaryLabel
-        l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.75
-        return l
-    }()
-
-    private let driverLabel: UILabel = {
-        let l = UILabel()
-        l.text = L10n.drivingPosition
-        l.font = .systemFont(ofSize: 12, weight: .semibold)
-        l.textColor = .secondaryLabel
-        l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.75
-        return l
-    }()
-
-    private let fitModeSegmentedControl: UISegmentedControl = {
-        let seg = UISegmentedControl(items: [L10n.fitSegmentFillMargin, L10n.fitSegmentFit, L10n.fitSegmentStretch])
-        seg.apportionsSegmentWidthsByContent = true
-        seg.translatesAutoresizingMaskIntoConstraints = false
-        return seg
-    }()
-
-    private let driverPositionSegmentedControl: UISegmentedControl = {
-        let seg = UISegmentedControl(items: [L10n.lhdShort, L10n.rhdShort])
-        seg.apportionsSegmentWidthsByContent = true
-        seg.translatesAutoresizingMaskIntoConstraints = false
-        return seg
-    }()
-
-    private let autoDpiLabel: UILabel = {
-        let l = UILabel()
-        l.text = L10n.autoRecommendedDpi
-        l.font = .systemFont(ofSize: 14, weight: .medium)
-        l.textColor = .label
-        l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.75
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
-
-    private let autoDpiSwitch: UISwitch = {
-        let s = UISwitch()
-        s.translatesAutoresizingMaskIntoConstraints = false
-        return s
-    }()
-
-    private let dpiValueLabel: UILabel = {
-        let l = UILabel()
-        l.font = .monospacedDigitSystemFont(ofSize: 14, weight: .bold)
-        l.textColor = .label
-        l.textAlignment = .center
-        l.adjustsFontSizeToFitWidth = true
-        l.minimumScaleFactor = 0.75
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
-
-    private let dpiSlider: UISlider = {
-        let s = UISlider()
-        s.minimumValue = 100
-        s.maximumValue = 320
-        s.translatesAutoresizingMaskIntoConstraints = false
-        return s
-    }()
-
-    private let presetStackView: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.spacing = 8
-        stack.distribution = .fillEqually
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupUI()
-        syncWithCurrentSettings()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applyLocalization),
-            name: .appLanguageDidChange,
-            object: nil
-        )
-    }
-
-    @objc private func applyLocalization() {
-        title = L10n.layoutDpiModalTitle
-        navigationItem.rightBarButtonItem?.title = L10n.done
-        fitLabel.text = L10n.displayFitMode
-        driverLabel.text = L10n.drivingPosition
-        autoDpiLabel.text = L10n.autoRecommendedDpi
-        fitModeSegmentedControl.setTitle(L10n.fitSegmentFillMargin, forSegmentAt: 0)
-        fitModeSegmentedControl.setTitle(L10n.fitSegmentFit, forSegmentAt: 1)
-        fitModeSegmentedControl.setTitle(L10n.fitSegmentStretch, forSegmentAt: 2)
-        driverPositionSegmentedControl.setTitle(L10n.lhdShort, forSegmentAt: 0)
-        driverPositionSegmentedControl.setTitle(L10n.rhdShort, forSegmentAt: 1)
-        previewView.setNeedsDisplay()
-        updateDpiLabel(val: ProjectionSettings.effectiveDpi, isAuto: ProjectionSettings.isAutoDpi)
-    }
-
-    private func setupUI() {
-        title = L10n.layoutDpiModalTitle
-        view.backgroundColor = IOS27Theme.groupedBackdropColor
-        preferredContentSize = CGSize(width: 560, height: 500)
-
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: L10n.done,
-            style: .done,
-            target: self,
-            action: #selector(doneButtonTapped)
-        )
-
-        view.addSubview(scrollView)
-        scrollView.addSubview(contentStack)
-
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 8),
-            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
-            contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 16),
-            contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -16),
-            contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -32),
-
-            previewView.heightAnchor.constraint(equalToConstant: 216)
-        ])
-
-        contentStack.addArrangedSubview(IOS27SheetGrabberView())
-        contentStack.addArrangedSubview(previewView)
-
-        IOS27Theme.styleSegmentedControl(fitModeSegmentedControl)
-        IOS27Theme.styleSegmentedControl(driverPositionSegmentedControl)
-        IOS27Theme.styleSwitch(autoDpiSwitch, accent: IOS27Theme.accentBlue)
-        IOS27Theme.styleSlider(dpiSlider, accent: IOS27Theme.accentPurple)
-
-        let geometryCard = IOS27GlassCardView(style: .medium, cornerRadius: 18)
-        let geometryStack = UIStackView(arrangedSubviews: [fitLabel, fitModeSegmentedControl, driverLabel, driverPositionSegmentedControl])
-        geometryStack.axis = .vertical
-        geometryStack.spacing = 8
-        geometryStack.translatesAutoresizingMaskIntoConstraints = false
-        geometryCard.addSubview(geometryStack)
-        NSLayoutConstraint.activate([
-            geometryStack.topAnchor.constraint(equalTo: geometryCard.topAnchor, constant: 12),
-            geometryStack.bottomAnchor.constraint(equalTo: geometryCard.bottomAnchor, constant: -12),
-            geometryStack.leadingAnchor.constraint(equalTo: geometryCard.leadingAnchor, constant: 14),
-            geometryStack.trailingAnchor.constraint(equalTo: geometryCard.trailingAnchor, constant: -14)
-        ])
-        contentStack.addArrangedSubview(geometryCard)
-
-        let autoDpiRow = UIStackView(arrangedSubviews: [autoDpiLabel, autoDpiSwitch])
-        autoDpiRow.axis = .horizontal
-        autoDpiRow.spacing = 8
-        autoDpiRow.alignment = .center
-        autoDpiRow.distribution = .equalSpacing
-        autoDpiSwitch.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        let presets = [120, 160, 200, 240, 280]
-        for p in presets {
-            var config = UIButton.Configuration.tinted()
-            config.title = "\(p)"
-            config.cornerStyle = .capsule
-            config.buttonSize = .mini
-            config.baseBackgroundColor = IOS27Theme.accentPurple.withAlphaComponent(0.14)
-            config.baseForegroundColor = IOS27Theme.accentPurple
-            let btn = UIButton(configuration: config)
-            btn.addAction(UIAction { [weak self] _ in
-                self?.applyDpi(val: p, isAuto: false)
-            }, for: .touchUpInside)
-            presetStackView.addArrangedSubview(btn)
-        }
-
-        let dpiCard = IOS27GlassCardView(style: .medium, cornerRadius: 18)
-        let dpiStack = UIStackView(arrangedSubviews: [autoDpiRow, dpiValueLabel, dpiSlider, presetStackView])
-        dpiStack.axis = .vertical
-        dpiStack.spacing = 10
-        dpiStack.translatesAutoresizingMaskIntoConstraints = false
-        dpiCard.addSubview(dpiStack)
-        NSLayoutConstraint.activate([
-            dpiStack.topAnchor.constraint(equalTo: dpiCard.topAnchor, constant: 12),
-            dpiStack.bottomAnchor.constraint(equalTo: dpiCard.bottomAnchor, constant: -12),
-            dpiStack.leadingAnchor.constraint(equalTo: dpiCard.leadingAnchor, constant: 14),
-            dpiStack.trailingAnchor.constraint(equalTo: dpiCard.trailingAnchor, constant: -14)
-        ])
-        contentStack.addArrangedSubview(dpiCard)
-
-        fitModeSegmentedControl.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let modes: [VideoFitMode] = [.fillMargin, .contain, .stretch]
-            let chosen = modes[self.fitModeSegmentedControl.selectedSegmentIndex]
-            ProjectionSettings.videoFitMode = chosen
-            HeadUnitScreenConfig.shared.videoFitMode = chosen
-            HeadUnitScreenConfig.shared.recalculate()
-            HeadUnitScreenConfig.shared.checkAndNotifyMarginDivergence()
-            self.previewView.fitMode = chosen
-            self.onSettingsChanged?()
-        }, for: .valueChanged)
-
-        driverPositionSegmentedControl.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let isRhd = self.driverPositionSegmentedControl.selectedSegmentIndex == 1
-            ProjectionSettings.driverPosition = isRhd ? .right : .left
-            self.previewView.isRightHandDrive = isRhd
-            self.onSettingsChanged?()
-            if self.connectionManager.state == .running {
-                self.connectionManager.reconnectForSettingsChange()
-            }
-        }, for: .valueChanged)
-
-        autoDpiSwitch.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            if self.autoDpiSwitch.isOn {
-                let rec = ProjectionSettings.recommendedDpiForCurrentDevice()
-                self.applyDpi(val: rec, isAuto: true)
-            } else {
-                let val = Int((self.dpiSlider.value / 10.0).rounded()) * 10
-                self.applyDpi(val: val, isAuto: false)
-            }
-        }, for: .valueChanged)
-
-        dpiSlider.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let stepped = Int((self.dpiSlider.value / 10.0).rounded()) * 10
-            self.dpiSlider.value = Float(stepped)
-            self.applyDpi(val: stepped, isAuto: false)
-        }, for: .valueChanged)
-    }
-
-    private func syncWithCurrentSettings() {
-        let dims = HeadUnitScreenConfig.currentIpadDimensions()
-        previewView.panelWidthPx = dims.width > 0 ? dims.width : 1920
-        previewView.panelHeightPx = dims.height > 0 ? dims.height : 1080
-        let cfg = HeadUnitScreenConfig.shared
-        previewView.activeWidthPx = cfg.negotiatedWidth
-        previewView.activeHeightPx = cfg.negotiatedHeight
-        previewView.marginWidthPx = cfg.announcedWidthMargin >= 0 ? cfg.announcedWidthMargin : cfg.getWidthMargin()
-        previewView.marginHeightPx = cfg.announcedHeightMargin >= 0 ? cfg.announcedHeightMargin : cfg.getHeightMargin()
-        previewView.fitMode = ProjectionSettings.videoFitMode
-        previewView.isRightHandDrive = (ProjectionSettings.driverPosition == .right)
-        previewView.dpi = ProjectionSettings.effectiveDpi
-
-        switch ProjectionSettings.videoFitMode {
-        case .fillMargin:
-            fitModeSegmentedControl.selectedSegmentIndex = 0
-        case .contain, .fill, .cover:
-            fitModeSegmentedControl.selectedSegmentIndex = 1
-        case .stretch:
-            fitModeSegmentedControl.selectedSegmentIndex = 2
-        }
-
-        driverPositionSegmentedControl.selectedSegmentIndex = (ProjectionSettings.driverPosition == .right) ? 1 : 0
-        autoDpiSwitch.isOn = ProjectionSettings.isAutoDpi
-        let currentDpi = ProjectionSettings.effectiveDpi
-        dpiSlider.value = Float(currentDpi)
-        updateDpiLabel(val: currentDpi, isAuto: ProjectionSettings.isAutoDpi)
-
-        let isLocked = connectionManager.state != .disconnected
-        driverPositionSegmentedControl.isEnabled = !isLocked
-        autoDpiSwitch.isEnabled = !isLocked
-        dpiSlider.isEnabled = !isLocked
-        for subview in presetStackView.arrangedSubviews {
-            if let btn = subview as? UIButton {
-                btn.isEnabled = !isLocked
-            }
-        }
-        presetStackView.alpha = isLocked ? 0.5 : 1.0
-        autoDpiLabel.alpha = isLocked ? 0.5 : 1.0
-        dpiValueLabel.alpha = isLocked ? 0.5 : 1.0
-    }
-
-    private func applyDpi(val: Int, isAuto: Bool) {
-        ProjectionSettings.isAutoDpi = isAuto
-        ProjectionSettings.dpi = val
-        autoDpiSwitch.isOn = isAuto
-        dpiSlider.value = Float(val)
-        previewView.dpi = val
-        updateDpiLabel(val: val, isAuto: isAuto)
-        onSettingsChanged?()
-        if connectionManager.state == .running {
-            connectionManager.reconnectForSettingsChange()
-        }
-    }
-
-    private func updateDpiLabel(val: Int, isAuto: Bool) {
-        let wDp = previewView.virtualWidthDp
-        let hDp = previewView.virtualHeightDp
-        let coolwalkStr = previewView.isCoolwalkSplitScreen ? L10n.splitScreenShort : L10n.singleCardShort
-        if isAuto {
-            dpiValueLabel.text = "\(val) DPI (\(L10n.autoShort)) • \(wDp)×\(hDp) dp • \(coolwalkStr)"
-        } else {
-            dpiValueLabel.text = "\(val) DPI • \(wDp)×\(hDp) dp • \(coolwalkStr)"
-        }
-    }
-
-    @objc private func doneButtonTapped() {
-        dismiss(animated: true)
-    }
-}
-
-final class QuickAudioConfigViewController: UIViewController {
-
-    var onSettingsChanged: (() -> Void)?
-    var onVolumeOrDuckingChanged: (() -> Void)?
-    var connectionManager: ConnectionManager = ConnectionManager.shared
-
-    private let scrollView: UIScrollView = {
-        let sv = UIScrollView()
-        sv.translatesAutoresizingMaskIntoConstraints = false
-        sv.alwaysBounceVertical = false
-        sv.showsVerticalScrollIndicator = false
-        return sv
-    }()
-
-    private let contentStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 14
-        stack.alignment = .fill
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private let destinationSegmentedControl: UISegmentedControl = {
-        let seg = UISegmentedControl(items: [L10n.audioOutIpadShort, L10n.audioOutPhoneShort])
-        seg.apportionsSegmentWidthsByContent = true
-        seg.translatesAutoresizingMaskIntoConstraints = false
-        return seg
-    }()
-
-    private let destLabel = UILabel()
-    private let chanHeader = UILabel()
-    private let mediaTitleLabel = UILabel()
-    private let navTitleLabel = UILabel()
-    private let sysTitleLabel = UILabel()
-    private let duckingTitleLabel = UILabel()
-    private let duckingSubLabel = UILabel()
-    private var testDuckingButton: UIButton?
-    private var resetAudioButton: UIButton?
-
-    private let mediaSwitch = UISwitch()
-    private let mediaSlider = UISlider()
-    private let mediaValueLabel = UILabel()
-
-    private let navSwitch = UISwitch()
-    private let navSlider = UISlider()
-    private let navValueLabel = UILabel()
-
-    private let sysSwitch = UISwitch()
-    private let sysSlider = UISlider()
-    private let sysValueLabel = UILabel()
-
-    private let duckingStatusLabel = UILabel()
-    private let duckingSlider = UISlider()
-    private let presetStackView = UIStackView()
-    private var presetButtons: [NavigationDuckingPreset: UIButton] = [:]
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupUI()
-        syncWithCurrentSettings()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applyLocalization),
-            name: .appLanguageDidChange,
-            object: nil
-        )
-    }
-
-    @objc private func applyLocalization() {
-        title = L10n.audioDuckingModalTitle
-        navigationItem.rightBarButtonItem?.title = L10n.done
-        destLabel.text = L10n.audioOutputDestination
-        destinationSegmentedControl.setTitle(L10n.audioOutIpadShort, forSegmentAt: 0)
-        destinationSegmentedControl.setTitle(L10n.audioOutPhoneShort, forSegmentAt: 1)
-        chanHeader.text = L10n.independentChannelVolumes
-        mediaTitleLabel.text = L10n.mediaAudio
-        navTitleLabel.text = L10n.navigationGuidance
-        sysTitleLabel.text = L10n.phoneSystemAlerts
-        duckingTitleLabel.text = L10n.navigationDuckingDrop
-        duckingSubLabel.text = L10n.navigationDuckingSubtitle
-        if var testCfg = testDuckingButton?.configuration {
-            testCfg.title = L10n.testNavDucking
-            testDuckingButton?.configuration = testCfg
-        }
-        if var resetCfg = resetAudioButton?.configuration {
-            resetCfg.title = L10n.resetAudio
-            resetAudioButton?.configuration = resetCfg
-        }
-        syncWithCurrentSettings()
-    }
-
-    private func setupUI() {
-        title = L10n.audioDuckingModalTitle
-        view.backgroundColor = IOS27Theme.groupedBackdropColor
-        preferredContentSize = CGSize(width: 580, height: 620)
-
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: L10n.done,
-            style: .done,
-            target: self,
-            action: #selector(doneButtonTapped)
-        )
-
-        view.addSubview(scrollView)
-        scrollView.addSubview(contentStack)
-
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 8),
-            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
-            contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 16),
-            contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -16),
-            contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -32)
-        ])
-
-        contentStack.addArrangedSubview(IOS27SheetGrabberView())
-
-        // Audio Output Destination Section
-        let destCard = IOS27GlassCardView(style: .small, cornerRadius: 16)
-        destLabel.text = L10n.audioOutputDestination
-        destLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        destLabel.textColor = .secondaryLabel
-        destLabel.adjustsFontSizeToFitWidth = true
-        destLabel.minimumScaleFactor = 0.75
-        IOS27Theme.styleSegmentedControl(destinationSegmentedControl)
-
-        let destStack = UIStackView(arrangedSubviews: [destLabel, destinationSegmentedControl])
-        destStack.axis = .vertical
-        destStack.spacing = 8
-        destStack.translatesAutoresizingMaskIntoConstraints = false
-        destCard.addSubview(destStack)
-        NSLayoutConstraint.activate([
-            destStack.topAnchor.constraint(equalTo: destCard.topAnchor, constant: 12),
-            destStack.bottomAnchor.constraint(equalTo: destCard.bottomAnchor, constant: -12),
-            destStack.leadingAnchor.constraint(equalTo: destCard.leadingAnchor, constant: 14),
-            destStack.trailingAnchor.constraint(equalTo: destCard.trailingAnchor, constant: -14)
-        ])
-        contentStack.addArrangedSubview(destCard)
-
-        destinationSegmentedControl.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
-        destinationSegmentedControl.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let chosen: AudioOutputTarget = (self.destinationSegmentedControl.selectedSegmentIndex == 0) ? .ipad : .phone
-            ProjectionSettings.audioOutputTarget = chosen
-            if !chosen.isAudioSinkEnabled {
-                PCMAudioPlayer.shared.reset()
-            }
-            self.syncWithCurrentSettings()
-            self.onSettingsChanged?()
-        }, for: .valueChanged)
-
-        // Channels Header
-        chanHeader.text = L10n.independentChannelVolumes
-        chanHeader.font = .systemFont(ofSize: 12, weight: .bold)
-        chanHeader.textColor = .secondaryLabel
-        chanHeader.adjustsFontSizeToFitWidth = true
-        chanHeader.minimumScaleFactor = 0.75
-        contentStack.addArrangedSubview(chanHeader)
-
-        // 1) Media Channel
-        let mediaBlock = IOS27Theme.makeAudioChannelGlassCard(
-            iconName: "music.note",
-            iconColor: IOS27Theme.accentBlue,
-            titleLabel: mediaTitleLabel,
-            title: L10n.mediaAudio,
-            toggle: mediaSwitch,
-            slider: mediaSlider,
-            valueLabel: mediaValueLabel,
-            onTone: { AudioStreamTester.shared.playMediaTestTone() }
-        )
-        contentStack.addArrangedSubview(mediaBlock)
-
-        // 2) Navigation Channel
-        let navBlock = IOS27Theme.makeAudioChannelGlassCard(
-            iconName: "location.fill",
-            iconColor: IOS27Theme.accentGreen,
-            titleLabel: navTitleLabel,
-            title: L10n.navigationGuidance,
-            toggle: navSwitch,
-            slider: navSlider,
-            valueLabel: navValueLabel,
-            onTone: { AudioStreamTester.shared.playGuidanceTestTone() }
-        )
-        contentStack.addArrangedSubview(navBlock)
-
-        // 3) System Channel
-        let sysBlock = IOS27Theme.makeAudioChannelGlassCard(
-            iconName: "bell.fill",
-            iconColor: IOS27Theme.accentOrange,
-            titleLabel: sysTitleLabel,
-            title: L10n.phoneSystemAlerts,
-            toggle: sysSwitch,
-            slider: sysSlider,
-            valueLabel: sysValueLabel,
-            onTone: { AudioStreamTester.shared.playSystemTestTone() }
-        )
-        contentStack.addArrangedSubview(sysBlock)
-
-        // Ducking Section
-        let duckingSection = makeDuckingSection()
-        contentStack.addArrangedSubview(duckingSection)
-
-        wireActions()
-    }
-
-    private func makeDuckingSection() -> UIView {
-        let card = IOS27GlassCardView(style: .medium, cornerRadius: 18)
-        let container = UIStackView()
-        container.axis = .vertical
-        container.spacing = 8
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let headerRow = UIStackView()
-        headerRow.axis = .horizontal
-        headerRow.spacing = 8
-        headerRow.alignment = .center
-        headerRow.distribution = .equalSpacing
-
-        duckingTitleLabel.text = L10n.navigationDuckingDrop
-        duckingTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        duckingTitleLabel.textColor = .label
-        duckingTitleLabel.adjustsFontSizeToFitWidth = true
-        duckingTitleLabel.minimumScaleFactor = 0.75
-        duckingTitleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-
-        duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        duckingStatusLabel.textColor = IOS27Theme.accentBlue
-        duckingStatusLabel.textAlignment = .right
-        duckingStatusLabel.adjustsFontSizeToFitWidth = true
-        duckingStatusLabel.minimumScaleFactor = 0.75
-
-        headerRow.addArrangedSubview(duckingTitleLabel)
-        headerRow.addArrangedSubview(duckingStatusLabel)
-        container.addArrangedSubview(headerRow)
-
-        duckingSubLabel.text = L10n.navigationDuckingSubtitle
-        duckingSubLabel.font = .systemFont(ofSize: 12)
-        duckingSubLabel.textColor = .secondaryLabel
-        duckingSubLabel.numberOfLines = 0
-        container.addArrangedSubview(duckingSubLabel)
-
-        duckingSlider.minimumValue = 0.0
-        duckingSlider.maximumValue = 1.0
-        IOS27Theme.styleSlider(duckingSlider, accent: IOS27Theme.accentIndigo)
-        container.addArrangedSubview(duckingSlider)
-
-        presetStackView.axis = .horizontal
-        presetStackView.spacing = 6
-        presetStackView.distribution = .fillEqually
-
-        for preset in NavigationDuckingPreset.allCases {
-            var config = UIButton.Configuration.tinted()
-            config.title = preset.shortTitle
-            config.titleLineBreakMode = .byClipping
-            config.cornerStyle = .capsule
-            config.buttonSize = .mini
-            let btn = UIButton(configuration: config)
-            btn.titleLabel?.numberOfLines = 1
-            btn.titleLabel?.adjustsFontSizeToFitWidth = true
-            btn.titleLabel?.minimumScaleFactor = 0.65
-            btn.addAction(UIAction { [weak self] _ in
-                self?.applyDucking(preset.reductionAmount)
-            }, for: .touchUpInside)
-            presetButtons[preset] = btn
-            presetStackView.addArrangedSubview(btn)
-        }
-        container.addArrangedSubview(presetStackView)
-
-        let actionsRow = UIStackView()
-        actionsRow.axis = .horizontal
-        actionsRow.spacing = 10
-        actionsRow.distribution = .fillEqually
-
-        var testConfig = UIButton.Configuration.tinted()
-        testConfig.title = L10n.testNavDucking
-        testConfig.image = UIImage(systemName: "play.fill")
-        testConfig.imagePadding = 4
-        testConfig.buttonSize = .small
-        testConfig.cornerStyle = .capsule
-        testConfig.baseBackgroundColor = IOS27Theme.accentBlue.withAlphaComponent(0.16)
-        testConfig.baseForegroundColor = IOS27Theme.accentBlue
-        let testBtn = UIButton(configuration: testConfig)
-        testBtn.titleLabel?.adjustsFontSizeToFitWidth = true
-        testBtn.titleLabel?.minimumScaleFactor = 0.75
-        testBtn.addAction(UIAction { _ in
-            AudioStreamTester.shared.playDuckingTestSequence()
-        }, for: .touchUpInside)
-        self.testDuckingButton = testBtn
-
-        var resetConfig = UIButton.Configuration.gray()
-        resetConfig.title = L10n.resetAudio
-        resetConfig.image = UIImage(systemName: "arrow.counterclockwise")
-        resetConfig.imagePadding = 4
-        resetConfig.buttonSize = .small
-        resetConfig.cornerStyle = .capsule
-        let resetBtn = UIButton(configuration: resetConfig)
-        resetBtn.titleLabel?.adjustsFontSizeToFitWidth = true
-        resetBtn.titleLabel?.minimumScaleFactor = 0.75
-        resetBtn.addAction(UIAction { [weak self] _ in
-            self?.resetAudioVolumes()
-        }, for: .touchUpInside)
-        self.resetAudioButton = resetBtn
-
-        actionsRow.addArrangedSubview(testBtn)
-        actionsRow.addArrangedSubview(resetBtn)
-        container.addArrangedSubview(actionsRow)
-
-        card.addSubview(container)
-        NSLayoutConstraint.activate([
-            container.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-            container.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
-            container.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            container.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
-        ])
-        return card
-    }
-
-    private func wireActions() {
-        mediaSwitch.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            ProjectionSettings.isMediaChannelEnabled = self.mediaSwitch.isOn
-            self.mediaSlider.isEnabled = self.mediaSwitch.isOn
-            self.mediaValueLabel.text = self.mediaSwitch.isOn ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : L10n.off
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-
-        mediaSlider.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let val = (self.mediaSlider.value * 100).rounded() / 100.0
-            ProjectionSettings.mediaVolume = val
-            self.mediaValueLabel.text = "\(Int((val * 100).rounded()))%"
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-
-        navSwitch.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            ProjectionSettings.isNavigationChannelEnabled = self.navSwitch.isOn
-            self.navSlider.isEnabled = self.navSwitch.isOn
-            self.navValueLabel.text = self.navSwitch.isOn ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : L10n.off
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-
-        navSlider.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let val = (self.navSlider.value * 100).rounded() / 100.0
-            ProjectionSettings.navigationVolume = val
-            self.navValueLabel.text = "\(Int((val * 100).rounded()))%"
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-
-        sysSwitch.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            ProjectionSettings.isSystemChannelEnabled = self.sysSwitch.isOn
-            self.sysSlider.isEnabled = self.sysSwitch.isOn
-            self.sysValueLabel.text = self.sysSwitch.isOn ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : L10n.off
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-
-        sysSlider.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let val = (self.sysSlider.value * 100).rounded() / 100.0
-            ProjectionSettings.phoneSystemVolume = val
-            self.sysValueLabel.text = "\(Int((val * 100).rounded()))%"
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-
-        duckingSlider.addAction(UIAction { [weak self] _ in
-            guard let self = self else { return }
-            let val = (self.duckingSlider.value * 100).rounded() / 100.0
-            ProjectionSettings.navigationDuckingAmount = val
-            self.updateDuckingStatusLabel(amount: val)
-            self.updatePresetButtonSelection(amount: val)
-            PCMAudioPlayer.shared.refreshVolumes()
-            self.onVolumeOrDuckingChanged?()
-        }, for: .valueChanged)
-    }
-
-    private func applyDucking(_ amount: Float) {
-        let rounded = (amount * 100).rounded() / 100.0
-        ProjectionSettings.navigationDuckingAmount = rounded
-        duckingSlider.value = rounded
-        updateDuckingStatusLabel(amount: rounded)
-        updatePresetButtonSelection(amount: rounded)
-        PCMAudioPlayer.shared.refreshVolumes()
-        onVolumeOrDuckingChanged?()
-    }
-
-    private func resetAudioVolumes() {
-        ProjectionSettings.mediaVolume = ProjectionSettings.defaultChannelVolume
-        ProjectionSettings.navigationVolume = ProjectionSettings.defaultChannelVolume
-        ProjectionSettings.phoneSystemVolume = ProjectionSettings.defaultChannelVolume
-        ProjectionSettings.isMediaChannelEnabled = true
-        ProjectionSettings.isNavigationChannelEnabled = true
-        ProjectionSettings.isSystemChannelEnabled = true
-        ProjectionSettings.navigationDuckingAmount = ProjectionSettings.defaultNavigationDuckingAmount
-        PCMAudioPlayer.shared.refreshVolumes()
-        syncWithCurrentSettings()
-        onVolumeOrDuckingChanged?()
-    }
-
-    func syncWithCurrentSettings() {
-        destinationSegmentedControl.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
-
-        let isSink = ProjectionSettings.isAudioSinkEnabled
-        mediaSwitch.isEnabled = isSink
-        mediaSlider.isEnabled = isSink && ProjectionSettings.isMediaChannelEnabled
-        navSwitch.isEnabled = isSink
-        navSlider.isEnabled = isSink && ProjectionSettings.isNavigationChannelEnabled
-        sysSwitch.isEnabled = isSink
-        sysSlider.isEnabled = isSink && ProjectionSettings.isSystemChannelEnabled
-        duckingSlider.isEnabled = isSink
-        for (_, btn) in presetButtons {
-            btn.isEnabled = isSink
-        }
-
-        mediaSwitch.isOn = ProjectionSettings.isMediaChannelEnabled
-        mediaSlider.value = ProjectionSettings.mediaVolume
-        mediaValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isMediaChannelEnabled ? "\(Int((ProjectionSettings.mediaVolume * 100).rounded()))%" : L10n.off)
-
-        navSwitch.isOn = ProjectionSettings.isNavigationChannelEnabled
-        navSlider.value = ProjectionSettings.navigationVolume
-        navValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isNavigationChannelEnabled ? "\(Int((ProjectionSettings.navigationVolume * 100).rounded()))%" : L10n.off)
-
-        sysSwitch.isOn = ProjectionSettings.isSystemChannelEnabled
-        sysSlider.value = ProjectionSettings.phoneSystemVolume
-        sysValueLabel.text = (!isSink) ? L10n.notAvailableShort : (ProjectionSettings.isSystemChannelEnabled ? "\(Int((ProjectionSettings.phoneSystemVolume * 100).rounded()))%" : L10n.off)
-
-        let duckAmount = ProjectionSettings.navigationDuckingAmount
-        duckingSlider.value = duckAmount
-        updateDuckingStatusLabel(amount: duckAmount)
-        updatePresetButtonSelection(amount: duckAmount)
-    }
-
-    private func updateDuckingStatusLabel(amount: Float) {
-        guard ProjectionSettings.isAudioSinkEnabled else {
-            duckingStatusLabel.text = L10n.duckingDisabledPhoneAudio
-            return
-        }
-        let pct = Int((amount * 100).rounded())
-        if pct == 0 {
-            duckingStatusLabel.text = L10n.duckingOffTitle
-        } else if pct == 100 {
-            duckingStatusLabel.text = L10n.duckingMuteTitle
-        } else {
-            let retained = 100 - pct
-            duckingStatusLabel.text = L10n.duckingStatusRetained(pct: pct, retained: retained)
-        }
-    }
-
-    private func updatePresetButtonSelection(amount: Float) {
-        let pct = Int((amount * 100).rounded())
-        for (preset, btn) in presetButtons {
-            let isSelected = (preset.dropPercentage == pct)
-            var config: UIButton.Configuration = isSelected ? .filled() : .tinted()
-            config.title = preset.shortTitle
-            config.titleLineBreakMode = .byClipping
-            config.cornerStyle = .capsule
-            config.buttonSize = .mini
-            btn.configuration = config
-            btn.titleLabel?.numberOfLines = 1
-            btn.titleLabel?.adjustsFontSizeToFitWidth = true
-            btn.titleLabel?.minimumScaleFactor = 0.65
-        }
-    }
-
-    @objc private func doneButtonTapped() {
-        dismiss(animated: true)
     }
 }

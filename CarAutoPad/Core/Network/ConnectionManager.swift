@@ -205,8 +205,27 @@ class ConnectionManager {
 
     private(set) var discoveredDevices: [DiscoveredDevice] = []
     private(set) var connectedDevice: DiscoveredDevice?
+    private(set) var connectedPeerDeviceInfo: AapPeerDeviceInfo?
     public private(set) var statusKind: ConnectionStatusKind = .ready
     private(set) var statusDetail = L10n.statusReadyToConnect
+
+    public var connectedPeerDisplayName: String {
+        if let peer = connectedPeerDeviceInfo {
+            let trimmedName = peer.deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedName.isEmpty { return trimmedName }
+            let trimmedBrand = peer.phoneBrand.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedBrand.isEmpty { return trimmedBrand }
+        }
+        if let dev = connectedDevice ?? lastConnectedDevice {
+            return dev.displayName
+        }
+        return L10n.androidAutoDefaultName
+    }
+
+    public var connectedPeerEndpointText: String {
+        guard let dev = connectedDevice ?? lastConnectedDevice else { return "" }
+        return "\(dev.ip):\(dev.port)"
+    }
 
     init() {
         discovery.delegate = self
@@ -378,6 +397,7 @@ class ConnectionManager {
 
         state = .connecting
         connectedDevice = device
+        connectedPeerDeviceInfo = nil
         lastConnectedDevice = device
 
         installAapTransport(connection: tcpHandler)
@@ -425,6 +445,7 @@ class ConnectionManager {
         microphoneCapture.stop()
         locationCapture.stop()
         connectedDevice = nil
+        connectedPeerDeviceInfo = nil
         state = .disconnected
         updateStatus(.ready)
 
@@ -769,6 +790,22 @@ extension ConnectionManager: AapTransportDelegate {
         )
     }
 
+    func aapTransport(_ transport: AapTransport, didReceivePeerDeviceInfo info: AapPeerDeviceInfo) {
+        guard transport === aapTransport else { return }
+        connectedPeerDeviceInfo = info
+        let endpoint = connectedDevice ?? lastConnectedDevice
+        let ip = endpoint?.ip ?? ""
+        let port = endpoint?.port ?? Discovery.headunitPort
+        if !ip.isEmpty {
+            ConnectedPhoneStore.shared.recordConnection(
+                deviceName: info.deviceName,
+                hardwareModel: info.phoneBrand,
+                ipAddress: ip,
+                port: port
+            )
+        }
+    }
+
     func aapTransport(_ transport: AapTransport, didChangeState state: AapTransportState) {
         guard transport === aapTransport else { return }
         switch state {
@@ -786,6 +823,14 @@ extension ConnectionManager: AapTransportDelegate {
                 PCMAudioPlayer.shared.stop()
             }
             self.state = .running
+            if let endpoint = connectedDevice ?? lastConnectedDevice {
+                ConnectedPhoneStore.shared.recordConnection(
+                    deviceName: connectedPeerDeviceInfo?.deviceName ?? endpoint.name,
+                    hardwareModel: connectedPeerDeviceInfo?.phoneBrand,
+                    ipAddress: endpoint.ip,
+                    port: endpoint.port
+                )
+            }
             self.hasPerformedSilentIcebreakRetry = false
             reconnectAttempt = 0
             consecutiveSilentFailures = 0
@@ -856,6 +901,7 @@ extension ConnectionManager: AapTransportDelegate {
         microphoneCapture.stop()
         locationCapture.stop()
         connectedDevice = nil
+        connectedPeerDeviceInfo = nil
         state = .disconnected
         updateStatus(.disconnectedFromSession)
 

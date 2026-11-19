@@ -1811,25 +1811,6 @@ public enum L10n {
         tr(en: "Diagnostics, Logs & Backup", zhHans: "诊断、日志与备份", zhHant: "診斷、日誌與備份", ja: "診断・ログ・バックアップ", ms: "Diagnostik, Log & Sandaran", ko: "진단, 로그 & 백업", ta: "கண்டறிதல், பதிவுகள் & காப்பு")
     }
 
-    public static var categorySessionPill: String {
-        tr(en: "Session", zhHans: "会话", zhHant: "工作階段", ja: "セッション", ms: "Sesi", ko: "세션", ta: "அமர்வு")
-    }
-    public static var categoryDisplayPill: String {
-        tr(en: "Display", zhHans: "显示布局", zhHant: "顯示佈局", ja: "画面", ms: "Paparan", ko: "디스플레이", ta: "திரை")
-    }
-    public static var categoryAudioPill: String {
-        tr(en: "Audio", zhHans: "音视频", zhHant: "影音", ja: "音声・映像", ms: "Audio", ko: "오디오", ta: "ஒலி")
-    }
-    public static var categorySensorsPill: String {
-        tr(en: "Sensors", zhHans: "传感与语言", zhHant: "感測與語言", ja: "センサー", ms: "Sensor", ko: "센서", ta: "சென்சார்")
-    }
-    public static var categoryAutomationPill: String {
-        tr(en: "Automation", zhHans: "自动化", zhHant: "自動化", ja: "自動化", ms: "Automasi", ko: "자동화", ta: "தானியக்கம்")
-    }
-    public static var categoryDiagnosticsPill: String {
-        tr(en: "Diagnostics", zhHans: "诊断与备份", zhHant: "診斷與備份", ja: "診断", ms: "Diagnostik", ko: "진단", ta: "கண்டறிதல்")
-    }
-
     public static var footerDisplayLayoutLocked: String {
         tr(
             en: "Handshake parameters (DPI, Resolution, FPS, Driving Position) are locked during active session. Disconnect to modify. Fit mode and smoothing remain adjustable.",
@@ -2320,5 +2301,275 @@ public enum L10n {
             ko: "활성: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)",
             ta: "செயலில்: \(activeW)×\(activeH) • \(dpi) DPI (\(dpW)×\(dpH) dp) • \(layoutMode)"
         )
+    }
+
+    // MARK: - iPadOS 27 Sidebar, Entry, About, Hidden Diagnostics & Quick Menu
+    public static var androidAutoDefaultName: String { "Android Auto" }
+
+    public static var sidebarWirelessConnection: String {
+        tr(en: "Wireless", zhHans: "无线连接", zhHant: "無線連線", ja: "ワイヤレス接続", ms: "Wayarles", ko: "무선 연결", ta: "வயர்லெஸ்")
+    }
+    public static var sidebarDisplayLayout: String {
+        tr(en: "Display & Layout", zhHans: "显示与布局", zhHant: "顯示與版面", ja: "表示とレイアウト", ms: "Paparan & Susun Atur", ko: "디스플레이 및 레이아웃", ta: "திரை & அமைப்பு")
+    }
+    public static var sidebarAudioMixer: String {
+        tr(en: "Audio & Mixer", zhHans: "音频与调音台", zhHant: "音訊與混音器", ja: "オーディオとミキサー", ms: "Audio & Pengadun", ko: "오디오 및 믹서", ta: "ஒலி & கலப்பி")
+    }
+    public static var sidebarSmartLanguage: String {
+        tr(en: "Smart & Language", zhHans: "智能与语言", zhHant: "智慧與語言", ja: "スマートと言語", ms: "Pintar & Bahasa", ko: "스마트 및 언어", ta: "ஸ்மார்ட் & மொழி")
+    }
+    public static var sidebarAbout: String {
+        tr(en: "About", zhHans: "关于", zhHant: "關於", ja: "このアプリについて", ms: "Perihal", ko: "정보", ta: "பற்றி")
+    }
+
+    public static var sidebarScanningPort5277: String {
+        tr(en: "Scanning 5277…", zhHans: "正在扫描 5277…", zhHant: "正在掃描 5277…", ja: "5277 をスキャン中…", ms: "Mengimbas 5277…", ko: "5277 스캔 중…", ta: "5277 தேடுகிறது…")
+    }
+    public static var wirelessHeroTitleReady: String {
+        tr(en: "Wireless Android Auto", zhHans: "无线 Android Auto", zhHant: "無線 Android Auto", ja: "ワイヤレス Android Auto", ms: "Android Auto Wayarles", ko: "무선 Android Auto", ta: "வயர்லெஸ் Android Auto")
+    }
+    public static var wirelessHeroSubtitleReady: String {
+        tr(
+            en: "Connect to phone hotspot or same Wi-Fi, then tap below to discover",
+            zhHans: "连接手机热点或同一 Wi-Fi 后，点击下方按钮自动发现",
+            zhHant: "連上個人熱點或相同 Wi-Fi 後，點選下方按鈕自動探索",
+            ja: "スマホのテザリングまたは同じ Wi-Fi に接続後、下のボタンで自動検出します",
+            ms: "Sambung ke hotspot telefon atau Wi-Fi yang sama, kemudian ketik butang di bawah",
+            ko: "휴대폰 핫스팟 또는 같은 Wi-Fi에 연결한 뒤 아래 버튼을 눌러 자동 검색하세요",
+            ta: "தொலைபேசி ஹாட்ஸ்பாட் அல்லது ஒரே Wi-Fi-இல் இணைத்து கீழே தட்டவும்"
+        )
+    }
+    public static var wirelessHeroTitleScanning: String {
+        tr(
+            en: "Scanning for Headunit Server",
+            zhHans: "正在探测车机服务器",
+            zhHant: "正在探索車機伺服器",
+            ja: "ヘッドユニットサーバーを検索中",
+            ms: "Mengesan Pelayan Unit Kepala",
+            ko: "헤드유닛 서버 탐색 중",
+            ta: "கார் சேவையகத்தைத் தேடுகிறது"
+        )
+    }
+    public static var wirelessHeroSubtitleScanning: String {
+        tr(
+            en: "Scanning local network port 5277 to start projection automatically",
+            zhHans: "正在扫描当前局域网端口 5277，找到后自动建立安全投屏",
+            zhHant: "正在掃描區域網路連接埠 5277，找到後自動建立安全投影",
+            ja: "ローカルネットワークのポート 5277 をスキャン中。検出後自動で接続します",
+            ms: "Mengimbas port 5277 rangkaian tempatan untuk memulakan unjuran secara automatik",
+            ko: "로컬 네트워크 포트 5277을 스캔 중이며 발견 시 자동으로 연결됩니다",
+            ta: "உள்ளூர் பிணைய போர்ட் 5277-ஐத் தேடுகிறது; கிடைத்ததும் தானாக இணையும்"
+        )
+    }
+    public static var wirelessHeroPrimaryScanButton: String {
+        tr(
+            en: "Scan Headunit Server",
+            zhHans: "扫描车机服务",
+            zhHant: "掃描車機服務",
+            ja: "車載サーバーをスキャン",
+            ms: "Imbas Pelayan Kereta",
+            ko: "헤드유닛 서버 스캔",
+            ta: "சேவையகத்தைத் தேடு"
+        )
+    }
+    public static func wirelessScanningSubnet(_ hostHint: String) -> String {
+        tr(
+            en: "Scanning \(hostHint) : 5277…",
+            zhHans: "正在扫描局域网 \(hostHint) : 5277…",
+            zhHant: "正在掃描區域網路 \(hostHint) : 5277…",
+            ja: "スキャン中 \(hostHint) : 5277…",
+            ms: "Mengimbas \(hostHint) : 5277…",
+            ko: "로컬 스캔 중 \(hostHint) : 5277…",
+            ta: "தேடுகிறது \(hostHint) : 5277…"
+        )
+    }
+    public static var cancelScanButton: String {
+        tr(en: "Cancel", zhHans: "取消扫描", zhHant: "取消掃描", ja: "キャンセル", ms: "Batal", ko: "스캔 취소", ta: "ரத்து செய்")
+    }
+    public static var hotspotDirectConnectTitle: String {
+        tr(en: "Hotspot Gateway Direct", zhHans: "热点网关直连", zhHant: "熱點閘道直連", ja: "ホットスポット直接接続", ms: "Sambungan Terus Gerbang", ko: "핫스팟 게이트웨이 직접 연결", ta: "ஹாட்ஸ்பாட் நேரடி இணைப்பு")
+    }
+    public static var hotspotDirectConnectSubtitle: String {
+        tr(
+            en: "Specify host IP directly after joining phone hotspot",
+            zhHans: "连接手机个人热点后可直接指定主机 IP",
+            zhHant: "連上個人熱點後可直接指定主機 IP",
+            ja: "テザリング接続後にホスト IP を直接指定できます",
+            ms: "Nyatakan IP hos terus selepas menyambung hotspot telefon",
+            ko: "핫스팟 연결 후 호스트 IP를 직접 지정할 수 있습니다",
+            ta: "ஹாட்ஸ்பாட்டில் இணைந்த பின் ஹோஸ்ட் IP-ஐ நேரடியாக உள்ளிடலாம்"
+        )
+    }
+    public static var directConnectShortButton: String {
+        tr(en: "Connect", zhHans: "直连", zhHant: "直連", ja: "接続", ms: "Sambung", ko: "연결", ta: "இணை")
+    }
+    public static var androidSetupStepsTitle: String {
+        tr(en: "Android Phone Setup Steps", zhHans: "安卓手机开启步骤", zhHant: "Android 手機開啟步驟", ja: "Android スマホの設定手順", ms: "Langkah Persediaan Android", ko: "Android 휴대폰 설정 단계", ta: "Android அமைப்பு படிகள்")
+    }
+    public static var androidSetupStepsCountBadge: String {
+        tr(en: "4 steps", zhHans: "共 4 步", zhHant: "共 4 步", ja: "全 4 ステップ", ms: "4 langkah", ko: "총 4단계", ta: "4 படிகள்")
+    }
+
+    public static var sectionVolumeAndNav: String {
+        tr(en: "Volume & Navigation", zhHans: "音量与导航", zhHant: "音量與導航", ja: "音量とナビ案内", ms: "Kelantangan & Navigasi", ko: "볼륨 및 내비게이션", ta: "ஒலி & வழிகாட்டல்")
+    }
+    public static var sampleToneButtonShort: String {
+        tr(en: "♫ Test", zhHans: "♫ 试听", zhHant: "♫ 試聽", ja: "♫ テスト", ms: "♫ Uji", ko: "♫ 테스트", ta: "♫ சோதனை")
+    }
+    public static var smartNightModeFooter: String {
+        tr(
+            en: "\"Auto\" switches 07:00–19:00; \"Twilight\" calculates local sunrise/sunset and switches to night early.",
+            zhHans: "「自动」按 07:00–19:00 切换；「天文」依据当前位置或系统时区计算真实日出日落时间，并提前切入夜间。",
+            zhHant: "「自動」依 07:00–19:00 切換；「天文」依所在位置或時區計算日出日落時間，並提前切入夜間。",
+            ja: "「自動」は 07:00〜19:00 で切替。「天文」は位置やタイムゾーンから日の出・日の入りを計算し早めに夜間へ移行します。",
+            ms: "\"Auto\" bertukar 07:00–19:00; \"Senja\" mengira waktu matahari terbit/terbenam tempatan untuk mod malam.",
+            ko: "'자동'은 07:00–19:00 기준 전환, '일출/일몰'은 위치 또는 시간대에 따라 일몰 전 야간 모드로 전환합니다.",
+            ta: "'தானியங்கி' 07:00–19:00 மாற்றும்; 'அந்தி' உள்ளூர் சூரிய உதயம்/மறைவைக் கணக்கிட்டு முன்கூட்டியே இரவு பயன்முறைக்கு மாறும்."
+        )
+    }
+    public static var smartGpsFooter: String {
+        tr(
+            en: "Cellular iPad models can enable \"iPad GPS\" to pass device location to Android Auto.",
+            zhHans: "若您的 iPad 为蜂窝网络版，可开启「优先 iPad GPS」将本机定位透传给 Android Auto",
+            zhHant: "若 iPad 為行動網路版，可開啟「優先 iPad GPS」將本機定位透傳給 Android Auto",
+            ja: "セルラー版 iPad では「iPad GPS 優先」を有効にして現在地を Android Auto に送信できます",
+            ms: "Model iPad selular boleh mengaktifkan \"Utamakan GPS iPad\" untuk menghantar lokasi ke Android Auto",
+            ko: "셀룰러 iPad에서는 'iPad GPS 우선'을 켜서 기기 위치를 Android Auto로 전달할 수 있습니다",
+            ta: "செல்லுலார் iPad-இல் 'iPad GPS' இயக்கி இடத்தை Android Auto-க்கு அனுப்பலாம்"
+        )
+    }
+    public static var sessionLockedHandshakeFooter: String {
+        tr(
+            en: "These options are disabled during wireless projection to prevent reconnect drops. Disconnect first to modify.",
+            zhHans: "在无线投屏期间已禁用以上选项以防断流重连，请在断开连接后再修改。",
+            zhHant: "無線投影期間已停用以上選項以防斷線重連，請在斷開連線後再修改。",
+            ja: "ワイヤレス投影中は再接続を防ぐため上記項目は無効です。変更するには接続を解除してください。",
+            ms: "Pilihan di atas dinyahdayakan semasa unjuran wayarles untuk mengelakkan terputus. Putuskan sambungan dahulu untuk mengubah.",
+            ko: "무선 프로젝션 중 끊김을 방지하기 위해 위 항목이 비활성화되었습니다. 연결 해제 후 변경하세요.",
+            ta: "இணைப்புத் துண்டிப்பைத் தவிர்க்க திரை இணைப்பின் போது இவை முடக்கப்பட்டுள்ளன. மாற்ற முதலில் துண்டிக்கவும்."
+        )
+    }
+
+    // MARK: - About & Hidden Automation/Diagnostics
+    public static var aboutAppInfoSection: String {
+        tr(en: "App Information", zhHans: "应用信息", zhHant: "應用程式資訊", ja: "アプリ情報", ms: "Maklumat Aplikasi", ko: "앱 정보", ta: "செயலி தகவல்")
+    }
+    public static var aboutAppNameRow: String {
+        tr(en: "App Name", zhHans: "应用名称", zhHant: "應用程式名稱", ja: "アプリ名", ms: "Nama Aplikasi", ko: "앱 이름", ta: "செயலி பெயர்")
+    }
+    public static var aboutVersionRow: String {
+        tr(en: "Version", zhHans: "版本", zhHant: "版本", ja: "バージョン", ms: "Versi", ko: "버전", ta: "பதிப்பு")
+    }
+    public static var aboutProtocolRow: String {
+        tr(en: "Protocol", zhHans: "协议版本", zhHant: "通訊協定", ja: "プロトコル", ms: "Protokol", ko: "프로토콜", ta: "நெறிமுறை")
+    }
+    public static var aboutDecodePipelineRow: String {
+        tr(en: "Media Pipeline", zhHans: "解码管线", zhHant: "解碼管線", ja: "デコード構成", ms: "Saluran Media", ko: "디코딩 파이프라인", ta: "ஊடக செயலாக்கம்")
+    }
+    public static var aboutThisDeviceSection: String {
+        tr(en: "This Device", zhHans: "此设备", zhHant: "此裝置", ja: "このデバイス", ms: "Peranti Ini", ko: "이 기기", ta: "இந்த சாதனம்")
+    }
+    public static var aboutDeviceModelRow: String {
+        tr(en: "Model", zhHans: "设备型号", zhHant: "裝置型號", ja: "モデル", ms: "Model Peranti", ko: "기기 모델", ta: "சாதன மாதிரி")
+    }
+    public static var aboutOsVersionRow: String {
+        tr(en: "System Version", zhHans: "系统版本", zhHant: "系統版本", ja: "システムバージョン", ms: "Versi Sistem", ko: "시스템 버전", ta: "கணினி பதிப்பு")
+    }
+    public static var aboutScreenSpecRow: String {
+        tr(en: "Display", zhHans: "屏幕规格", zhHant: "螢幕規格", ja: "ディスプレイ", ms: "Paparan", ko: "디스플레이", ta: "திரை விவரம்")
+    }
+    public static var aboutLocalIpRow: String {
+        tr(en: "Local IP", zhHans: "本机 IP", zhHant: "本機 IP", ja: "ローカル IP", ms: "IP Tempatan", ko: "로컬 IP", ta: "உள்ளூர் IP")
+    }
+    public static var aboutConnectedPhonesSection: String {
+        tr(en: "Connected Phones", zhHans: "已连接过的手机", zhHant: "已連線過的手機", ja: "接続履歴のあるスマホ", ms: "Telefon Pernah Disambung", ko: "연결된 휴대폰 기록", ta: "இணைந்த தொலைபேசிகள்")
+    }
+    public static func aboutDeviceCount(_ count: Int) -> String {
+        tr(
+            en: count == 1 ? "1 device" : "\(count) devices",
+            zhHans: "\(count) 台设备",
+            zhHant: "\(count) 台裝置",
+            ja: "\(count) 台",
+            ms: "\(count) peranti",
+            ko: "\(count)대",
+            ta: "\(count) சாதனங்கள்"
+        )
+    }
+    public static var aboutNoConnectedPhonesTitle: String {
+        tr(en: "No Connected Phones Yet", zhHans: "暂无连接记录", zhHant: "尚無連線紀錄", ja: "接続履歴はありません", ms: "Tiada Rekod Sambungan", ko: "연결 기록 없음", ta: "இணைப்பு வரலாறு இல்லை")
+    }
+    public static var aboutNoConnectedPhonesSubtitle: String {
+        tr(
+            en: "Android phones connected via port 5277 will appear here automatically.",
+            zhHans: "通过 5277 握手连接过的安卓手机会自动记录在此。",
+            zhHant: "透過 5277 握手連線過的 Android 手機將自動記錄於此。",
+            ja: "ポート 5277 で接続した Android 端末の名前とモデルが自動で記録されます。",
+            ms: "Telefon Android yang disambung melalui port 5277 akan direkodkan di sini.",
+            ko: "포트 5277로 연결된 Android 휴대폰이 자동으로 여기에 기록됩니다.",
+            ta: "போர்ட் 5277 வழியாக இணைந்த Android தொலைபேசிகள் இங்கு தானாகப் பதிவாகும்."
+        )
+    }
+    public static var aboutHiddenDiagnosticsTitle: String {
+        tr(en: "Automation & Diagnostics", zhHans: "自动化与诊断", zhHant: "自動化與診斷", ja: "自動化と診断", ms: "Automasi & Diagnostik", ko: "자동화 및 진단", ta: "தானியக்கம் & கண்டறிதல்")
+    }
+    public static var aboutHideDiagnosticsButton: String {
+        tr(en: "Hide Entry", zhHans: "隐藏此入口", zhHant: "隱藏此入口", ja: "この項目を隠す", ms: "Sembunyikan", ko: "이 항목 숨기기", ta: "இதை மறை")
+    }
+    public static var aboutUnlockedViaFiveTaps: String {
+        tr(
+            en: "Unlocked via 5 taps on Version",
+            zhHans: "已通过连点「版本」5 次解锁",
+            zhHant: "已透過連點「版本」5 次解鎖",
+            ja: "バージョンを 5 回タップして解除済み",
+            ms: "Dibuka melalui 5 ketikan pada Versi",
+            ko: "버전 5회 탭으로 잠금 해제됨",
+            ta: "பதிப்பை 5 முறை தட்டி திறக்கப்பட்டது"
+        )
+    }
+    public static var diagnosticsCurrentLinkSection: String {
+        tr(en: "Current Link Diagnostics", zhHans: "当前链路诊断", zhHant: "目前連線診斷", ja: "現在のリンク診断", ms: "Diagnostik Pautan Semasa", ko: "현재 링크 진단", ta: "தற்போதைய இணைப்பு நிலை")
+    }
+    public static var diagnosticsVideoDecodeRow: String {
+        tr(en: "Video Decoder", zhHans: "视频硬解", zhHant: "視訊硬解", ja: "ビデオデコード", ms: "Penyahkod Video", ko: "비디오 디코더", ta: "வீடியோ டீகோடர்")
+    }
+    public static var diagnosticsAudioPipelineRow: String {
+        tr(en: "Audio Pipeline", zhHans: "音频管线", zhHant: "音訊管線", ja: "オーディオ構成", ms: "Saluran Audio", ko: "오디오 파이프라인", ta: "ஒலி அமைப்பு")
+    }
+    public static func diagnosticsDroppedFrames(_ count: Int) -> String {
+        tr(
+            en: "\(count) dropped",
+            zhHans: "\(count) 掉帧",
+            zhHant: "\(count) 掉幀",
+            ja: "ドロップ \(count)",
+            ms: "\(count) gugur",
+            ko: "\(count) 드롭",
+            ta: "\(count) இழப்பு"
+        )
+    }
+    public static var removeRecordAction: String {
+        tr(en: "Remove", zhHans: "移除记录", zhHant: "移除紀錄", ja: "削除", ms: "Padam", ko: "삭제", ta: "நீக்கு")
+    }
+
+    // MARK: - Active Projection Liquid Glass Quick Menu
+    public static var quickMenuHudRow: String {
+        tr(en: "Performance HUD", zhHans: "性能 HUD 浮窗", zhHant: "效能 HUD 浮窗", ja: "パフォーマンス HUD", ms: "HUD Prestasi", ko: "성능 HUD 오버레이", ta: "செயல்திறன் HUD")
+    }
+    public static var quickMenuNavDuckingRow: String {
+        tr(en: "Navigation Ducking", zhHans: "导航播报压音", zhHant: "導航播報壓音", ja: "ナビ案内ダッキング", ms: "Redaman Navigasi", ko: "내비게이션 더킹", ta: "வழிகாட்டி ஒலி குறைப்பு")
+    }
+    public static var quickMenuMediaMuteRow: String {
+        tr(en: "Mute Media Audio", zhHans: "媒体声道静音", zhHant: "媒體聲道靜音", ja: "メディア音声をミュート", ms: "Bisukan Audio Media", ko: "미디어 오디오 음소거", ta: "மீடியா ஒலி அமைதி")
+    }
+    public static var quickMenuOpenFullSettings: String {
+        tr(en: "Open CarAutoPad Settings", zhHans: "打开 CarAutoPad 完整设置", zhHant: "開啟 CarAutoPad 完整設定", ja: "CarAutoPad の設定を開く", ms: "Buka Tetapan CarAutoPad", ko: "CarAutoPad 전체 설정 열기", ta: "CarAutoPad அமைப்புகளைத் திற")
+    }
+    public static var quickMenuDisconnectAction: String {
+        tr(en: "Disconnect Android Auto", zhHans: "断开 Android Auto 连接", zhHant: "中斷 Android Auto 連線", ja: "Android Auto を切断", ms: "Putuskan Android Auto", ko: "Android Auto 연결 해제", ta: "Android Auto துண்டி")
+    }
+    public static var quickDuckOffShort: String {
+        tr(en: "Off", zhHans: "关", zhHant: "關", ja: "オフ", ms: "Mati", ko: "끔", ta: "நிறுத்து")
+    }
+    public static var quickDuckMuteShort: String {
+        tr(en: "Mute", zhHans: "静音", zhHant: "靜音", ja: "ミュート", ms: "Bisu", ko: "음소거", ta: "அமைதி")
     }
 }

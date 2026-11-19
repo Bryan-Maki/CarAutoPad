@@ -9,6 +9,7 @@ protocol AapTransportDelegate: AnyObject {
     func aapTransport(_ transport: AapTransport, didReceiveAudioCodecConfig data: Data, on channel: UInt8)
     func aapTransport(_ transport: AapTransport, didReceiveMediaMetadata metadata: AapMediaMetadata)
     func aapTransport(_ transport: AapTransport, didReceivePlaybackStatus status: AapPlaybackStatus)
+    func aapTransport(_ transport: AapTransport, didReceivePeerDeviceInfo info: AapPeerDeviceInfo)
     func aapTransport(_ transport: AapTransport, didRequestMicrophoneCapture isOpen: Bool)
     func aapTransport(_ transport: AapTransport, didRequestLocationUpdates isEnabled: Bool)
     func aapTransport(_ transport: AapTransport, didChangeState state: AapTransportState)
@@ -26,12 +27,23 @@ extension AapTransportDelegate {
     func aapTransport(_ transport: AapTransport, didReceiveAudioCodecConfig data: Data, on channel: UInt8) {}
     func aapTransport(_ transport: AapTransport, didReceiveMediaMetadata metadata: AapMediaMetadata) {}
     func aapTransport(_ transport: AapTransport, didReceivePlaybackStatus status: AapPlaybackStatus) {}
+    func aapTransport(_ transport: AapTransport, didReceivePeerDeviceInfo info: AapPeerDeviceInfo) {}
     func aapTransport(_ transport: AapTransport, didRequestMicrophoneCapture isOpen: Bool) {}
     func aapTransport(_ transport: AapTransport, didRequestLocationUpdates isEnabled: Bool) {}
     func aapTransport(_ transport: AapTransport, didChangeState state: AapTransportState) {}
     func aapTransportDidDisconnect(_ transport: AapTransport) {}
     func aapTransportDidRequestExit(_ transport: AapTransport) {}
     func aapTransportDidDetectSilentPeerOnInitialHandshake(_ transport: AapTransport) {}
+}
+
+public struct AapPeerDeviceInfo: Equatable {
+    public let deviceName: String
+    public let phoneBrand: String
+
+    public init(deviceName: String, phoneBrand: String) {
+        self.deviceName = deviceName
+        self.phoneBrand = phoneBrand
+    }
 }
 
 struct AapMediaMetadata {
@@ -1508,7 +1520,18 @@ class AapTransport {
             }
 
         case AapMessageType.SERVICE_DISCOVERY_REQUEST.rawValue:
-            AppLog.i("Service discovery request received", tag: "AapTransport")
+            var reader = ProtoReader(data: message.payload)
+            if let req = try? ServiceDiscoveryRequestProto(from: &reader) {
+                let name = req.phoneName.trimmingCharacters(in: .whitespacesAndNewlines)
+                let brand = req.phoneBrand.trimmingCharacters(in: .whitespacesAndNewlines)
+                AppLog.i("Service discovery request received (phoneName=\(name), phoneBrand=\(brand))", tag: "AapTransport")
+                if !name.isEmpty || !brand.isEmpty {
+                    let info = AapPeerDeviceInfo(deviceName: name, phoneBrand: brand)
+                    delegate?.aapTransport(self, didReceivePeerDeviceInfo: info)
+                }
+            } else {
+                AppLog.i("Service discovery request received", tag: "AapTransport")
+            }
             sendServiceDiscoveryResponse()
 
         case AapMessageType.CHANNEL_OPEN_REQUEST.rawValue:

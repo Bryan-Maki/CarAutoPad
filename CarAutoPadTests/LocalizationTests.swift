@@ -212,58 +212,49 @@ final class LocalizationTests: XCTestCase {
         mainVC.view.layoutIfNeeded()
 
         XCTAssertFalse(containsView(withAccessibilityIdentifier: "languageButton", in: mainVC.view))
-        if let rightHeaderStack = mainVC.settingsButton.superview as? UIStackView {
-            XCTAssertEqual(rightHeaderStack.arrangedSubviews.count, 2)
-            XCTAssertTrue(mainVC.statusDotView.isDescendant(of: rightHeaderStack.arrangedSubviews[0]))
-            XCTAssertTrue(rightHeaderStack.arrangedSubviews.last === mainVC.settingsButton)
-        } else {
-            XCTFail("Expected settingsButton to live inside rightHeaderStack")
-        }
-        XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+        XCTAssertEqual(mainVC.sidebarView.navStackView.arrangedSubviews.count, 5)
+        XCTAssertEqual(mainVC.wirelessPanelVC.guideStepsStack.arrangedSubviews.count, 4)
 
         // Switch to Simplified Chinese live
         L10n.testOverrideLanguage = .simplifiedChinese
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "设置")
-        XCTAssertEqual(mainVC.hubTitleLabel.text, "无线连接中心")
-        XCTAssertEqual(mainVC.guideTitleLabel.text, "安卓手机开启指南")
-        XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+        XCTAssertEqual(mainVC.wirelessPanelVC.pageTitleLabel.text, "无线连接")
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "扫描车机服务")
+        XCTAssertEqual(mainVC.wirelessPanelVC.guideTitleLabel.text, "安卓手机开启步骤")
+        XCTAssertEqual(mainVC.wirelessPanelVC.guideStepsStack.arrangedSubviews.count, 4)
 
         // Verify disconnected warning uses strong-typed statusKind instead of English substring matching
         ConnectionManager.shared.setStatusKindForTesting(.noDeviceFound)
         XCTAssertTrue(ConnectionManager.shared.statusKind.isDisconnectedWarning)
         mainVC.applyLocalization()
-        XCTAssertEqual(mainVC.statusDotView.backgroundColor, .systemOrange)
-        XCTAssertEqual(mainVC.statusLabel.textColor, .systemOrange)
-        XCTAssertEqual(mainVC.statusLabel.text, L10n.statusNoDeviceFound)
+        XCTAssertEqual(mainVC.sidebarView.statusDotView.backgroundColor, CarAutoPadTheme.accentOrange)
+        XCTAssertEqual(ConnectionManager.shared.statusDetail, L10n.statusNoDeviceFound)
 
-        // Verify Traditional Chinese, Japanese, Malay
+        // Verify Traditional Chinese, Japanese, Malay, Korean, Tamil
         L10n.testOverrideLanguage = .traditionalChinese
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "設定")
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "掃描車機服務")
 
         L10n.testOverrideLanguage = .japanese
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "設定")
-        XCTAssertEqual(mainVC.statusDotView.backgroundColor, .systemOrange)
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "車載サーバーをスキャン")
+        XCTAssertEqual(mainVC.sidebarView.statusDotView.backgroundColor, CarAutoPadTheme.accentOrange)
 
         L10n.testOverrideLanguage = .malay
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "Tetapan")
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "Imbas Pelayan Kereta")
 
         L10n.testOverrideLanguage = .korean
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "설정")
-        XCTAssertEqual(mainVC.hubTitleLabel.text, "무선 연결 허브")
-        XCTAssertEqual(mainVC.guideTitleLabel.text, "Android 휴대폰 설정 가이드")
-        XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+        XCTAssertEqual(mainVC.wirelessPanelVC.pageTitleLabel.text, "무선 연결")
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "헤드유닛 서버 스캔")
+        XCTAssertEqual(mainVC.wirelessPanelVC.guideTitleLabel.text, "Android 휴대폰 설정 단계")
 
         L10n.testOverrideLanguage = .tamil
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "அமைப்புகள்")
-        XCTAssertEqual(mainVC.hubTitleLabel.text, "வயர்லெஸ் இணைப்பு மையம்")
-        XCTAssertEqual(mainVC.guideTitleLabel.text, "Android தொலைபேசி அமைப்பு வழிகாட்டி")
-        XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+        XCTAssertEqual(mainVC.wirelessPanelVC.pageTitleLabel.text, "வயர்லெஸ்")
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "சேவையகத்தைத் தேடு")
+        XCTAssertEqual(mainVC.wirelessPanelVC.guideTitleLabel.text, "Android அமைப்பு படிகள்")
 
         // Verify live switching while running does NOT disconnect session
         ConnectionManager.shared.setStateForTesting(.running)
         L10n.testOverrideLanguage = .english
         XCTAssertEqual(ConnectionManager.shared.state, .running)
-        XCTAssertEqual(mainVC.settingsButton.configuration?.title, "Settings")
+        XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, "Scan Headunit Server")
     }
 
     @MainActor
@@ -316,31 +307,33 @@ final class LocalizationTests: XCTestCase {
         ConnectionManager.shared.setStateForTesting(.disconnected)
         ConnectionManager.shared.setStatusKindForTesting(.disconnectedFromSession)
         mainVC.applyLocalization()
-        XCTAssertEqual(mainVC.statusLabel.text, L10n.statusDisconnectedFromSession)
-        XCTAssertEqual(mainVC.statusDotView.backgroundColor, .systemGreen)
+        XCTAssertEqual(ConnectionManager.shared.statusDetail, L10n.statusDisconnectedFromSession)
+        XCTAssertEqual(mainVC.sidebarView.statusDotView.backgroundColor, CarAutoPadTheme.accentGreen)
 
         L10n.testOverrideLanguage = .japanese
-        XCTAssertEqual(mainVC.statusLabel.text, L10n.statusDisconnectedFromSession)
-        XCTAssertEqual(mainVC.statusLabel.text, "Android Auto が切断されました")
+        XCTAssertEqual(ConnectionManager.shared.statusDetail, L10n.statusDisconnectedFromSession)
+        XCTAssertEqual(ConnectionManager.shared.statusDetail, "Android Auto が切断されました")
     }
 
     @MainActor
-    func testQuickModalsAndDebugLogCategoriesLiveLanguageSwitching() {
-        let layoutVC = QuickLayoutDpiViewController()
-        layoutVC.loadViewIfNeeded()
-        layoutVC.view.layoutIfNeeded()
+    func testEmbeddedPanelsAndDebugLogCategoriesLiveLanguageSwitching() {
+        let smartVC = SmartLanguagePanelViewController()
+        smartVC.loadViewIfNeeded()
+        smartVC.view.layoutIfNeeded()
 
-        let audioVC = QuickAudioConfigViewController()
-        audioVC.loadViewIfNeeded()
-        audioVC.view.layoutIfNeeded()
+        let aboutVC = AboutAndDiagnosticsViewController()
+        aboutVC.loadViewIfNeeded()
+        aboutVC.view.layoutIfNeeded()
 
         let logCatsVC = DebugLogCategoriesViewController()
         logCatsVC.loadViewIfNeeded()
         logCatsVC.view.layoutIfNeeded()
 
         L10n.testOverrideLanguage = .simplifiedChinese
-        XCTAssertEqual(layoutVC.title, L10n.layoutDpiModalTitle)
-        XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
+        smartVC.applyLocalization()
+        aboutVC.applyLocalization()
+        XCTAssertEqual(smartVC.languageValueLabel.text, "简体中文")
+        XCTAssertEqual(aboutVC.hideDiagnosticsButton.title(for: .normal), "隐藏此入口")
         XCTAssertEqual(logCatsVC.title, L10n.debugLogCategoriesTitle)
         XCTAssertEqual(logCatsVC.navigationItem.rightBarButtonItem?.title, L10n.enableAll)
 
@@ -349,10 +342,18 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(catCell.detailTextLabel?.text, DebugLogCategory.connectionHandshake.subtitle)
 
         L10n.testOverrideLanguage = .malay
-        XCTAssertEqual(layoutVC.title, "Konfigurasi Susun Atur & DPI")
-        XCTAssertEqual(audioVC.title, "Konfigurasi Audio & Redaman")
+        smartVC.applyLocalization()
+        aboutVC.applyLocalization()
+        XCTAssertEqual(smartVC.languageValueLabel.text, "Bahasa Melayu")
+        XCTAssertEqual(aboutVC.hideDiagnosticsButton.title(for: .normal), "Sembunyikan")
         XCTAssertEqual(logCatsVC.title, "Kategori Log Nyahpepijat")
         XCTAssertEqual(logCatsVC.navigationItem.rightBarButtonItem?.title, "Aktifkan Semua")
+
+        // Verify SmartLanguagePanelViewController opens system settings URL
+        var openedUrl: URL?
+        smartVC.openSettingsUrlHandler = { url in openedUrl = url }
+        smartVC.languageRowControl.sendActions(for: .touchUpInside)
+        XCTAssertEqual(openedUrl?.absoluteString, UIApplication.openSettingsURLString)
     }
 
     func testConnectionStatusKindLocalizedTextAllCases() {
@@ -395,13 +396,7 @@ final class LocalizationTests: XCTestCase {
         settingsVC.loadViewIfNeeded()
         settingsVC.view.layoutIfNeeded()
 
-        let layoutVC = QuickLayoutDpiViewController()
-        layoutVC.loadViewIfNeeded()
-        layoutVC.view.layoutIfNeeded()
-
-        let audioVC = QuickAudioConfigViewController()
-        audioVC.loadViewIfNeeded()
-        audioVC.view.layoutIfNeeded()
+        let quickMenu = ProjectionQuickMenuView()
 
         guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView else {
             XCTFail("SettingsViewController must contain a UITableView")
@@ -414,21 +409,28 @@ final class LocalizationTests: XCTestCase {
 
         for lang in AppLanguage.allCases {
             L10n.testOverrideLanguage = lang
+            quickMenu.applyLocalization()
 
             XCTAssertFalse(lang.title.isEmpty)
             XCTAssertFalse(lang.shortBadgeTitle.isEmpty)
 
-            // MainViewController checks
+            // MainViewController & Sidebar checks across all 7 languages
             XCTAssertFalse(containsView(withAccessibilityIdentifier: "languageButton", in: mainVC.view))
-            XCTAssertEqual(mainVC.settingsButton.configuration?.title, L10n.settingsButtonTitle)
-            XCTAssertFalse(mainVC.settingsButton.configuration?.title?.isEmpty ?? true)
-            XCTAssertEqual(mainVC.hubTitleLabel.text, L10n.wirelessConnectionHub)
-            XCTAssertFalse(mainVC.hubTitleLabel.text?.isEmpty ?? true)
-            XCTAssertEqual(mainVC.guideTitleLabel.text, L10n.androidPhoneSetupGuide)
-            XCTAssertFalse(mainVC.guideTitleLabel.text?.isEmpty ?? true)
-            XCTAssertEqual(mainVC.directConnectButton.configuration?.title, L10n.directConnectButton)
-            XCTAssertEqual(mainVC.connectButton.configuration?.title, L10n.scanForHeadunitServer)
-            XCTAssertEqual(mainVC.guideStepsStack.arrangedSubviews.count, 4)
+            XCTAssertEqual(mainVC.wirelessPanelVC.pageTitleLabel.text, L10n.sidebarWirelessConnection)
+            XCTAssertFalse(mainVC.wirelessPanelVC.pageTitleLabel.text?.isEmpty ?? true)
+            XCTAssertEqual(mainVC.wirelessPanelVC.heroPrimaryButton.configuration?.title, L10n.wirelessHeroPrimaryScanButton)
+            XCTAssertEqual(mainVC.wirelessPanelVC.directConnectButton.configuration?.title, L10n.directConnectShortButton)
+            XCTAssertEqual(mainVC.wirelessPanelVC.guideTitleLabel.text, L10n.androidSetupStepsTitle)
+            XCTAssertEqual(mainVC.wirelessPanelVC.guideStepsStack.arrangedSubviews.count, 4)
+
+            // All new iPadOS 27 L10n keys non-empty
+            for tab in AppSidebarTab.allCases {
+                XCTAssertFalse(tab.title.isEmpty)
+            }
+            XCTAssertFalse(L10n.aboutHiddenDiagnosticsTitle.isEmpty)
+            XCTAssertFalse(L10n.aboutHideDiagnosticsButton.isEmpty)
+            XCTAssertFalse(L10n.quickMenuOpenFullSettings.isEmpty)
+            XCTAssertFalse(L10n.quickMenuDisconnectAction.isEmpty)
 
             // SettingsViewController checks + truncation hardening checks
             XCTAssertEqual(settingsVC.title, L10n.projectionSettingsTitle)
@@ -462,16 +464,6 @@ final class LocalizationTests: XCTestCase {
             } else {
                 XCTFail("Expected UISegmentedControl for microphoneSourceRow")
             }
-
-            // QuickLayoutDpiViewController & QuickAudioConfigViewController checks
-            XCTAssertEqual(layoutVC.title, L10n.layoutDpiModalTitle)
-            XCTAssertEqual(layoutVC.navigationItem.rightBarButtonItem?.title, L10n.done)
-            XCTAssertFalse(layoutVC.title?.isEmpty ?? true)
-            XCTAssertEqual(audioVC.title, L10n.audioDuckingModalTitle)
-            XCTAssertEqual(audioVC.navigationItem.rightBarButtonItem?.title, L10n.done)
-            XCTAssertFalse(audioVC.title?.isEmpty ?? true)
-
-            XCTAssertTrue(mainVC.quickSpecsHeaderLabel.adjustsFontSizeToFitWidth)
         }
 
         // Verify Tamil layout bounds & truncation hardening in narrow formSheet / portrait widths

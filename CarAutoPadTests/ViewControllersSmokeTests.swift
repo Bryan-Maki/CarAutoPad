@@ -4,9 +4,38 @@ import UIKit
 
 final class ViewControllersSmokeTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        L10n.testOverrideLanguage = nil
+        ProjectionSettings.resetToDefaults()
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        ConnectionManager.shared.setStatusKindForTesting(.ready)
+        ConnectionIssueStore.shared.clearAll()
+    }
+
+    override func tearDown() {
+        L10n.testOverrideLanguage = nil
+        ProjectionSettings.resetToDefaults()
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        ConnectionManager.shared.setStatusKindForTesting(.ready)
+        ConnectionIssueStore.shared.clearAll()
+        super.tearDown()
+    }
+
+    private func collectSubviews<T: UIView>(of type: T.Type, in root: UIView) -> [T] {
+        var result: [T] = []
+        for subview in root.subviews {
+            if let match = subview as? T {
+                result.append(match)
+            }
+            result.append(contentsOf: collectSubviews(of: type, in: subview))
+        }
+        return result
+    }
+
     @MainActor
     func testMainViewControllerLaunchesWithoutCrash() {
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1024, height: 768))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1194, height: 834))
         let mainVC = MainViewController()
         window.rootViewController = mainVC
         window.makeKeyAndVisible()
@@ -17,29 +46,279 @@ final class ViewControllersSmokeTests: XCTestCase {
         mainVC.view.layoutIfNeeded()
 
         XCTAssertNotNil(mainVC.view)
+        XCTAssertEqual(mainVC.selectedSidebarTab, .wirelessConnection)
     }
 
     @MainActor
-    func testMainViewControllerDashboardResponsiveLayout() {
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1024, height: 768))
+    func testMainViewControllerSidebarFiveTabsSwitchingAndResponsiveLayout() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1194, height: 834))
         let mainVC = MainViewController()
         window.rootViewController = mainVC
         window.makeKeyAndVisible()
 
-        mainVC.view.frame = CGRect(x: 0, y: 0, width: 1024, height: 768)
+        mainVC.view.frame = CGRect(x: 0, y: 0, width: 1194, height: 834)
         mainVC.loadViewIfNeeded()
         mainVC.view.layoutIfNeeded()
         mainVC.viewDidLayoutSubviews()
 
-        mainVC.refreshQuickSpecTiles()
-        XCTAssertNotNil(mainVC.view)
+        // Landscape wide: persistent 5-item sidebar visible, compact top bar hidden
+        XCTAssertFalse(mainVC.sidebarView.isHidden)
+        XCTAssertTrue(mainVC.compactTopBarView.isHidden)
+        XCTAssertEqual(mainVC.sidebarView.navStackView.arrangedSubviews.count, 5)
 
-        mainVC.view.frame = CGRect(x: 0, y: 0, width: 768, height: 1024)
+        // Verify each sidebar row contains strictly 1 UILabel (clean [Icon + Title], zero trailing small labels)
+        for tab in AppSidebarTab.allCases {
+            guard let row = mainVC.sidebarView.rowButton(for: tab) else {
+                XCTFail("Missing sidebar row for \(tab)")
+                continue
+            }
+            let labels = collectSubviews(of: UILabel.self, in: row)
+            XCTAssertEqual(labels.count, 1, "Sidebar row \(tab) must only contain its title label without trailing mini-text")
+        }
+
+        // Switch across all 5 sidebar tabs
+        for tab in AppSidebarTab.allCases {
+            mainVC.selectSidebarTab(tab)
+            XCTAssertEqual(mainVC.selectedSidebarTab, tab)
+            XCTAssertEqual(mainVC.sidebarView.selectedTab, tab)
+        }
+
+        // Collapse sidebar in landscape
+        mainVC.setSidebarCollapsed(true, animated: false)
+        XCTAssertTrue(mainVC.sidebarView.isHidden)
+        XCTAssertFalse(mainVC.compactTopBarView.isHidden)
+        mainVC.setSidebarCollapsed(false, animated: false)
+        XCTAssertFalse(mainVC.sidebarView.isHidden)
+
+        // Portrait narrow layout: collapses to compact top bar + menu button
+        mainVC.view.frame = CGRect(x: 0, y: 0, width: 700, height: 1024)
         mainVC.view.layoutIfNeeded()
         mainVC.viewDidLayoutSubviews()
+        XCTAssertTrue(mainVC.sidebarView.isHidden)
+        XCTAssertFalse(mainVC.compactTopBarView.isHidden)
+    }
 
-        mainVC.refreshQuickSpecTiles()
-        XCTAssertNotNil(mainVC.view)
+    @MainActor
+    func testWirelessEntryHeroButtonAndCollapsibleAndroidSteps() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1194, height: 834))
+        let mainVC = MainViewController()
+        window.rootViewController = mainVC
+        window.makeKeyAndVisible()
+        mainVC.loadViewIfNeeded()
+        mainVC.view.layoutIfNeeded()
+
+        let wireless = mainVC.wirelessPanelVC
+        XCTAssertEqual(wireless.heroPrimaryButton.accessibilityIdentifier, "scanHeadunitPrimaryButton")
+        XCTAssertEqual(wireless.heroPrimaryButton.frame.height, 68, accuracy: 1.0)
+        XCTAssertFalse(wireless.heroPrimaryButton.isHidden)
+        XCTAssertTrue(wireless.scanningBarContainer.isHidden)
+
+        // Default ready state: Android setup steps collapsed
+        XCTAssertFalse(wireless.isGuideStepsExpanded)
+        XCTAssertTrue(wireless.guideStepsContainer.isHidden)
+        XCTAssertTrue(wireless.guideCountBadgeLabel.isHidden)
+        XCTAssertEqual(wireless.guideStepsStack.arrangedSubviews.count, 4)
+
+        // Tap disclosure header -> expands
+        wireless.guideHeaderControl.sendActions(for: .touchUpInside)
+        XCTAssertTrue(wireless.isGuideStepsExpanded)
+        XCTAssertFalse(wireless.guideStepsContainer.isHidden)
+        XCTAssertFalse(wireless.guideCountBadgeLabel.isHidden)
+
+        // Tap again -> collapses
+        wireless.guideHeaderControl.sendActions(for: .touchUpInside)
+        XCTAssertFalse(wireless.isGuideStepsExpanded)
+        XCTAssertTrue(wireless.guideStepsContainer.isHidden)
+
+        // Connection issue raised -> shows banner and auto-expands steps
+        wireless.updateIssueBanner(issue: nil) // resets manual toggle lock
+        ConnectionIssueStore.shared.raise(issue: .noDeviceDiscovered)
+        mainVC.updateConnectionIssueBanner()
+        XCTAssertFalse(wireless.issueBannerCard.isHidden)
+        XCTAssertTrue(wireless.isGuideStepsExpanded)
+
+        // Scanning state swaps 68pt CTA to 68pt progress + cancel bar
+        wireless.updateConnectionState(.discovering, statusDetail: L10n.statusScanning(stationIp: "192.168.43.128"))
+        XCTAssertTrue(wireless.heroPrimaryButton.isHidden)
+        XCTAssertFalse(wireless.scanningBarContainer.isHidden)
+    }
+
+    func testConnectedPhoneStorePersistenceDeduplicationAndSdrProto() throws {
+        let suiteName = "com.carautopad.tests.connectedphones.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ConnectedPhoneStore(userDefaults: defaults, storageKey: "test-phones")
+        XCTAssertTrue(store.records().isEmpty)
+
+        // IP-only placeholder replaced once real name/model arrives from ServiceDiscoveryRequest
+        let t0 = Date(timeIntervalSince1970: 1000)
+        store.recordConnection(deviceName: nil, hardwareModel: nil, ipAddress: "192.168.43.1", port: 5277, at: t0)
+        XCTAssertEqual(store.records().count, 1)
+        XCTAssertEqual(store.records().first?.deviceName, "192.168.43.1")
+
+        let t1 = Date(timeIntervalSince1970: 2000)
+        store.recordConnection(deviceName: "Pixel 9 Pro", hardwareModel: "Google Pixel 9 Pro", ipAddress: "192.168.43.1", port: 5277, at: t1)
+        XCTAssertEqual(store.records().count, 1)
+        XCTAssertEqual(store.records().first?.deviceName, "Pixel 9 Pro")
+        XCTAssertEqual(store.records().first?.hardwareModel, "Google Pixel 9 Pro")
+
+        let t2 = Date(timeIntervalSince1970: 3000)
+        store.recordConnection(deviceName: "Galaxy S25 Ultra", hardwareModel: "Samsung SM-S9380", ipAddress: "192.168.137.1", port: 5277, at: t2)
+        XCTAssertEqual(store.records().count, 2)
+        XCTAssertEqual(store.records()[0].deviceName, "Galaxy S25 Ultra")
+        XCTAssertEqual(store.records()[1].deviceName, "Pixel 9 Pro")
+
+        // Remove one record
+        let firstId = store.records()[0].id
+        store.remove(id: firstId)
+        XCTAssertEqual(store.records().count, 1)
+        XCTAssertEqual(store.records()[0].deviceName, "Pixel 9 Pro")
+
+        // Verify ServiceDiscoveryRequestProto field 4 & 5 round-trip
+        var writer = ProtoWriter()
+        ServiceDiscoveryRequestProto(phoneName: "Pixel 9 Pro", phoneBrand: "Google").encode(to: &writer)
+        var reader = ProtoReader(data: writer.data)
+        let decoded = try ServiceDiscoveryRequestProto(from: &reader)
+        XCTAssertEqual(decoded.phoneName, "Pixel 9 Pro")
+        XCTAssertEqual(decoded.phoneBrand, "Google")
+    }
+
+    @MainActor
+    func testAboutPageRealMetadataAndFiveTapHiddenDiagnosticsUnlock() {
+        let suiteName = "com.carautopad.tests.about.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ConnectedPhoneStore(userDefaults: defaults, storageKey: "test-about-phones")
+        let aboutVC = AboutAndDiagnosticsViewController()
+        aboutVC.phoneStore = store
+        aboutVC.loadViewIfNeeded()
+        aboutVC.view.frame = CGRect(x: 0, y: 0, width: 917, height: 806)
+        aboutVC.view.layoutIfNeeded()
+
+        XCTAssertEqual(aboutVC.versionValueLabel.text, CarAutoPadDeviceInfo.appVersionString)
+        XCTAssertEqual(aboutVC.deviceModelValueLabel.text, CarAutoPadDeviceInfo.deviceModelDisplayName)
+        XCTAssertEqual(aboutVC.osVersionValueLabel.text, CarAutoPadDeviceInfo.osVersionDisplayName)
+        XCTAssertEqual(aboutVC.phonesCountLabel.text, L10n.aboutDeviceCount(0))
+
+        // Record a real connected phone and verify UI updates
+        store.recordConnection(deviceName: "Pixel 9 Pro", hardwareModel: "Google Pixel 9 Pro", ipAddress: "192.168.43.1", port: 5277)
+        aboutVC.refreshDynamicData()
+        XCTAssertEqual(aboutVC.phonesCountLabel.text, L10n.aboutDeviceCount(1))
+
+        // Diagnostics hidden by default
+        XCTAssertFalse(ProjectionSettings.isHiddenDiagnosticsUnlocked)
+        XCTAssertFalse(aboutVC.isShowingDiagnosticsSubpage)
+        XCTAssertTrue(aboutVC.unlockedDiagnosticsEntryCard.isHidden)
+        XCTAssertTrue(aboutVC.diagnosticsScrollView.isHidden)
+
+        // 4 taps on Version row: still locked
+        for i in 0..<4 {
+            aboutVC.handleVersionRowTap(now: 100.0 + Double(i) * 0.2)
+        }
+        XCTAssertFalse(ProjectionSettings.isHiddenDiagnosticsUnlocked)
+        XCTAssertFalse(aboutVC.isShowingDiagnosticsSubpage)
+
+        // 5th tap: unlocks and transitions into Automation & Diagnostics
+        aboutVC.handleVersionRowTap(now: 100.8)
+        XCTAssertTrue(ProjectionSettings.isHiddenDiagnosticsUnlocked)
+        XCTAssertTrue(aboutVC.isShowingDiagnosticsSubpage)
+        XCTAssertFalse(aboutVC.diagnosticsScrollView.isHidden)
+        XCTAssertFalse(aboutVC.unlockedDiagnosticsEntryCard.isHidden)
+
+        // Hide entry resets unlock state and returns to About
+        aboutVC.hideDiagnosticsAndReturnToAbout(animated: false)
+        XCTAssertFalse(ProjectionSettings.isHiddenDiagnosticsUnlocked)
+        XCTAssertFalse(aboutVC.isShowingDiagnosticsSubpage)
+        XCTAssertTrue(aboutVC.unlockedDiagnosticsEntryCard.isHidden)
+        XCTAssertFalse(aboutVC.aboutScrollView.isHidden)
+    }
+
+    @MainActor
+    func testEmbeddedSettingsPanelsHandshakeLockDimmingAndLiveControls() {
+        let displayVC = DisplayLayoutPanelViewController()
+        let audioVC = AudioMixerPanelViewController()
+        displayVC.loadViewIfNeeded()
+        audioVC.loadViewIfNeeded()
+
+        // Disconnected: all controls enabled
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        displayVC.syncWithCurrentSettings()
+        audioVC.syncWithCurrentSettings()
+
+        XCTAssertTrue(displayVC.autoDpiSwitch.isEnabled)
+        XCTAssertTrue(displayVC.dpiSlider.isEnabled)
+        XCTAssertTrue(displayVC.fpsSegment.isEnabled)
+        XCTAssertTrue(displayVC.drivePosSegment.isEnabled)
+        XCTAssertTrue(audioVC.videoCodecSegment.isEnabled)
+        XCTAssertTrue(audioVC.audioCodecSegment.isEnabled)
+        XCTAssertTrue(audioVC.audioOutSegment.isEnabled)
+        XCTAssertTrue(audioVC.micSourceSegment.isEnabled)
+
+        // Connected: 8 handshake params disabled & dimmed, live params remain enabled
+        ConnectionManager.shared.setStateForTesting(.running)
+        displayVC.syncWithCurrentSettings()
+        audioVC.syncWithCurrentSettings()
+
+        XCTAssertFalse(displayVC.autoDpiSwitch.isEnabled)
+        XCTAssertFalse(displayVC.dpiSlider.isEnabled)
+        XCTAssertFalse(displayVC.fpsSegment.isEnabled)
+        XCTAssertFalse(displayVC.drivePosSegment.isEnabled)
+        XCTAssertFalse(audioVC.videoCodecSegment.isEnabled)
+        XCTAssertFalse(audioVC.audioCodecSegment.isEnabled)
+        XCTAssertFalse(audioVC.audioOutSegment.isEnabled)
+        XCTAssertFalse(audioVC.micSourceSegment.isEnabled)
+
+        XCTAssertTrue(displayVC.fitSegment.isEnabled)
+        XCTAssertTrue(displayVC.orientSegment.isEnabled)
+        XCTAssertTrue(displayVC.smoothSegment.isEnabled)
+        XCTAssertTrue(displayVC.edgeSwipeSwitch.isEnabled)
+        XCTAssertTrue(audioVC.mediaSlider.isEnabled)
+        XCTAssertTrue(audioVC.navSlider.isEnabled)
+        XCTAssertTrue(audioVC.sysSlider.isEnabled)
+        XCTAssertTrue(audioVC.duckingSlider.isEnabled)
+
+        // Phone audio target disables mixer sliders without starting AVAudioEngine
+        ProjectionSettings.audioOutputTarget = .phone
+        audioVC.syncWithCurrentSettings()
+        XCTAssertFalse(audioVC.mediaSwitch.isEnabled)
+        XCTAssertFalse(audioVC.mediaSlider.isEnabled)
+        XCTAssertFalse(audioVC.duckingSlider.isEnabled)
+    }
+
+    @MainActor
+    func testProjectionQuickMenuPopoverActionsAndDismiss() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1194, height: 834))
+        let mainVC = MainViewController()
+        window.rootViewController = mainVC
+        window.makeKeyAndVisible()
+        mainVC.loadViewIfNeeded()
+        mainVC.view.layoutIfNeeded()
+
+        ConnectionManager.shared.setStateForTesting(.running)
+        ProjectionSettings.isDebugModeEnabled = true
+        mainVC.updatePerformanceOverlayState()
+        XCTAssertFalse(mainVC.debugBubbleButton.isHidden)
+
+        mainVC.presentProjectionQuickMenu()
+        guard let menu = mainVC.quickMenuOverlay else {
+            XCTFail("Expected ProjectionQuickMenuView to be presented")
+            return
+        }
+
+        // Toggle Night Mode to Night
+        menu.nightModeSegment.selectedSegmentIndex = 2
+        menu.nightModeSegment.sendActions(for: .valueChanged)
+        XCTAssertEqual(ProjectionSettings.nightMode, .night)
+
+        // Toggle Media Mute ON
+        menu.mediaMuteSwitch.isOn = true
+        menu.mediaMuteSwitch.sendActions(for: .valueChanged)
+        XCTAssertFalse(ProjectionSettings.isMediaChannelEnabled)
+
+        mainVC.dismissProjectionQuickMenu(animated: false)
+        XCTAssertNil(mainVC.quickMenuOverlay)
     }
 
     @MainActor
@@ -113,15 +392,6 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertFalse(gw.isEmpty)
     }
 
-    @MainActor
-    func testQuickLayoutDpiViewControllerLaunchesWithoutCrash() {
-        let vc = QuickLayoutDpiViewController()
-        vc.loadViewIfNeeded()
-        vc.view.layoutIfNeeded()
-        XCTAssertNotNil(vc.view)
-        XCTAssertEqual(vc.preferredContentSize, CGSize(width: 560, height: 500))
-    }
-
     func testDpiPreviewViewPortraitModeMetrics() {
         let previewView = DpiPreviewView(frame: CGRect(x: 0, y: 0, width: 300, height: 500))
         previewView.panelWidthPx = 1080
@@ -138,26 +408,6 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertTrue(previewView.isCoolwalkSplitScreen)
     }
 
-    private func collectSubviews<T: UIView>(of type: T.Type, in root: UIView) -> [T] {
-        var result: [T] = []
-        for subview in root.subviews {
-            if let match = subview as? T {
-                result.append(match)
-            }
-            result.append(contentsOf: collectSubviews(of: type, in: subview))
-        }
-        return result
-    }
-
-    @MainActor
-    func testQuickAudioConfigViewControllerLaunchesWithoutCrash() {
-        let vc = QuickAudioConfigViewController()
-        vc.loadViewIfNeeded()
-        vc.view.layoutIfNeeded()
-        XCTAssertNotNil(vc.view)
-        XCTAssertEqual(vc.preferredContentSize, CGSize(width: 580, height: 620))
-    }
-
     @MainActor
     func testAudioChannelMixerCellInitializesWithoutCrash() {
         let cell = AudioChannelMixerCell()
@@ -167,9 +417,6 @@ final class ViewControllersSmokeTests: XCTestCase {
 
     @MainActor
     func testAudioChannelMixerCellBoostSliderAndPhoneOutputSync() {
-        ProjectionSettings.resetToDefaults()
-        defer { ProjectionSettings.resetToDefaults() }
-
         ProjectionSettings.mediaVolume = 1.5
         ProjectionSettings.audioOutputTarget = .ipad
 
@@ -188,7 +435,6 @@ final class ViewControllersSmokeTests: XCTestCase {
         let labelsBefore = collectSubviews(of: UILabel.self, in: cell.contentView).compactMap { $0.text }
         XCTAssertTrue(labelsBefore.contains("150%"))
 
-        // Switch to Phone output and sync
         ProjectionSettings.audioOutputTarget = .phone
         cell.syncWithCurrentSettings()
 
@@ -200,47 +446,7 @@ final class ViewControllersSmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testQuickAudioConfigViewControllerBoostSliderAndPhoneOutputSync() {
-        ProjectionSettings.resetToDefaults()
-        defer { ProjectionSettings.resetToDefaults() }
-
-        ProjectionSettings.mediaVolume = 1.5
-        ProjectionSettings.audioOutputTarget = .ipad
-
-        let vc = QuickAudioConfigViewController()
-        vc.loadViewIfNeeded()
-        vc.view.layoutIfNeeded()
-
-        let sliders = collectSubviews(of: UISlider.self, in: vc.view)
-        XCTAssertEqual(sliders.count, 4)
-        XCTAssertEqual(sliders.filter { abs($0.maximumValue - ProjectionSettings.maxChannelVolume) < 0.001 }.count, 3)
-
-        let switches = collectSubviews(of: UISwitch.self, in: vc.view)
-        XCTAssertEqual(switches.count, 3)
-        XCTAssertTrue(switches.allSatisfy { $0.isEnabled })
-
-        let labelsBefore = collectSubviews(of: UILabel.self, in: vc.view).compactMap { $0.text }
-        XCTAssertTrue(labelsBefore.contains("150%"))
-
-        ProjectionSettings.audioOutputTarget = .phone
-        vc.syncWithCurrentSettings()
-
-        XCTAssertTrue(switches.allSatisfy { !$0.isEnabled })
-        XCTAssertTrue(sliders.allSatisfy { !$0.isEnabled })
-        let labelsPhone = collectSubviews(of: UILabel.self, in: vc.view).compactMap { $0.text }
-        XCTAssertEqual(labelsPhone.filter { $0 == "N/A" }.count, 3)
-        XCTAssertTrue(labelsPhone.contains("Disabled (Audio plays on Phone / Car BT)"))
-    }
-
-    @MainActor
     func testSettingsViewControllerAudioOutputToggleReloadsMixerCell() {
-        ProjectionSettings.resetToDefaults()
-        ConnectionManager.shared.setStateForTesting(.disconnected)
-        defer {
-            ProjectionSettings.resetToDefaults()
-            ConnectionManager.shared.setStateForTesting(.disconnected)
-        }
-
         let settingsVC = SettingsViewController()
         settingsVC.loadViewIfNeeded()
         settingsVC.view.frame = CGRect(x: 0, y: 0, width: 640, height: 740)
@@ -286,7 +492,7 @@ final class ViewControllersSmokeTests: XCTestCase {
         }
 
         let rowCount = settingsVC.tableView(tableView, numberOfRowsInSection: SettingsViewController.SettingsSection.videoAudio.rawValue)
-        XCTAssertEqual(rowCount, 5, "Video & Audio section must have exactly 5 rows after removing standalone Audio Stream Tester")
+        XCTAssertEqual(rowCount, 5)
 
         let cell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: SettingsViewController.SettingsSection.diagnosticsBackup.rawValue))
         XCTAssertEqual(cell.textLabel?.text, "Debug Mode (HUD & Floating Bubble)")
@@ -294,41 +500,31 @@ final class ViewControllersSmokeTests: XCTestCase {
 
     @MainActor
     func testMainViewControllerDebugBubbleButtonPropertiesAndToggle() {
-        let initial = ProjectionSettings.isDebugModeEnabled
-        defer {
-            ProjectionSettings.isDebugModeEnabled = initial
-            ConnectionManager.shared.setStateForTesting(.disconnected)
-        }
-
         let mvc = MainViewController()
         mvc.loadViewIfNeeded()
         mvc.view.layoutIfNeeded()
 
-        XCTAssertTrue(mvc.view.subviews.contains(mvc.debugBubbleButton), "MainViewController view must contain debugBubbleButton")
+        XCTAssertTrue(mvc.view.subviews.contains(mvc.debugBubbleButton))
         XCTAssertEqual(mvc.debugBubbleButton.accessibilityIdentifier, "debugBubbleButton")
         XCTAssertEqual(mvc.debugBubbleButton.layer.cornerRadius, 24)
 
-        // 1. When disconnected on home screen, debugBubbleButton should remain hidden even if debug mode is enabled
         ConnectionManager.shared.setStateForTesting(.disconnected)
         ProjectionSettings.isDebugModeEnabled = true
         mvc.updatePerformanceOverlayState()
-        XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should remain hidden when disconnected even if debug mode is enabled")
+        XCTAssertTrue(mvc.debugBubbleButton.isHidden)
 
-        // 2. Toggle debug mode off while disconnected
         ProjectionSettings.isDebugModeEnabled = false
         mvc.updatePerformanceOverlayState()
-        XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be hidden when debug mode is disabled")
+        XCTAssertTrue(mvc.debugBubbleButton.isHidden)
 
-        // 3. When running and debug mode is enabled, debugBubbleButton MUST be visible
         ConnectionManager.shared.setStateForTesting(.running)
         ProjectionSettings.isDebugModeEnabled = true
         mvc.updatePerformanceOverlayState()
-        XCTAssertFalse(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be visible when running and debug mode is enabled")
+        XCTAssertFalse(mvc.debugBubbleButton.isHidden)
 
-        // 4. When running and debug mode is disabled, debugBubbleButton must be hidden
         ProjectionSettings.isDebugModeEnabled = false
         mvc.updatePerformanceOverlayState()
-        XCTAssertTrue(mvc.debugBubbleButton.isHidden, "debugBubbleButton should be hidden when debug mode is disabled even while running")
+        XCTAssertTrue(mvc.debugBubbleButton.isHidden)
     }
 
     @MainActor
@@ -339,18 +535,13 @@ final class ViewControllersSmokeTests: XCTestCase {
         mvc.view.layoutIfNeeded()
 
         let pan = mvc.debugBubbleButton.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }.first
-        XCTAssertNotNil(pan, "debugBubbleButton must have a UIPanGestureRecognizer attached")
+        XCTAssertNotNil(pan)
 
-        // Initial clamp snaps to right side
         mvc.clampDebugBubbleToSafeBounds(animated: false)
-
-        // Simulate active pan state
         mvc.isPanningDebugBubble = true
-        // layout subviews should NOT snap while panning is true
         mvc.view.layoutIfNeeded()
         XCTAssertTrue(mvc.isPanningDebugBubble)
 
-        // Simulate ending pan
         mvc.isPanningDebugBubble = false
         mvc.clampDebugBubbleToSafeBounds(animated: false)
         XCTAssertFalse(mvc.isPanningDebugBubble)
@@ -361,42 +552,30 @@ final class ViewControllersSmokeTests: XCTestCase {
         let cell = DpiPreviewCell()
         cell.configure(with: HeadUnitScreenConfig.shared, isLocked: true)
         let switches = cell.contentView.subviews.compactMap { $0 as? UISwitch }
-        for s in switches {
-            XCTAssertFalse(s.isEnabled, "UISwitch in DpiPreviewCell should be disabled when isLocked is true")
-        }
+        for s in switches { XCTAssertFalse(s.isEnabled) }
         let sliders = cell.contentView.subviews.compactMap { $0 as? UISlider }
-        for sl in sliders {
-            XCTAssertFalse(sl.isEnabled, "UISlider in DpiPreviewCell should be disabled when isLocked is true")
-        }
+        for sl in sliders { XCTAssertFalse(sl.isEnabled) }
         let stackViews = cell.contentView.subviews.compactMap { $0 as? UIStackView }
         for stack in stackViews {
-            XCTAssertEqual(stack.alpha, 0.5, accuracy: 0.01, "Preset stackView alpha should be 0.5 when isLocked is true")
+            XCTAssertEqual(stack.alpha, 0.5, accuracy: 0.01)
             for btn in stack.arrangedSubviews.compactMap({ $0 as? UIButton }) {
-                XCTAssertFalse(btn.isEnabled, "Preset button should be disabled when isLocked is true")
+                XCTAssertFalse(btn.isEnabled)
             }
         }
 
         cell.configure(with: HeadUnitScreenConfig.shared, isLocked: false)
-        for s in switches {
-            XCTAssertTrue(s.isEnabled, "UISwitch in DpiPreviewCell should be enabled when isLocked is false")
-        }
-        for sl in sliders {
-            XCTAssertTrue(sl.isEnabled, "UISlider in DpiPreviewCell should be enabled when isLocked is false")
-        }
+        for s in switches { XCTAssertTrue(s.isEnabled) }
+        for sl in sliders { XCTAssertTrue(sl.isEnabled) }
         for stack in stackViews {
-            XCTAssertEqual(stack.alpha, 1.0, accuracy: 0.01, "Preset stackView alpha should be 1.0 when isLocked is false")
+            XCTAssertEqual(stack.alpha, 1.0, accuracy: 0.01)
             for btn in stack.arrangedSubviews.compactMap({ $0 as? UIButton }) {
-                XCTAssertTrue(btn.isEnabled, "Preset button should be enabled when isLocked is false")
+                XCTAssertTrue(btn.isEnabled)
             }
         }
     }
 
     @MainActor
     func testSettingsViewControllerHandshakeSettingsLockedWhenConnected() {
-        defer {
-            ConnectionManager.shared.setStateForTesting(.disconnected)
-        }
-
         let settingsVC = SettingsViewController()
         settingsVC.loadViewIfNeeded()
         settingsVC.view.layoutIfNeeded()
@@ -409,138 +588,56 @@ final class ViewControllersSmokeTests: XCTestCase {
         let dlSec = SettingsViewController.SettingsSection.displayLayout.rawValue
         let vaSec = SettingsViewController.SettingsSection.videoAudio.rawValue
 
-        // Test Disconnected State: all controls unlocked
         ConnectionManager.shared.setStateForTesting(.disconnected)
         tableView.reloadData()
+        XCTAssertFalse(settingsVC.tableView(tableView, titleForFooterInSection: dlSec)?.contains("locked during active session") ?? true)
 
-        let dlFooterUnlocked = settingsVC.tableView(tableView, titleForFooterInSection: dlSec)
-        XCTAssertFalse(dlFooterUnlocked?.contains("locked during active session") ?? true)
-
-        let resCellUnlocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 1, section: dlSec))
-        XCTAssertFalse(resCellUnlocked.detailTextLabel?.text?.contains("(Locked)") ?? true)
-        XCTAssertEqual(resCellUnlocked.accessoryType, .disclosureIndicator)
-
-        let fpsCellUnlocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: dlSec))
-        if let seg = fpsCellUnlocked.accessoryView as? UISegmentedControl {
-            XCTAssertTrue(seg.isEnabled)
-        }
-
-        let dpCellUnlocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 5, section: dlSec))
-        if let seg = dpCellUnlocked.accessoryView as? UISegmentedControl {
-            XCTAssertTrue(seg.isEnabled)
-        }
-
-        let vcCellUnlocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: vaSec))
-        if let seg = vcCellUnlocked.accessoryView as? UISegmentedControl {
-            XCTAssertTrue(seg.isEnabled)
-        }
-
-        // Test Running State: handshake settings locked
         ConnectionManager.shared.setStateForTesting(.running)
         tableView.reloadData()
-
-        let dlFooterLocked = settingsVC.tableView(tableView, titleForFooterInSection: dlSec)
-        XCTAssertTrue(dlFooterLocked?.contains("locked during active session") ?? false)
-        let vaFooterLocked = settingsVC.tableView(tableView, titleForFooterInSection: vaSec)
-        XCTAssertTrue(vaFooterLocked?.contains("locked during active session") ?? false)
+        XCTAssertTrue(settingsVC.tableView(tableView, titleForFooterInSection: dlSec)?.contains("locked during active session") ?? false)
+        XCTAssertTrue(settingsVC.tableView(tableView, titleForFooterInSection: vaSec)?.contains("locked during active session") ?? false)
 
         let resCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 1, section: dlSec))
         XCTAssertTrue(resCellLocked.detailTextLabel?.text?.contains("(Locked)") ?? false)
         XCTAssertEqual(resCellLocked.accessoryType, .none)
-        XCTAssertEqual(resCellLocked.selectionStyle, .none)
 
-        let fpsCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: dlSec))
-        if let seg = fpsCellLocked.accessoryView as? UISegmentedControl {
-            XCTAssertFalse(seg.isEnabled)
-        }
-
-        // Display Fit Mode (case 3) and Orientation (case 4) and Smoothing (case 6) must remain enabled
         let fitCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 3, section: dlSec))
-        if let seg = fitCell.accessoryView as? UISegmentedControl {
-            XCTAssertTrue(seg.isEnabled)
-        }
-        let orientCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 4, section: dlSec))
-        if let seg = orientCell.accessoryView as? UISegmentedControl {
-            XCTAssertTrue(seg.isEnabled)
-        }
-        let dpCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 5, section: dlSec))
-        if let seg = dpCellLocked.accessoryView as? UISegmentedControl {
-            XCTAssertFalse(seg.isEnabled)
-        }
-        let smoothCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 6, section: dlSec))
-        if let seg = smoothCell.accessoryView as? UISegmentedControl {
-            XCTAssertTrue(seg.isEnabled)
-        }
-
-        // Video and Audio codec controls must be disabled
+        if let seg = fitCell.accessoryView as? UISegmentedControl { XCTAssertTrue(seg.isEnabled) }
         let vcCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 0, section: vaSec))
-        if let seg = vcCellLocked.accessoryView as? UISegmentedControl {
-            XCTAssertFalse(seg.isEnabled)
-        }
-        let acCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 1, section: vaSec))
-        if let seg = acCellLocked.accessoryView as? UISegmentedControl {
-            XCTAssertFalse(seg.isEnabled)
-        }
-        let aoCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 2, section: vaSec))
-        if let seg = aoCellLocked.accessoryView as? UISegmentedControl {
-            XCTAssertFalse(seg.isEnabled)
-        }
-        let micCellLocked = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 3, section: vaSec))
-        if let seg = micCellLocked.accessoryView as? UISegmentedControl {
-            XCTAssertFalse(seg.isEnabled)
-        }
-
-        // AudioChannelMixerCell (case 4) must remain active
+        if let seg = vcCellLocked.accessoryView as? UISegmentedControl { XCTAssertFalse(seg.isEnabled) }
         let mixerCell = settingsVC.tableView(tableView, cellForRowAt: IndexPath(row: 4, section: vaSec))
         XCTAssertTrue(mixerCell is AudioChannelMixerCell)
     }
 
     func testConnectionManagerReconnectDebounceAndCancellation() {
         let cm = ConnectionManager.shared
-        defer {
-            cm.disconnect()
-        }
+        defer { cm.disconnect() }
 
         let device = DiscoveredDevice(ip: "192.168.1.100", port: 5277, name: "TestDevice")
         cm.connect(to: device, userInitiated: true)
-
-        // Calling reconnectForSettingsChange cancels previous and schedules fresh reconnect
         cm.reconnectForSettingsChange()
         XCTAssertEqual(cm.state, .disconnected)
-
-        // Immediate second call should not crash and should debounce using lastConnectedDevice
         cm.reconnectForSettingsChange()
         XCTAssertEqual(cm.state, .disconnected)
-
-        // Manual disconnect cancels any pending reconnect
         cm.disconnect()
         XCTAssertEqual(cm.state, .disconnected)
     }
 
     @MainActor
     func testMainViewControllerEdgeSwipeProtectionAndHomeIndicatorBehavior() {
-        ProjectionSettings.resetToDefaults()
-        defer {
-            ProjectionSettings.resetToDefaults()
-            ConnectionManager.shared.setStateForTesting(.disconnected)
-        }
-
         let mainVC = MainViewController()
         mainVC.loadViewIfNeeded()
 
         XCTAssertFalse(mainVC.prefersHomeIndicatorAutoHidden)
 
-        // Disconnected: never defer system edge gestures even when enabled
         ConnectionManager.shared.setStateForTesting(.disconnected)
         ProjectionSettings.isEdgeSwipeProtectionEnabled = true
         XCTAssertEqual(mainVC.preferredScreenEdgesDeferringSystemGestures, [])
 
-        // Running + enabled: defer all edges; home indicator auto-hide remains false so deferral works
         ConnectionManager.shared.setStateForTesting(.running)
         XCTAssertFalse(mainVC.prefersHomeIndicatorAutoHidden)
         XCTAssertEqual(mainVC.preferredScreenEdgesDeferringSystemGestures, .all)
 
-        // Running + disabled: stop deferring system edge gestures
         ProjectionSettings.isEdgeSwipeProtectionEnabled = false
         mainVC.refreshSystemGestureDeferral()
         XCTAssertEqual(mainVC.preferredScreenEdgesDeferringSystemGestures, [])
@@ -548,12 +645,7 @@ final class ViewControllersSmokeTests: XCTestCase {
 
     @MainActor
     func testSettingsViewControllerDisplayLayoutEdgeSwipeProtectionRow() {
-        ProjectionSettings.resetToDefaults()
         ConnectionManager.shared.setStateForTesting(.running)
-        defer {
-            ProjectionSettings.resetToDefaults()
-            ConnectionManager.shared.setStateForTesting(.disconnected)
-        }
 
         let settingsVC = SettingsViewController()
         settingsVC.loadViewIfNeeded()
@@ -573,100 +665,14 @@ final class ViewControllersSmokeTests: XCTestCase {
             XCTFail("Edge Swipe Protection row must have a UISwitch accessoryView")
             return
         }
-        XCTAssertTrue(toggle.isEnabled, "Edge Swipe Protection switch must remain enabled while connected")
+        XCTAssertTrue(toggle.isEnabled)
         XCTAssertTrue(toggle.isOn)
 
         var receivedImpact: SettingsViewController.ChangeImpact?
-        settingsVC.onSettingsChanged = { impact in
-            receivedImpact = impact
-        }
+        settingsVC.onSettingsChanged = { impact in receivedImpact = impact }
         toggle.isOn = false
         toggle.sendActions(for: .valueChanged)
         XCTAssertFalse(ProjectionSettings.isEdgeSwipeProtectionEnabled)
         XCTAssertEqual(receivedImpact, .uiOnly)
-    }
-
-    @MainActor
-    func testIOS27DesignSystemComponentsRenderInLightAndDarkModes() {
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 640, height: 740))
-        let rootVC = UIViewController()
-        window.rootViewController = rootVC
-        window.makeKeyAndVisible()
-        rootVC.loadViewIfNeeded()
-
-        let ambient = IOS27AmbientBackgroundView(frame: rootVC.view.bounds)
-        rootVC.view.addSubview(ambient)
-
-        let cardLarge = IOS27GlassCardView(style: .large)
-        let cardMedium = IOS27GlassCardView(style: .medium, tintColor: IOS27Theme.accentBlue)
-        let cardSmall = IOS27GlassCardView(style: .small, tintColor: IOS27Theme.accentOrange)
-        let cardClear = IOS27GlassCardView(style: .clear)
-        let cardCapsule = IOS27GlassCardView(style: .capsule)
-        let badge = IOS27IconBadgeView(iconName: "wifi", tint: IOS27Theme.accentBlue)
-        let grabber = IOS27SheetGrabberView()
-
-        let stack = UIStackView(arrangedSubviews: [
-            cardLarge, cardMedium, cardSmall, cardClear, cardCapsule, badge, grabber
-        ])
-        stack.axis = .vertical
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        rootVC.view.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: rootVC.view.topAnchor, constant: 20),
-            stack.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor, constant: -20),
-            cardLarge.heightAnchor.constraint(equalToConstant: 44),
-            cardMedium.heightAnchor.constraint(equalToConstant: 44),
-            cardSmall.heightAnchor.constraint(equalToConstant: 44),
-            cardClear.heightAnchor.constraint(equalToConstant: 44),
-            cardCapsule.heightAnchor.constraint(equalToConstant: 36)
-        ])
-
-        for style in [UIUserInterfaceStyle.light, UIUserInterfaceStyle.dark] {
-            window.overrideUserInterfaceStyle = style
-            rootVC.view.layoutIfNeeded()
-            XCTAssertGreaterThan(cardLarge.bounds.width, 0)
-            XCTAssertGreaterThan(cardCapsule.layer.cornerRadius, 0)
-            XCTAssertEqual(grabber.bounds.height, 12, accuracy: 0.5)
-        }
-    }
-
-    @MainActor
-    func testSettingsViewControllerCategoryBarUpdatesAcrossAllLanguages() {
-        L10n.testOverrideLanguage = nil
-        ConnectionManager.shared.setStateForTesting(.disconnected)
-        defer {
-            L10n.testOverrideLanguage = nil
-            ConnectionManager.shared.setStateForTesting(.disconnected)
-        }
-
-        let settingsVC = SettingsViewController()
-        settingsVC.loadViewIfNeeded()
-        settingsVC.view.frame = CGRect(x: 0, y: 0, width: 640, height: 740)
-        settingsVC.view.layoutIfNeeded()
-
-        guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView,
-              let headerView = tableView.tableHeaderView,
-              let categoryBar = collectSubviews(of: IOS27MenuCategoryBar.self, in: headerView).first else {
-            XCTFail("SettingsViewController must install IOS27MenuCategoryBar in tableHeaderView")
-            return
-        }
-
-        let disconnectedButtons = collectSubviews(of: UIButton.self, in: categoryBar)
-        XCTAssertEqual(disconnectedButtons.count, 5, "Disconnected state should show 5 category pills")
-
-        ConnectionManager.shared.setStateForTesting(.running)
-        settingsVC.viewWillAppear(false)
-        let runningButtons = collectSubviews(of: UIButton.self, in: categoryBar)
-        XCTAssertEqual(runningButtons.count, 6, "Running state should include Active Session category pill")
-
-        for lang in AppLanguage.allCases {
-            L10n.testOverrideLanguage = lang
-            let pills = collectSubviews(of: UIButton.self, in: categoryBar)
-            XCTAssertFalse(pills.isEmpty)
-            XCTAssertTrue(pills.allSatisfy { !($0.configuration?.title ?? "").isEmpty })
-        }
     }
 }

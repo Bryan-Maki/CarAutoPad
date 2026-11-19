@@ -228,6 +228,7 @@ public enum ProjectionSettings {
     private static let lastKnownLatitudeKey = "projection-last-known-latitude"
     private static let lastKnownLongitudeKey = "projection-last-known-longitude"
     private static let debugCategoriesKey = "projection-debug-log-categories"
+    private static let hiddenDiagnosticsUnlockedKey = "projection-hidden-diagnostics-unlocked"
 
     public static let defaultDpi = 160
     public static let minDpi = 100
@@ -349,6 +350,15 @@ public enum ProjectionSettings {
     public static var isPerformanceHudEnabled: Bool {
         get { showPerformanceOverlay }
         set { showPerformanceOverlay = newValue }
+    }
+
+    public static var isHiddenDiagnosticsUnlocked: Bool {
+        get {
+            return defaults.bool(forKey: hiddenDiagnosticsUnlockedKey)
+        }
+        set {
+            defaults.set(newValue, forKey: hiddenDiagnosticsUnlockedKey)
+        }
     }
 
     public static var lastKnownLatitude: Double? {
@@ -477,6 +487,7 @@ public enum ProjectionSettings {
         nightMode = .auto
         motionBlurMode = .off
         isEdgeSwipeProtectionEnabled = true
+        isHiddenDiagnosticsUnlocked = false
         resetDpiToDefault()
         defaults.removeObject(forKey: "projection-app-language")
         L10n.testOverrideLanguage = nil

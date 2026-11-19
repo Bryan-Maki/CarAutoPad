@@ -48,16 +48,11 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         table.dataSource = self
         table.delegate = self
         table.rowHeight = UITableView.automaticDimension
-        table.estimatedRowHeight = 52
+        table.estimatedRowHeight = 50
         table.keyboardDismissMode = .onDrag
-        table.backgroundColor = .clear
-        table.backgroundView = IOS27AmbientBackgroundView()
-        table.separatorColor = IOS27Theme.vibrantSeparatorColor
         return table
     }()
 
-    private let categoryBar = IOS27MenuCategoryBar()
-    private let categoryHeaderContainer = UIView()
     private var dpiPreviewCell: DpiPreviewCell?
 
     private var isHandshakeSettingsLocked: Bool {
@@ -78,29 +73,19 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     @objc private func applyLocalization() {
         title = L10n.projectionSettingsTitle
         navigationItem.rightBarButtonItem?.title = L10n.done
-        configureCategoryBar()
         tableView.reloadData()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        configureCategoryBar()
         tableView.reloadData()
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        let width = tableView.bounds.width
-        if width > 0 && abs(categoryHeaderContainer.frame.width - width) > 0.5 {
-            categoryHeaderContainer.frame = CGRect(x: 0, y: 0, width: width, height: 74)
-            tableView.tableHeaderView = categoryHeaderContainer
-        }
     }
 
     private func setupUI() {
         title = L10n.projectionSettingsTitle
-        view.backgroundColor = IOS27Theme.groupedBackdropColor
-        preferredContentSize = CGSize(width: 640, height: 740)
+        view.backgroundColor = CarAutoPadTheme.canvas
+        tableView.backgroundColor = CarAutoPadTheme.canvas
+        preferredContentSize = CGSize(width: 680, height: 760)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: L10n.done,
@@ -109,30 +94,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             action: #selector(doneButtonTapped)
         )
 
-        let grabber = IOS27SheetGrabberView()
-        categoryBar.translatesAutoresizingMaskIntoConstraints = false
-        categoryHeaderContainer.frame = CGRect(x: 0, y: 0, width: 640, height: 74)
-        categoryHeaderContainer.backgroundColor = .clear
-        categoryHeaderContainer.addSubview(grabber)
-        categoryHeaderContainer.addSubview(categoryBar)
-
-        NSLayoutConstraint.activate([
-            grabber.topAnchor.constraint(equalTo: categoryHeaderContainer.topAnchor, constant: 6),
-            grabber.leadingAnchor.constraint(equalTo: categoryHeaderContainer.leadingAnchor),
-            grabber.trailingAnchor.constraint(equalTo: categoryHeaderContainer.trailingAnchor),
-
-            categoryBar.topAnchor.constraint(equalTo: grabber.bottomAnchor, constant: 2),
-            categoryBar.leadingAnchor.constraint(equalTo: categoryHeaderContainer.leadingAnchor),
-            categoryBar.trailingAnchor.constraint(equalTo: categoryHeaderContainer.trailingAnchor),
-            categoryBar.bottomAnchor.constraint(equalTo: categoryHeaderContainer.bottomAnchor)
-        ])
-
-        categoryBar.onSelectSection = { [weak self] section in
-            self?.scrollToSection(section)
-        }
-        configureCategoryBar()
-        tableView.tableHeaderView = categoryHeaderContainer
-
         view.addSubview(tableView)
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -140,37 +101,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-    }
-
-    private func configureCategoryBar() {
-        var items: [IOS27MenuCategoryBar.CategoryItem] = []
-        if connectionManager.state == .running {
-            items.append(.init(
-                section: SettingsSection.activeSession.rawValue,
-                title: L10n.categorySessionPill,
-                iconName: "dot.radiowaves.left.and.right",
-                tint: IOS27Theme.accentGreen
-            ))
-        }
-        items.append(contentsOf: [
-            .init(section: SettingsSection.displayLayout.rawValue, title: L10n.categoryDisplayPill, iconName: "display", tint: IOS27Theme.accentBlue),
-            .init(section: SettingsSection.videoAudio.rawValue, title: L10n.categoryAudioPill, iconName: "speaker.wave.2.fill", tint: IOS27Theme.accentPink),
-            .init(section: SettingsSection.smartSensors.rawValue, title: L10n.categorySensorsPill, iconName: "moon.stars.fill", tint: IOS27Theme.accentOrange),
-            .init(section: SettingsSection.connectionAutomation.rawValue, title: L10n.categoryAutomationPill, iconName: "bolt.horizontal.fill", tint: IOS27Theme.accentIndigo),
-            .init(section: SettingsSection.diagnosticsBackup.rawValue, title: L10n.categoryDiagnosticsPill, iconName: "wrench.and.screwdriver.fill", tint: IOS27Theme.accentTeal)
-        ])
-        let validSections = Set(items.map { $0.section })
-        let selected = validSections.contains(categoryBar.selectedSection)
-            ? categoryBar.selectedSection
-            : (items.first?.section ?? SettingsSection.displayLayout.rawValue)
-        categoryBar.configure(items: items, selectedSection: selected)
-    }
-
-    private func scrollToSection(_ section: Int) {
-        guard section >= 0, section < numberOfSections(in: tableView) else { return }
-        let rows = tableView(tableView, numberOfRowsInSection: section)
-        guard rows > 0 else { return }
-        tableView.scrollToRow(at: IndexPath(row: 0, section: section), at: .top, animated: true)
     }
 
     @objc private func doneButtonTapped() {
@@ -232,17 +162,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         }
     }
 
-    private func applyCellIcon(
-        _ cell: UITableViewCell,
-        symbol: String,
-        tint: UIColor,
-        dimmed: Bool = false
-    ) {
-        let cfg = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        cell.imageView?.image = UIImage(systemName: symbol, withConfiguration: cfg)
-        cell.imageView?.tintColor = dimmed ? tint.withAlphaComponent(0.45) : tint
-    }
-
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         guard let sec = SettingsSection(rawValue: indexPath.section) else {
             return UITableViewCell()
@@ -264,7 +183,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell = makeDiagnosticsBackupCell(for: indexPath.row)
         }
 
-        cell.backgroundColor = IOS27Theme.groupedElevatedCellBackground
         cell.textLabel?.adjustsFontSizeToFitWidth = true
         cell.textLabel?.minimumScaleFactor = 0.75
         cell.detailTextLabel?.adjustsFontSizeToFitWidth = true
@@ -279,7 +197,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let device = connectionManager.connectedDevice
             cell.detailTextLabel?.text = "\(device?.displayName ?? L10n.defaultPhoneName) (\(device?.ip ?? ""):\(device?.port ?? 5277))"
             cell.accessoryType = .disclosureIndicator
-            applyCellIcon(cell, symbol: "iphone.radiowaves.left.and.right", tint: IOS27Theme.accentGreen)
         } else {
             cell.textLabel?.text = L10n.disconnectAndroidAutoRow
             cell.textLabel?.textColor = .systemRed
@@ -309,7 +226,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.accessoryType = locked ? .none : .disclosureIndicator
             cell.selectionStyle = locked ? .none : .default
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
-            applyCellIcon(cell, symbol: "sparkles.tv.fill", tint: IOS27Theme.accentBlue, dimmed: locked)
             return cell
 
         case 2:
@@ -317,7 +233,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.frameRateRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [ProjectionFpsLimit.fps60.title, ProjectionFpsLimit.fps30.title])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.fpsLimit == .fps60) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -331,14 +247,13 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "speedometer", tint: IOS27Theme.accentIndigo, dimmed: locked)
             return cell
 
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.displayFitMode
             let seg = UISegmentedControl(items: [L10n.fitSegmentFill, L10n.fitSegmentFit, L10n.fitSegmentStretch])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.videoFitMode {
             case .fillMargin: seg.selectedSegmentIndex = 0
             case .contain, .fill, .cover: seg.selectedSegmentIndex = 1
@@ -356,7 +271,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "arrow.up.left.and.arrow.down.right", tint: IOS27Theme.accentPurple)
             return cell
 
         case 4:
@@ -367,7 +281,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 ProjectionOrientation.portrait.title,
                 ProjectionOrientation.system.title
             ])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.orientation {
             case .landscape: seg.selectedSegmentIndex = 0
             case .portrait: seg.selectedSegmentIndex = 1
@@ -381,7 +295,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "rotate.right.fill", tint: IOS27Theme.accentTeal)
             return cell
 
         case 5:
@@ -389,7 +302,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.drivingPosition
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [L10n.lhdShort, L10n.rhdShort])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.driverPosition == .right) ? 1 : 0
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -404,14 +317,13 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "steeringwheel", tint: IOS27Theme.accentOrange, dimmed: locked)
             return cell
 
         case 6:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.frameSmoothingRow
             let seg = UISegmentedControl(items: MotionBlurMode.allCases.map { $0.shortTitle })
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = ProjectionSettings.motionBlurMode.rawValue
             seg.addAction(UIAction { [weak self] _ in
                 let modes: [MotionBlurMode] = [.off, .light, .medium, .strong]
@@ -423,14 +335,12 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "wand.and.stars", tint: IOS27Theme.accentPink)
             return cell
 
         case 7:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.edgeSwipeProtectionRow
             let toggle = UISwitch()
-            IOS27Theme.styleSwitch(toggle, accent: IOS27Theme.accentGreen)
             toggle.isOn = ProjectionSettings.isEdgeSwipeProtectionEnabled
             toggle.addAction(UIAction { [weak self] _ in
                 ProjectionSettings.isEdgeSwipeProtectionEnabled = toggle.isOn
@@ -438,7 +348,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = toggle
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "hand.draw.fill", tint: IOS27Theme.accentGreen)
             return cell
 
         default:
@@ -454,7 +363,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.videoCodecRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["H.264", "HEVC"])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.videoCodecPreference {
             case .h264: seg.selectedSegmentIndex = 0
             case .hevc: seg.selectedSegmentIndex = 1
@@ -471,7 +380,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "film.stack.fill", tint: IOS27Theme.accentBlue, dimmed: locked)
             return cell
 
         case 1:
@@ -479,7 +387,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.audioCodecRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: ["AAC-LC", "PCM"])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.audioCodecPreference == .aac) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -493,7 +401,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "waveform", tint: IOS27Theme.accentPink, dimmed: locked)
             return cell
 
         case 2:
@@ -501,7 +408,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.audioOutputRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [L10n.audioTargetIpadSegment, L10n.audioTargetPhoneSegment])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             seg.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
             seg.isEnabled = !locked
             seg.addAction(UIAction { [weak self] _ in
@@ -520,7 +427,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "hifispeaker.2.fill", tint: IOS27Theme.accentGreen, dimmed: locked)
             return cell
 
         case 3:
@@ -528,7 +434,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.microphoneSourceRow
             cell.textLabel?.alpha = locked ? 0.5 : 1.0
             let seg = UISegmentedControl(items: [L10n.micFollowSegment, L10n.micIpadSegment, L10n.micPhoneSegment])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.microphoneSource {
             case .followAudioOutput: seg.selectedSegmentIndex = 0
             case .ipad: seg.selectedSegmentIndex = 1
@@ -546,7 +452,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "mic.fill", tint: IOS27Theme.accentTeal, dimmed: locked)
             return cell
 
         case 4:
@@ -573,7 +478,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 NightModeSetting.night.shortTitle,
                 NightModeSetting.system.shortTitle
             ])
-            IOS27Theme.styleSegmentedControl(seg)
+            seg.apportionsSegmentWidthsByContent = true
             switch ProjectionSettings.nightMode {
             case .auto: seg.selectedSegmentIndex = 0
             case .twilight: seg.selectedSegmentIndex = 1
@@ -588,7 +493,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = seg
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "moon.stars.fill", tint: IOS27Theme.accentOrange)
             return cell
 
         case 1:
@@ -596,7 +500,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
                 cell.textLabel?.text = L10n.gpsSourceRow
                 let seg = UISegmentedControl(items: [L10n.gpsPhoneShort, L10n.gpsIpadShort])
-                IOS27Theme.styleSegmentedControl(seg)
+                seg.apportionsSegmentWidthsByContent = true
                 seg.selectedSegmentIndex = (ProjectionSettings.gpsSource == .phone) ? 0 : 1
                 seg.addAction(UIAction { [weak self] _ in
                     let isIpad = (seg.selectedSegmentIndex == 1)
@@ -608,14 +512,12 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
                 }, for: .valueChanged)
                 cell.accessoryView = seg
                 cell.selectionStyle = .none
-                applyCellIcon(cell, symbol: "location.north.line.fill", tint: IOS27Theme.accentBlue)
                 return cell
             } else {
                 let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
                 cell.textLabel?.text = L10n.gpsSourceRow
                 cell.detailTextLabel?.text = L10n.gpsPhoneOnlyWifiIpad
                 cell.selectionStyle = .none
-                applyCellIcon(cell, symbol: "location.north.line.fill", tint: IOS27Theme.accentBlue)
                 return cell
             }
 
@@ -625,7 +527,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.detailTextLabel?.text = L10n.current.title
             cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
-            applyCellIcon(cell, symbol: "globe", tint: IOS27Theme.accentIndigo)
             return cell
 
         default:
@@ -639,28 +540,24 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.autoReconnectRow
             let toggle = UISwitch()
-            IOS27Theme.styleSwitch(toggle, accent: IOS27Theme.accentIndigo)
             toggle.isOn = ProjectionSettings.autoReconnect
             toggle.addAction(UIAction { _ in
                 ProjectionSettings.autoReconnect = toggle.isOn
             }, for: .valueChanged)
             cell.accessoryView = toggle
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "bolt.horizontal.fill", tint: IOS27Theme.accentIndigo)
             return cell
 
         case 1:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.autoResumePlaybackRow
             let toggle = UISwitch()
-            IOS27Theme.styleSwitch(toggle, accent: IOS27Theme.accentGreen)
             toggle.isOn = ProjectionSettings.autoResumePlayback
             toggle.addAction(UIAction { _ in
                 ProjectionSettings.autoResumePlayback = toggle.isOn
             }, for: .valueChanged)
             cell.accessoryView = toggle
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "play.circle.fill", tint: IOS27Theme.accentGreen)
             return cell
 
         default:
@@ -674,7 +571,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.debugModeRow
             let toggle = UISwitch()
-            IOS27Theme.styleSwitch(toggle, accent: IOS27Theme.accentOrange)
             toggle.isOn = ProjectionSettings.isDebugModeEnabled
             toggle.addAction(UIAction { [weak self] _ in
                 ProjectionSettings.isDebugModeEnabled = toggle.isOn
@@ -682,7 +578,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             }, for: .valueChanged)
             cell.accessoryView = toggle
             cell.selectionStyle = .none
-            applyCellIcon(cell, symbol: "ladybug.fill", tint: IOS27Theme.accentOrange)
             return cell
 
         case 1:
@@ -691,21 +586,18 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             let enabledCount = DebugLogCategory.allCases.filter { ProjectionSettings.isDebugCategoryEnabled($0) }.count
             cell.detailTextLabel?.text = L10n.debugCategoriesEnabledCount(enabled: enabledCount, total: DebugLogCategory.allCases.count)
             cell.accessoryType = .disclosureIndicator
-            applyCellIcon(cell, symbol: "checklist", tint: IOS27Theme.accentTeal)
             return cell
 
         case 2:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.liveDiagnosticsReportRow
             cell.accessoryType = .disclosureIndicator
-            applyCellIcon(cell, symbol: "waveform.path.ecg", tint: IOS27Theme.accentBlue)
             return cell
 
         case 3:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.exportShareSessionLogsRow
             cell.accessoryType = .disclosureIndicator
-            applyCellIcon(cell, symbol: "square.and.arrow.up.fill", tint: IOS27Theme.accentIndigo)
             return cell
 
         case 4:
@@ -713,14 +605,12 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.clearAllDiagnosticLogsRow
             cell.textLabel?.textColor = .systemOrange
             cell.textLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
-            applyCellIcon(cell, symbol: "trash.fill", tint: IOS27Theme.accentOrange)
             return cell
 
         case 5:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             cell.textLabel?.text = L10n.backupRestoreSettingsRow
             cell.accessoryType = .disclosureIndicator
-            applyCellIcon(cell, symbol: "externaldrive.fill.badge.icloud", tint: IOS27Theme.accentPurple)
             return cell
 
         case 6:
@@ -728,7 +618,6 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             cell.textLabel?.text = L10n.resetAllSettingsRow
             cell.textLabel?.textColor = .systemRed
             cell.textLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
-            applyCellIcon(cell, symbol: "arrow.counterclockwise.circle.fill", tint: IOS27Theme.accentRed)
             return cell
 
         default:
@@ -953,8 +842,7 @@ final class DpiPreviewCell: UITableViewCell {
     private let previewView: DpiPreviewView = {
         let v = DpiPreviewView()
         v.translatesAutoresizingMaskIntoConstraints = false
-        v.layer.cornerRadius = 16
-        v.layer.cornerCurve = .continuous
+        v.layer.cornerRadius = 12
         v.clipsToBounds = true
         return v
     }()
@@ -971,7 +859,6 @@ final class DpiPreviewCell: UITableViewCell {
 
     private let autoDpiSwitch: UISwitch = {
         let s = UISwitch()
-        IOS27Theme.styleSwitch(s, accent: IOS27Theme.accentBlue)
         s.setContentCompressionResistancePriority(.required, for: .horizontal)
         s.setContentHuggingPriority(.required, for: .horizontal)
         s.translatesAutoresizingMaskIntoConstraints = false
@@ -993,7 +880,6 @@ final class DpiPreviewCell: UITableViewCell {
         let slider = UISlider()
         slider.minimumValue = 100
         slider.maximumValue = 320
-        IOS27Theme.styleSlider(slider, accent: IOS27Theme.accentPurple)
         slider.translatesAutoresizingMaskIntoConstraints = false
         return slider
     }()
@@ -1010,14 +896,12 @@ final class DpiPreviewCell: UITableViewCell {
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         selectionStyle = .none
-        backgroundColor = IOS27Theme.groupedElevatedCellBackground
         setupViews()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         selectionStyle = .none
-        backgroundColor = IOS27Theme.groupedElevatedCellBackground
         setupViews()
     }
 
@@ -1035,8 +919,6 @@ final class DpiPreviewCell: UITableViewCell {
             config.title = "\(p)"
             config.cornerStyle = .capsule
             config.buttonSize = .mini
-            config.baseBackgroundColor = IOS27Theme.accentPurple.withAlphaComponent(0.14)
-            config.baseForegroundColor = IOS27Theme.accentPurple
             let btn = UIButton(configuration: config)
             btn.addAction(UIAction { [weak self] _ in
                 self?.applyDpi(val: p, isAuto: false)
@@ -1164,9 +1046,6 @@ final class DebugLogCategoriesViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        tableView.backgroundColor = .clear
-        tableView.backgroundView = IOS27AmbientBackgroundView()
-        tableView.separatorColor = IOS27Theme.vibrantSeparatorColor
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: L10n.enableAll,
             style: .plain,
@@ -1203,7 +1082,6 @@ final class DebugLogCategoriesViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cat = DebugLogCategory.allCases[indexPath.row]
         let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
-        cell.backgroundColor = IOS27Theme.groupedElevatedCellBackground
         cell.textLabel?.text = "[\(cat.rawValue)] \(cat.title)"
         cell.textLabel?.font = .systemFont(ofSize: 16, weight: .medium)
         cell.textLabel?.adjustsFontSizeToFitWidth = true
@@ -1215,7 +1093,6 @@ final class DebugLogCategoriesViewController: UITableViewController {
         cell.detailTextLabel?.textColor = .secondaryLabel
 
         let toggle = UISwitch()
-        IOS27Theme.styleSwitch(toggle, accent: IOS27Theme.accentTeal)
         toggle.isOn = ProjectionSettings.isDebugCategoryEnabled(cat)
         toggle.addAction(UIAction { _ in
             ProjectionSettings.setDebugCategory(cat, enabled: toggle.isOn)
@@ -1271,7 +1148,6 @@ final class AudioChannelMixerCell: UITableViewCell {
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         selectionStyle = .none
-        backgroundColor = IOS27Theme.groupedElevatedCellBackground
         setupViews()
         syncWithCurrentSettings()
     }
@@ -1279,7 +1155,6 @@ final class AudioChannelMixerCell: UITableViewCell {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         selectionStyle = .none
-        backgroundColor = IOS27Theme.groupedElevatedCellBackground
         setupViews()
         syncWithCurrentSettings()
     }
@@ -1294,9 +1169,9 @@ final class AudioChannelMixerCell: UITableViewCell {
         ])
 
         // 1) Media Channel
-        let mediaBlock = IOS27Theme.makeAudioChannelGlassCard(
+        let mediaBlock = makeChannelRow(
             iconName: "music.note",
-            iconColor: IOS27Theme.accentBlue,
+            iconColor: .systemBlue,
             titleLabel: mediaTitleLabel,
             title: L10n.mediaAudio,
             toggle: mediaSwitch,
@@ -1307,9 +1182,9 @@ final class AudioChannelMixerCell: UITableViewCell {
         mainStackView.addArrangedSubview(mediaBlock)
 
         // 2) Navigation Channel
-        let navBlock = IOS27Theme.makeAudioChannelGlassCard(
+        let navBlock = makeChannelRow(
             iconName: "location.fill",
-            iconColor: IOS27Theme.accentGreen,
+            iconColor: .systemGreen,
             titleLabel: navTitleLabel,
             title: L10n.navigationGuidance,
             toggle: navSwitch,
@@ -1320,9 +1195,9 @@ final class AudioChannelMixerCell: UITableViewCell {
         mainStackView.addArrangedSubview(navBlock)
 
         // 3) Phone & System Channel
-        let sysBlock = IOS27Theme.makeAudioChannelGlassCard(
+        let sysBlock = makeChannelRow(
             iconName: "bell.fill",
-            iconColor: IOS27Theme.accentOrange,
+            iconColor: .systemOrange,
             titleLabel: sysTitleLabel,
             title: L10n.phoneSystemAlerts,
             toggle: sysSwitch,
@@ -1339,12 +1214,86 @@ final class AudioChannelMixerCell: UITableViewCell {
         wireActions()
     }
 
+    private func makeChannelRow(
+        iconName: String,
+        iconColor: UIColor,
+        titleLabel: UILabel,
+        title: String,
+        toggle: UISwitch,
+        slider: UISlider,
+        valueLabel: UILabel,
+        onTone: @escaping () -> Void
+    ) -> UIView {
+        let container = UIStackView()
+        container.axis = .vertical
+        container.spacing = 6
+
+        let topRow = UIStackView()
+        topRow.axis = .horizontal
+        topRow.spacing = 8
+        topRow.alignment = .center
+
+        let iconView = UIImageView(image: UIImage(systemName: iconName))
+        iconView.tintColor = iconColor
+        iconView.contentMode = .scaleAspectFit
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 20).isActive = true
+
+        titleLabel.text = title
+        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = .label
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.75
+        titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        var toneConfig = UIButton.Configuration.tinted()
+        toneConfig.title = "♫"
+        toneConfig.cornerStyle = .capsule
+        toneConfig.buttonSize = .mini
+        let toneButton = UIButton(configuration: toneConfig)
+        toneButton.setContentHuggingPriority(.required, for: .horizontal)
+        toneButton.addAction(UIAction { _ in onTone() }, for: .touchUpInside)
+
+        topRow.addArrangedSubview(iconView)
+        topRow.addArrangedSubview(titleLabel)
+        topRow.addArrangedSubview(toneButton)
+        topRow.addArrangedSubview(toggle)
+
+        let sliderRow = UIStackView()
+        sliderRow.axis = .horizontal
+        sliderRow.spacing = 10
+        sliderRow.alignment = .center
+
+        slider.minimumValue = 0.0
+        slider.maximumValue = ProjectionSettings.maxChannelVolume
+
+        valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
+        valueLabel.textColor = .secondaryLabel
+        valueLabel.textAlignment = .right
+        valueLabel.adjustsFontSizeToFitWidth = true
+        valueLabel.minimumScaleFactor = 0.75
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        valueLabel.widthAnchor.constraint(equalToConstant: 52).isActive = true
+
+        sliderRow.addArrangedSubview(slider)
+        sliderRow.addArrangedSubview(valueLabel)
+
+        container.addArrangedSubview(topRow)
+        container.addArrangedSubview(sliderRow)
+        return container
+    }
+
     private func makeDuckingSection() -> UIView {
-        let card = IOS27GlassCardView(style: .medium, cornerRadius: 16)
         let container = UIStackView()
         container.axis = .vertical
         container.spacing = 8
-        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let sep = UIView()
+        sep.backgroundColor = .separator
+        sep.translatesAutoresizingMaskIntoConstraints = false
+        sep.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+        container.addArrangedSubview(sep)
 
         let headerRow = UIStackView()
         headerRow.axis = .horizontal
@@ -1359,8 +1308,8 @@ final class AudioChannelMixerCell: UITableViewCell {
         duckingTitleLabel.minimumScaleFactor = 0.75
         duckingTitleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
-        duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        duckingStatusLabel.textColor = IOS27Theme.accentBlue
+        duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        duckingStatusLabel.textColor = .systemBlue
         duckingStatusLabel.textAlignment = .right
         duckingStatusLabel.adjustsFontSizeToFitWidth = true
         duckingStatusLabel.minimumScaleFactor = 0.75
@@ -1377,7 +1326,6 @@ final class AudioChannelMixerCell: UITableViewCell {
 
         duckingSlider.minimumValue = 0.0
         duckingSlider.maximumValue = 1.0
-        IOS27Theme.styleSlider(duckingSlider, accent: IOS27Theme.accentIndigo)
         container.addArrangedSubview(duckingSlider)
 
         presetStackView.axis = .horizontal
@@ -1412,9 +1360,7 @@ final class AudioChannelMixerCell: UITableViewCell {
         testConfig.image = UIImage(systemName: "play.fill")
         testConfig.imagePadding = 4
         testConfig.buttonSize = .small
-        testConfig.cornerStyle = .capsule
-        testConfig.baseBackgroundColor = IOS27Theme.accentBlue.withAlphaComponent(0.16)
-        testConfig.baseForegroundColor = IOS27Theme.accentBlue
+        testConfig.cornerStyle = .medium
         let testBtn = UIButton(configuration: testConfig)
         testBtn.titleLabel?.adjustsFontSizeToFitWidth = true
         testBtn.titleLabel?.minimumScaleFactor = 0.75
@@ -1428,7 +1374,7 @@ final class AudioChannelMixerCell: UITableViewCell {
         resetConfig.image = UIImage(systemName: "arrow.counterclockwise")
         resetConfig.imagePadding = 4
         resetConfig.buttonSize = .small
-        resetConfig.cornerStyle = .capsule
+        resetConfig.cornerStyle = .medium
         let resetBtn = UIButton(configuration: resetConfig)
         resetBtn.titleLabel?.adjustsFontSizeToFitWidth = true
         resetBtn.titleLabel?.minimumScaleFactor = 0.75
@@ -1441,14 +1387,7 @@ final class AudioChannelMixerCell: UITableViewCell {
         actionsRow.addArrangedSubview(resetBtn)
         container.addArrangedSubview(actionsRow)
 
-        card.addSubview(container)
-        NSLayoutConstraint.activate([
-            container.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-            container.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
-            container.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            container.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
-        ])
-        return card
+        return container
     }
 
     private func wireActions() {
