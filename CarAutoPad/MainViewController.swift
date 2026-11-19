@@ -41,14 +41,15 @@ final class MainViewController: UIViewController {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.accessibilityIdentifier = "debugBubbleButton"
         button.layer.cornerRadius = 24
+        button.layer.cornerCurve = .continuous
         button.layer.masksToBounds = false
-        button.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+        button.backgroundColor = UIColor(red: 0.08, green: 0.10, blue: 0.15, alpha: 0.72)
         button.layer.borderWidth = 1.0
-        button.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.36).cgColor
         button.layer.shadowColor = UIColor.black.cgColor
-        button.layer.shadowOpacity = 0.35
-        button.layer.shadowOffset = CGSize(width: 0, height: 2)
-        button.layer.shadowRadius = 4.0
+        button.layer.shadowOpacity = 0.40
+        button.layer.shadowOffset = CGSize(width: 0, height: 4)
+        button.layer.shadowRadius = 10.0
 
         let symbolConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
         let icon = UIImage(systemName: "wrench.and.screwdriver.fill", withConfiguration: symbolConfig)
@@ -140,9 +141,16 @@ final class MainViewController: UIViewController {
         }
     }
 
+    private let ambientBackgroundView: IOS27AmbientBackgroundView = {
+        let view = IOS27AmbientBackgroundView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
     private let homeScrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.backgroundColor = .clear
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = false
         return scrollView
@@ -160,8 +168,8 @@ final class MainViewController: UIViewController {
         return view
     }()
 
-    private let headerContainerView: UIView = {
-        let view = UIView()
+    private let headerContainerView: IOS27GlassCardView = {
+        let view = IOS27GlassCardView(style: .medium, cornerRadius: 22)
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
@@ -170,15 +178,18 @@ final class MainViewController: UIViewController {
         let iv = UIImageView()
         iv.translatesAutoresizingMaskIntoConstraints = false
         iv.contentMode = .scaleAspectFit
-        iv.layer.cornerRadius = 10
+        iv.layer.cornerRadius = 12
+        iv.layer.cornerCurve = .continuous
+        iv.layer.borderWidth = 0.8
+        iv.layer.borderColor = UIColor.white.withAlphaComponent(0.28).cgColor
         iv.clipsToBounds = true
         if let icon = UIImage(named: "AppIcon") {
             iv.image = icon
         } else {
             let config = UIImage.SymbolConfiguration(pointSize: 26, weight: .bold)
             iv.image = UIImage(systemName: "car.fill", withConfiguration: config)
-            iv.tintColor = .systemBlue
-            iv.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+            iv.tintColor = IOS27Theme.accentBlue
+            iv.backgroundColor = IOS27Theme.accentBlue.withAlphaComponent(0.14)
         }
         return iv
     }()
@@ -186,7 +197,7 @@ final class MainViewController: UIViewController {
     private let titleLabel: UILabel = {
         let label = UILabel()
         label.text = "CarAutoPad"
-        label.font = .systemFont(ofSize: 28, weight: .bold)
+        label.font = .systemFont(ofSize: 26, weight: .bold)
         label.textColor = .label
         label.setContentCompressionResistancePriority(.required, for: .horizontal)
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -196,7 +207,7 @@ final class MainViewController: UIViewController {
     private(set) var subtitleLabel: UILabel = {
         let label = UILabel()
         label.text = L10n.appSubtitle
-        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.font = .systemFont(ofSize: 13.5, weight: .medium)
         label.textColor = .secondaryLabel
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.75
@@ -204,12 +215,8 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private let statusPillView: UIView = {
-        let view = UIView()
-        view.backgroundColor = UIColor.secondarySystemBackground
-        view.layer.cornerRadius = 16
-        view.layer.borderWidth = 1
-        view.layer.borderColor = UIColor.separator.cgColor
+    private let statusPillView: IOS27GlassCardView = {
+        let view = IOS27GlassCardView(style: .capsule, cornerRadius: 17)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
@@ -240,12 +247,17 @@ final class MainViewController: UIViewController {
         var config = UIButton.Configuration.tinted()
         config.title = L10n.settingsButtonTitle
         config.titleLineBreakMode = .byClipping
-        config.image = UIImage(systemName: "slider.horizontal.3")
+        config.image = UIImage(
+            systemName: "slider.horizontal.3",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        )
         config.imagePadding = 6
         config.cornerStyle = .capsule
         config.buttonSize = .medium
-        config.baseBackgroundColor = UIColor.systemGray5
+        config.baseBackgroundColor = IOS27Theme.vibrantPrimaryFill
         config.baseForegroundColor = .label
+        config.background.strokeColor = IOS27Theme.vibrantSeparatorColor
+        config.background.strokeWidth = 0.8
 
         let button = UIButton(configuration: config)
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -255,13 +267,8 @@ final class MainViewController: UIViewController {
         return button
     }()
 
-    private let connectionIssueBannerView: UIView = {
-        let v = UIView()
-        v.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.15)
-        v.layer.cornerRadius = 14
-        v.layer.borderWidth = 1
-        v.layer.borderColor = UIColor.systemOrange.withAlphaComponent(0.4).cgColor
-        v.clipsToBounds = true
+    private let connectionIssueBannerView: IOS27GlassCardView = {
+        let v = IOS27GlassCardView(style: .small, cornerRadius: 18, tintColor: .systemOrange)
         v.translatesAutoresizingMaskIntoConstraints = false
         v.isHidden = true
         return v
@@ -269,7 +276,7 @@ final class MainViewController: UIViewController {
 
     private let connectionIssueTitleLabel: UILabel = {
         let l = UILabel()
-        l.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        l.font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
         l.textColor = .systemOrange
         l.numberOfLines = 0
         l.translatesAutoresizingMaskIntoConstraints = false
@@ -286,9 +293,13 @@ final class MainViewController: UIViewController {
     }()
 
     private lazy var connectionIssueDismissButton: UIButton = {
-        let b = UIButton(type: .system)
-        b.setTitle(L10n.dismiss, for: .normal)
-        b.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        var config = UIButton.Configuration.tinted()
+        config.title = L10n.dismiss
+        config.cornerStyle = .capsule
+        config.buttonSize = .small
+        config.baseBackgroundColor = UIColor.systemOrange.withAlphaComponent(0.18)
+        config.baseForegroundColor = .systemOrange
+        let b = UIButton(configuration: config)
         b.setContentCompressionResistancePriority(.required, for: .horizontal)
         b.setContentHuggingPriority(.required, for: .horizontal)
         b.translatesAutoresizingMaskIntoConstraints = false
@@ -309,12 +320,8 @@ final class MainViewController: UIViewController {
         return stack
     }()
 
-    private let connectionHubCard: UIView = {
-        let card = UIView()
-        card.backgroundColor = .secondarySystemBackground
-        card.layer.cornerRadius = 20
-        card.layer.borderWidth = 1
-        card.layer.borderColor = UIColor.separator.cgColor
+    private let connectionHubCard: IOS27GlassCardView = {
+        let card = IOS27GlassCardView(style: .large, cornerRadius: IOS27Theme.largeGlassCornerRadius)
         card.translatesAutoresizingMaskIntoConstraints = false
         return card
     }()
@@ -322,7 +329,7 @@ final class MainViewController: UIViewController {
     private(set) var hubTitleLabel: UILabel = {
         let label = UILabel()
         label.text = L10n.wirelessConnectionHub
-        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.font = .systemFont(ofSize: 18, weight: .bold)
         label.textColor = .label
         label.textAlignment = .left
         label.adjustsFontSizeToFitWidth = true
@@ -333,20 +340,12 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private let hubIconView: UIImageView = {
-        let iv = UIImageView(image: UIImage(systemName: "wifi"))
-        iv.tintColor = .systemBlue
-        iv.contentMode = .scaleAspectFit
-        iv.setContentHuggingPriority(.required, for: .horizontal)
-        iv.setContentCompressionResistancePriority(.required, for: .horizontal)
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        return iv
-    }()
+    private let hubIconView = IOS27IconBadgeView(iconName: "wifi", tint: IOS27Theme.accentBlue, size: 34, cornerRadius: 10, symbolPointSize: 16)
 
     private let directIpLabel: UILabel = {
         let label = UILabel()
         label.text = L10n.directConnectLabel
-        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
         label.textColor = .secondaryLabel
         label.numberOfLines = 0
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -359,8 +358,11 @@ final class MainViewController: UIViewController {
         textField.text = NetworkAddresses.currentHotspotGatewayIpv4()
         textField.textAlignment = .center
         textField.font = .monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
-        textField.backgroundColor = .tertiarySystemBackground
-        textField.layer.cornerRadius = 10
+        textField.backgroundColor = IOS27Theme.recessedFieldFill
+        textField.layer.cornerRadius = 14
+        textField.layer.cornerCurve = .continuous
+        textField.layer.borderWidth = 0.8
+        textField.layer.borderColor = IOS27Theme.vibrantSeparatorColor.cgColor
         textField.keyboardType = .numbersAndPunctuation
         textField.autocorrectionType = .no
         textField.autocapitalizationType = .none
@@ -370,11 +372,19 @@ final class MainViewController: UIViewController {
     }()
 
     private lazy var resetGatewayIpButton: UIButton = {
-        var config = UIButton.Configuration.plain()
-        config.image = UIImage(systemName: "arrow.counterclockwise")
+        var config = UIButton.Configuration.tinted()
+        config.image = UIImage(
+            systemName: "arrow.counterclockwise",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        )
+        config.cornerStyle = .medium
         config.buttonSize = .medium
+        config.baseBackgroundColor = IOS27Theme.vibrantSecondaryFill
+        config.baseForegroundColor = .secondaryLabel
+        config.background.cornerRadius = 14
+        config.background.strokeColor = IOS27Theme.vibrantSeparatorColor
+        config.background.strokeWidth = 0.8
         let button = UIButton(configuration: config)
-        button.tintColor = .secondaryLabel
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addAction(UIAction { [weak self] _ in
             self?.directIpTextField.text = NetworkAddresses.currentHotspotGatewayIpv4()
@@ -391,13 +401,17 @@ final class MainViewController: UIViewController {
         config.titleAlignment = .center
         config.image = UIImage(systemName: "arrow.right.circle.fill")
         config.imagePadding = 6
-        config.cornerStyle = .large
+        config.cornerStyle = .capsule
         config.buttonSize = .large
-        config.baseBackgroundColor = .systemBlue
+        config.baseBackgroundColor = IOS27Theme.accentBlue
 
         let button = UIButton(configuration: config)
         button.titleLabel?.adjustsFontSizeToFitWidth = true
         button.titleLabel?.minimumScaleFactor = 0.8
+        button.layer.shadowColor = IOS27Theme.accentBlue.cgColor
+        button.layer.shadowOffset = CGSize(width: 0, height: 6)
+        button.layer.shadowRadius = 12
+        button.layer.shadowOpacity = 0.24
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(directConnectButtonTapped), for: .touchUpInside)
         return button
@@ -422,13 +436,17 @@ final class MainViewController: UIViewController {
         config.titleAlignment = .center
         config.image = UIImage(systemName: "antenna.radiowaves.left.and.right")
         config.imagePadding = 8
-        config.cornerStyle = .large
+        config.cornerStyle = .capsule
         config.buttonSize = .large
-        config.baseBackgroundColor = .systemIndigo
+        config.baseBackgroundColor = IOS27Theme.accentIndigo
 
         let button = UIButton(configuration: config)
         button.titleLabel?.adjustsFontSizeToFitWidth = true
         button.titleLabel?.minimumScaleFactor = 0.8
+        button.layer.shadowColor = IOS27Theme.accentIndigo.cgColor
+        button.layer.shadowOffset = CGSize(width: 0, height: 6)
+        button.layer.shadowRadius = 14
+        button.layer.shadowOpacity = 0.28
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(connectButtonTapped), for: .touchUpInside)
         return button
@@ -446,9 +464,9 @@ final class MainViewController: UIViewController {
         config.title = L10n.cancelDisconnect
         config.titleLineBreakMode = .byWordWrapping
         config.titleAlignment = .center
-        config.cornerStyle = .large
+        config.cornerStyle = .capsule
         config.buttonSize = .large
-        config.baseBackgroundColor = .systemRed
+        config.baseBackgroundColor = IOS27Theme.accentRed
 
         let button = UIButton(configuration: config)
         button.titleLabel?.adjustsFontSizeToFitWidth = true
@@ -459,12 +477,8 @@ final class MainViewController: UIViewController {
         return button
     }()
 
-    private let serverGuideCard: UIView = {
-        let card = UIView()
-        card.backgroundColor = .secondarySystemBackground
-        card.layer.cornerRadius = 20
-        card.layer.borderWidth = 1
-        card.layer.borderColor = UIColor.separator.cgColor
+    private let serverGuideCard: IOS27GlassCardView = {
+        let card = IOS27GlassCardView(style: .large, cornerRadius: IOS27Theme.largeGlassCornerRadius)
         card.translatesAutoresizingMaskIntoConstraints = false
         return card
     }()
@@ -472,7 +486,7 @@ final class MainViewController: UIViewController {
     private(set) var guideTitleLabel: UILabel = {
         let label = UILabel()
         label.text = L10n.androidPhoneSetupGuide
-        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.font = .systemFont(ofSize: 18, weight: .bold)
         label.textColor = .label
         label.textAlignment = .left
         label.adjustsFontSizeToFitWidth = true
@@ -483,14 +497,42 @@ final class MainViewController: UIViewController {
         return label
     }()
 
-    private let guideIconView: UIImageView = {
-        let iv = UIImageView(image: UIImage(systemName: "info.circle.fill"))
-        iv.tintColor = .systemTeal
-        iv.contentMode = .scaleAspectFit
-        iv.setContentHuggingPriority(.required, for: .horizontal)
-        iv.setContentCompressionResistancePriority(.required, for: .horizontal)
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        return iv
+    private let guideIconView = IOS27IconBadgeView(iconName: "info.circle.fill", tint: IOS27Theme.accentTeal, size: 34, cornerRadius: 10, symbolPointSize: 16)
+
+    private let appBrandStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 12
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private let rightHeaderStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 10
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private let hubContentStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.alignment = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private let guideContentStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 14
+        stack.alignment = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
     }()
 
     private(set) var guideStepsStack: UIStackView = {
@@ -760,7 +802,7 @@ final class MainViewController: UIViewController {
     }
 
     private func setupUI() {
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = IOS27Theme.groupedBackdropColor
 
         videoRenderer.isUserInteractionEnabled = false
         touchOverlayView.isUserInteractionEnabled = true
@@ -781,30 +823,24 @@ final class MainViewController: UIViewController {
         appTitleStack.spacing = 2
         appTitleStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let appBrandStack = UIStackView(arrangedSubviews: [appIconImageView, appTitleStack])
-        appBrandStack.axis = .horizontal
-        appBrandStack.spacing = 12
-        appBrandStack.alignment = .center
-        appBrandStack.translatesAutoresizingMaskIntoConstraints = false
+        appBrandStack.addArrangedSubview(appIconImageView)
+        appBrandStack.addArrangedSubview(appTitleStack)
 
         statusPillView.addSubview(statusDotView)
         statusPillView.addSubview(statusLabel)
         NSLayoutConstraint.activate([
-            statusDotView.leadingAnchor.constraint(equalTo: statusPillView.leadingAnchor, constant: 10),
+            statusDotView.leadingAnchor.constraint(equalTo: statusPillView.leadingAnchor, constant: 12),
             statusDotView.centerYAnchor.constraint(equalTo: statusPillView.centerYAnchor),
             statusDotView.widthAnchor.constraint(equalToConstant: 8),
             statusDotView.heightAnchor.constraint(equalToConstant: 8),
 
             statusLabel.leadingAnchor.constraint(equalTo: statusDotView.trailingAnchor, constant: 8),
-            statusLabel.trailingAnchor.constraint(equalTo: statusPillView.trailingAnchor, constant: -12),
+            statusLabel.trailingAnchor.constraint(equalTo: statusPillView.trailingAnchor, constant: -14),
             statusLabel.centerYAnchor.constraint(equalTo: statusPillView.centerYAnchor)
         ])
 
-        let rightHeaderStack = UIStackView(arrangedSubviews: [statusPillView, settingsButton])
-        rightHeaderStack.axis = .horizontal
-        rightHeaderStack.spacing = 10
-        rightHeaderStack.alignment = .center
-        rightHeaderStack.translatesAutoresizingMaskIntoConstraints = false
+        rightHeaderStack.addArrangedSubview(statusPillView)
+        rightHeaderStack.addArrangedSubview(settingsButton)
 
         headerContainerView.addSubview(appBrandStack)
         headerContainerView.addSubview(rightHeaderStack)
@@ -817,13 +853,13 @@ final class MainViewController: UIViewController {
         hubHeaderSpacer.translatesAutoresizingMaskIntoConstraints = false
         let hubHeaderStack = UIStackView(arrangedSubviews: [hubIconView, hubTitleLabel, hubHeaderSpacer])
         hubHeaderStack.axis = .horizontal
-        hubHeaderStack.spacing = 8
+        hubHeaderStack.spacing = 10
         hubHeaderStack.alignment = .center
         hubHeaderStack.translatesAutoresizingMaskIntoConstraints = false
 
         let ipInputContainer = UIStackView(arrangedSubviews: [directIpTextField, resetGatewayIpButton])
         ipInputContainer.axis = .horizontal
-        ipInputContainer.spacing = 6
+        ipInputContainer.spacing = 8
         ipInputContainer.alignment = .fill
         ipInputContainer.translatesAutoresizingMaskIntoConstraints = false
 
@@ -833,36 +869,27 @@ final class MainViewController: UIViewController {
         indicatorStack.alignment = .center
         indicatorStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let hubContentStack = UIStackView(arrangedSubviews: [
-            hubHeaderStack,
-            directIpLabel,
-            ipInputContainer,
-            directConnectButton,
-            orDividerLabel,
-            connectButton,
-            indicatorStack
-        ])
-        hubContentStack.axis = .vertical
-        hubContentStack.spacing = 12
-        hubContentStack.alignment = .fill
-        hubContentStack.translatesAutoresizingMaskIntoConstraints = false
+        hubContentStack.addArrangedSubview(hubHeaderStack)
+        hubContentStack.addArrangedSubview(directIpLabel)
+        hubContentStack.addArrangedSubview(ipInputContainer)
+        hubContentStack.addArrangedSubview(directConnectButton)
+        hubContentStack.addArrangedSubview(orDividerLabel)
+        hubContentStack.addArrangedSubview(connectButton)
+        hubContentStack.addArrangedSubview(indicatorStack)
         connectionHubCard.addSubview(hubContentStack)
 
         let guideHeaderSpacer = UIView()
         guideHeaderSpacer.translatesAutoresizingMaskIntoConstraints = false
         let guideHeaderStack = UIStackView(arrangedSubviews: [guideIconView, guideTitleLabel, guideHeaderSpacer])
         guideHeaderStack.axis = .horizontal
-        guideHeaderStack.spacing = 8
+        guideHeaderStack.spacing = 10
         guideHeaderStack.alignment = .center
         guideHeaderStack.translatesAutoresizingMaskIntoConstraints = false
 
         setupGuideSteps()
 
-        let guideContentStack = UIStackView(arrangedSubviews: [guideHeaderStack, guideStepsStack])
-        guideContentStack.axis = .vertical
-        guideContentStack.spacing = 16
-        guideContentStack.alignment = .fill
-        guideContentStack.translatesAutoresizingMaskIntoConstraints = false
+        guideContentStack.addArrangedSubview(guideHeaderStack)
+        guideContentStack.addArrangedSubview(guideStepsStack)
         serverGuideCard.addSubview(guideContentStack)
 
         dashboardGridStack.addArrangedSubview(connectionHubCard)
@@ -880,10 +907,12 @@ final class MainViewController: UIViewController {
         homeScrollView.addSubview(homeContentView)
 
         view.addSubview(videoContainerView)
+        view.addSubview(ambientBackgroundView)
         view.addSubview(homeScrollView)
         view.addSubview(debugBubbleButton)
 
         videoContainerView.isHidden = true
+        ambientBackgroundView.isHidden = false
         homeScrollView.isHidden = false
     }
 
@@ -893,10 +922,10 @@ final class MainViewController: UIViewController {
             subview.removeFromSuperview()
         }
         let steps = [
-            (icon: "gearshape.2.fill", tint: UIColor.systemIndigo, title: L10n.guideStep1Title, detail: L10n.guideStep1Detail),
-            (icon: "checkmark.seal.fill", tint: UIColor.systemBlue, title: L10n.guideStep2Title, detail: L10n.guideStep2Detail),
-            (icon: "play.tv.fill", tint: UIColor.systemGreen, title: L10n.guideStep3Title, detail: L10n.guideStep3Detail),
-            (icon: "personalhotspot", tint: UIColor.systemOrange, title: L10n.guideStep4Title, detail: L10n.guideStep4Detail)
+            (icon: "gearshape.2.fill", tint: IOS27Theme.accentIndigo, title: L10n.guideStep1Title, detail: L10n.guideStep1Detail),
+            (icon: "checkmark.seal.fill", tint: IOS27Theme.accentBlue, title: L10n.guideStep2Title, detail: L10n.guideStep2Detail),
+            (icon: "play.tv.fill", tint: IOS27Theme.accentGreen, title: L10n.guideStep3Title, detail: L10n.guideStep3Detail),
+            (icon: "personalhotspot", tint: IOS27Theme.accentOrange, title: L10n.guideStep4Title, detail: L10n.guideStep4Detail)
         ]
 
         for step in steps {
@@ -908,28 +937,24 @@ final class MainViewController: UIViewController {
     private func makeGuideStepRow(icon: String, iconTint: UIColor, title: String, detail: String) -> UIView {
         let container = UIView()
         container.translatesAutoresizingMaskIntoConstraints = false
+        container.backgroundColor = IOS27Theme.vibrantSecondaryFill
+        container.layer.cornerRadius = IOS27Theme.smallGlassCornerRadius
+        container.layer.cornerCurve = .continuous
+        container.layer.borderWidth = 0.7
+        container.layer.borderColor = IOS27Theme.vibrantSeparatorColor.cgColor
 
-        let badge = UIView()
-        badge.backgroundColor = iconTint.withAlphaComponent(0.15)
-        badge.layer.cornerRadius = 8
-        badge.translatesAutoresizingMaskIntoConstraints = false
-
-        let iv = UIImageView(image: UIImage(systemName: icon))
-        iv.tintColor = iconTint
-        iv.contentMode = .scaleAspectFit
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        badge.addSubview(iv)
+        let badge = IOS27IconBadgeView(iconName: icon, tint: iconTint, size: 36, cornerRadius: 10, symbolPointSize: 16)
 
         let titleLbl = UILabel()
         titleLbl.text = title
-        titleLbl.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLbl.font = .systemFont(ofSize: 13.5, weight: .semibold)
         titleLbl.textColor = .label
         titleLbl.numberOfLines = 0
         titleLbl.translatesAutoresizingMaskIntoConstraints = false
 
         let detailLbl = UILabel()
         detailLbl.text = detail
-        detailLbl.font = .systemFont(ofSize: 11, weight: .regular)
+        detailLbl.font = .systemFont(ofSize: 11.5, weight: .regular)
         detailLbl.textColor = .secondaryLabel
         detailLbl.numberOfLines = 0
         detailLbl.translatesAutoresizingMaskIntoConstraints = false
@@ -943,20 +968,13 @@ final class MainViewController: UIViewController {
         container.addSubview(textStack)
 
         NSLayoutConstraint.activate([
-            badge.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            badge.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
             badge.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            badge.widthAnchor.constraint(equalToConstant: 32),
-            badge.heightAnchor.constraint(equalToConstant: 32),
 
-            iv.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
-            iv.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
-            iv.widthAnchor.constraint(equalToConstant: 18),
-            iv.heightAnchor.constraint(equalToConstant: 18),
-
-            textStack.leadingAnchor.constraint(equalTo: badge.trailingAnchor, constant: 10),
-            textStack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            textStack.topAnchor.constraint(equalTo: container.topAnchor),
-            textStack.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            textStack.leadingAnchor.constraint(equalTo: badge.trailingAnchor, constant: 12),
+            textStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            textStack.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+            textStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10)
         ])
 
         return container
@@ -1061,6 +1079,11 @@ final class MainViewController: UIViewController {
             homeScrollView.topAnchor.constraint(equalTo: view.topAnchor),
             homeScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
+            ambientBackgroundView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            ambientBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            ambientBackgroundView.topAnchor.constraint(equalTo: view.topAnchor),
+            ambientBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
             homeContentView.leadingAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.leadingAnchor),
             homeContentView.trailingAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.trailingAnchor),
             homeContentView.topAnchor.constraint(equalTo: homeScrollView.contentLayoutGuide.topAnchor),
@@ -1081,39 +1104,36 @@ final class MainViewController: UIViewController {
             headerContainerView.topAnchor.constraint(equalTo: dashboardContentContainer.topAnchor),
             headerContainerView.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor),
             headerContainerView.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
-            headerContainerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
+            headerContainerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 68),
 
-            appIconImageView.widthAnchor.constraint(equalToConstant: 44),
-            appIconImageView.heightAnchor.constraint(equalToConstant: 44),
-            statusPillView.heightAnchor.constraint(equalToConstant: 34),
-            settingsButton.heightAnchor.constraint(equalToConstant: 34),
-            settingsButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+            appIconImageView.widthAnchor.constraint(equalToConstant: 46),
+            appIconImageView.heightAnchor.constraint(equalToConstant: 46),
+            statusPillView.heightAnchor.constraint(equalToConstant: 36),
+            settingsButton.heightAnchor.constraint(equalToConstant: 36),
+            settingsButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 100),
 
-            hubIconView.widthAnchor.constraint(equalToConstant: 22),
-            hubIconView.heightAnchor.constraint(equalToConstant: 22),
-            guideIconView.widthAnchor.constraint(equalToConstant: 22),
-            guideIconView.heightAnchor.constraint(equalToConstant: 22),
-
-            headerContainerView.subviews[0].leadingAnchor.constraint(equalTo: headerContainerView.leadingAnchor),
-            headerContainerView.subviews[0].centerYAnchor.constraint(equalTo: headerContainerView.centerYAnchor),
-            headerContainerView.subviews[1].trailingAnchor.constraint(equalTo: headerContainerView.trailingAnchor),
-            headerContainerView.subviews[1].centerYAnchor.constraint(equalTo: headerContainerView.centerYAnchor),
-            headerContainerView.subviews[0].trailingAnchor.constraint(lessThanOrEqualTo: headerContainerView.subviews[1].leadingAnchor, constant: -8),
+            appBrandStack.leadingAnchor.constraint(equalTo: headerContainerView.leadingAnchor, constant: 16),
+            appBrandStack.centerYAnchor.constraint(equalTo: headerContainerView.centerYAnchor),
+            appBrandStack.topAnchor.constraint(greaterThanOrEqualTo: headerContainerView.topAnchor, constant: 10),
+            appBrandStack.bottomAnchor.constraint(lessThanOrEqualTo: headerContainerView.bottomAnchor, constant: -10),
+            rightHeaderStack.trailingAnchor.constraint(equalTo: headerContainerView.trailingAnchor, constant: -16),
+            rightHeaderStack.centerYAnchor.constraint(equalTo: headerContainerView.centerYAnchor),
+            appBrandStack.trailingAnchor.constraint(lessThanOrEqualTo: rightHeaderStack.leadingAnchor, constant: -12),
 
             connectionIssueBannerView.topAnchor.constraint(equalTo: headerContainerView.bottomAnchor, constant: 14),
             connectionIssueBannerView.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor),
             connectionIssueBannerView.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
 
             connectionIssueTitleLabel.topAnchor.constraint(equalTo: connectionIssueBannerView.topAnchor, constant: 12),
-            connectionIssueTitleLabel.leadingAnchor.constraint(equalTo: connectionIssueBannerView.leadingAnchor, constant: 14),
-            connectionIssueTitleLabel.trailingAnchor.constraint(equalTo: connectionIssueDismissButton.leadingAnchor, constant: -8),
+            connectionIssueTitleLabel.leadingAnchor.constraint(equalTo: connectionIssueBannerView.leadingAnchor, constant: 16),
+            connectionIssueTitleLabel.trailingAnchor.constraint(equalTo: connectionIssueDismissButton.leadingAnchor, constant: -10),
 
             connectionIssueDismissButton.centerYAnchor.constraint(equalTo: connectionIssueTitleLabel.centerYAnchor),
             connectionIssueDismissButton.trailingAnchor.constraint(equalTo: connectionIssueBannerView.trailingAnchor, constant: -14),
 
             connectionIssueAdviceLabel.topAnchor.constraint(equalTo: connectionIssueTitleLabel.bottomAnchor, constant: 6),
-            connectionIssueAdviceLabel.leadingAnchor.constraint(equalTo: connectionIssueBannerView.leadingAnchor, constant: 14),
-            connectionIssueAdviceLabel.trailingAnchor.constraint(equalTo: connectionIssueBannerView.trailingAnchor, constant: -14),
+            connectionIssueAdviceLabel.leadingAnchor.constraint(equalTo: connectionIssueBannerView.leadingAnchor, constant: 16),
+            connectionIssueAdviceLabel.trailingAnchor.constraint(equalTo: connectionIssueBannerView.trailingAnchor, constant: -16),
             connectionIssueAdviceLabel.bottomAnchor.constraint(equalTo: connectionIssueBannerView.bottomAnchor, constant: -12),
 
             dashboardGridStack.topAnchor.constraint(equalTo: connectionIssueBannerView.bottomAnchor, constant: 16),
@@ -1121,25 +1141,25 @@ final class MainViewController: UIViewController {
             dashboardGridStack.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
             dashboardGridStack.heightAnchor.constraint(greaterThanOrEqualToConstant: 320),
 
-            connectionHubCard.subviews[0].topAnchor.constraint(equalTo: connectionHubCard.topAnchor, constant: 20),
-            connectionHubCard.subviews[0].leadingAnchor.constraint(equalTo: connectionHubCard.leadingAnchor, constant: 20),
-            connectionHubCard.subviews[0].trailingAnchor.constraint(equalTo: connectionHubCard.trailingAnchor, constant: -20),
-            connectionHubCard.subviews[0].bottomAnchor.constraint(equalTo: connectionHubCard.bottomAnchor, constant: -20),
+            hubContentStack.topAnchor.constraint(equalTo: connectionHubCard.topAnchor, constant: 22),
+            hubContentStack.leadingAnchor.constraint(equalTo: connectionHubCard.leadingAnchor, constant: 22),
+            hubContentStack.trailingAnchor.constraint(equalTo: connectionHubCard.trailingAnchor, constant: -22),
+            hubContentStack.bottomAnchor.constraint(equalTo: connectionHubCard.bottomAnchor, constant: -22),
 
             directIpTextField.heightAnchor.constraint(equalToConstant: 50),
             resetGatewayIpButton.widthAnchor.constraint(equalToConstant: 50),
-            directConnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54),
+            directConnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
             connectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54),
             disconnectButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
             disconnectButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 240),
 
-            serverGuideCard.subviews[0].topAnchor.constraint(equalTo: serverGuideCard.topAnchor, constant: 20),
-            serverGuideCard.subviews[0].leadingAnchor.constraint(equalTo: serverGuideCard.leadingAnchor, constant: 20),
-            serverGuideCard.subviews[0].trailingAnchor.constraint(equalTo: serverGuideCard.trailingAnchor, constant: -20),
-            serverGuideCard.subviews[0].bottomAnchor.constraint(equalTo: serverGuideCard.bottomAnchor, constant: -20),
+            guideContentStack.topAnchor.constraint(equalTo: serverGuideCard.topAnchor, constant: 22),
+            guideContentStack.leadingAnchor.constraint(equalTo: serverGuideCard.leadingAnchor, constant: 22),
+            guideContentStack.trailingAnchor.constraint(equalTo: serverGuideCard.trailingAnchor, constant: -22),
+            guideContentStack.bottomAnchor.constraint(equalTo: serverGuideCard.bottomAnchor, constant: -22),
 
             quickSpecsHeaderLabel.topAnchor.constraint(equalTo: dashboardGridStack.bottomAnchor, constant: 24),
-            quickSpecsHeaderLabel.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor, constant: 4),
+            quickSpecsHeaderLabel.leadingAnchor.constraint(equalTo: dashboardContentContainer.leadingAnchor, constant: 6),
             quickSpecsHeaderLabel.trailingAnchor.constraint(equalTo: dashboardContentContainer.trailingAnchor),
 
             quickSpecsStack.topAnchor.constraint(equalTo: quickSpecsHeaderLabel.bottomAnchor, constant: 10),
@@ -1159,7 +1179,10 @@ final class MainViewController: UIViewController {
         settingsCfg?.title = L10n.settingsButtonTitle
         settingsButton.configuration = settingsCfg
 
-        connectionIssueDismissButton.setTitle(L10n.dismiss, for: .normal)
+        var dismissCfg = connectionIssueDismissButton.configuration
+        dismissCfg?.title = L10n.dismiss
+        connectionIssueDismissButton.configuration = dismissCfg
+
         hubTitleLabel.text = L10n.wirelessConnectionHub
         directIpLabel.text = L10n.directConnectLabel
 
@@ -1322,16 +1345,24 @@ final class MainViewController: UIViewController {
         }
     }
 
+    private func showHomeDashboardSurface() {
+        videoContainerView.isHidden = true
+        ambientBackgroundView.isHidden = false
+        homeScrollView.isHidden = false
+        view.bringSubviewToFront(ambientBackgroundView)
+        view.bringSubviewToFront(homeScrollView)
+        view.bringSubviewToFront(debugBubbleButton)
+    }
+
     private func updateUIForConnectionState(_ state: ConnectionState) {
         UIApplication.shared.isIdleTimerDisabled = (state == .running)
+        ambientBackgroundView.isHidden = (state == .running)
 
         switch state {
         case .disconnected:
             stopVideoWatchdog()
             hasReceivedFirstVideoFrame = false
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
+            showHomeDashboardSurface()
             connectionManager.screenConfig.clearCustomNegotiatedResolution()
             videoRenderer.reset()
             audioPlayer.reset()
@@ -1344,9 +1375,7 @@ final class MainViewController: UIViewController {
 
         case .discovering, .waitingForWirelessHelper, .connecting, .handshaking:
             stopVideoWatchdog()
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
+            showHomeDashboardSurface()
             settingsButton.isHidden = false
             updateStatusPillAndButtons(for: state)
             refreshSystemGestureDeferral()
@@ -1367,9 +1396,7 @@ final class MainViewController: UIViewController {
 
         case .disconnecting:
             stopVideoWatchdog()
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
+            showHomeDashboardSurface()
             audioPlayer.reset()
             settingsButton.isHidden = false
             updateStatusPillAndButtons(for: state)
@@ -1383,9 +1410,7 @@ final class MainViewController: UIViewController {
                 ConnectionIssueStore.shared.raise(issue: .tlsHandshakeFailed)
             }
             stopVideoWatchdog()
-            videoContainerView.isHidden = true
-            homeScrollView.isHidden = false
-            view.bringSubviewToFront(homeScrollView)
+            showHomeDashboardSurface()
             audioPlayer.reset()
             settingsButton.isHidden = false
             updateStatusPillAndButtons(for: state)
@@ -1500,6 +1525,7 @@ final class MainViewController: UIViewController {
         let nav = UINavigationController(rootViewController: settingsVC)
         nav.modalPresentationStyle = .formSheet
         nav.preferredContentSize = CGSize(width: 640, height: 740)
+        nav.sheetPresentationController?.preferredCornerRadius = IOS27Theme.sheetCornerRadius
         present(nav, animated: true)
     }
 
@@ -1586,6 +1612,7 @@ final class MainViewController: UIViewController {
         let nav = UINavigationController(rootViewController: vc)
         nav.modalPresentationStyle = .formSheet
         nav.preferredContentSize = CGSize(width: 560, height: 500)
+        nav.sheetPresentationController?.preferredCornerRadius = IOS27Theme.sheetCornerRadius
         if let pop = nav.popoverPresentationController, let source = sender {
             pop.sourceView = source
             pop.sourceRect = source.bounds
@@ -1658,6 +1685,7 @@ final class MainViewController: UIViewController {
         let nav = UINavigationController(rootViewController: vc)
         nav.modalPresentationStyle = .formSheet
         nav.preferredContentSize = CGSize(width: 580, height: 620)
+        nav.sheetPresentationController?.preferredCornerRadius = IOS27Theme.sheetCornerRadius
         if let popover = nav.popoverPresentationController {
             popover.sourceView = sender
             popover.sourceRect = sender.bounds
@@ -1986,19 +2014,8 @@ final class QuickSpecTileView: UIControl {
         }
     }
 
-    private let iconBadgeView: UIView = {
-        let v = UIView()
-        v.layer.cornerRadius = 10
-        v.translatesAutoresizingMaskIntoConstraints = false
-        return v
-    }()
-
-    private let iconImageView: UIImageView = {
-        let iv = UIImageView()
-        iv.contentMode = .scaleAspectFit
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        return iv
-    }()
+    private let glassBackground: IOS27GlassCardView
+    private let iconBadgeView: IOS27IconBadgeView
 
     private let titleLabel: UILabel = {
         let l = UILabel()
@@ -2021,19 +2038,23 @@ final class QuickSpecTileView: UIControl {
         return l
     }()
 
+    private let menuIndicatorView: UIImageView = {
+        let cfg = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        let iv = UIImageView(image: UIImage(systemName: "chevron.up.chevron.down", withConfiguration: cfg))
+        iv.tintColor = .tertiaryLabel
+        iv.contentMode = .scaleAspectFit
+        iv.setContentHuggingPriority(.required, for: .horizontal)
+        iv.setContentCompressionResistancePriority(.required, for: .horizontal)
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        return iv
+    }()
+
     init(icon: String, title: String, tint: UIColor) {
+        self.glassBackground = IOS27GlassCardView(style: .medium, cornerRadius: 18, tintColor: tint)
+        self.iconBadgeView = IOS27IconBadgeView(iconName: icon, tint: tint, size: 40, cornerRadius: 12, symbolPointSize: 18)
         super.init(frame: .zero)
-        backgroundColor = .secondarySystemBackground
-        layer.cornerRadius = 14
-        layer.borderWidth = 1
-        layer.borderColor = UIColor.separator.cgColor
         translatesAutoresizingMaskIntoConstraints = false
-
-        iconBadgeView.backgroundColor = tint.withAlphaComponent(0.15)
-        iconImageView.image = UIImage(systemName: icon)
-        iconImageView.tintColor = tint
         titleLabel.text = title
-
         setupViews()
     }
 
@@ -2042,13 +2063,16 @@ final class QuickSpecTileView: UIControl {
     }
 
     private func setupViews() {
-        iconBadgeView.addSubview(iconImageView)
+        glassBackground.isUserInteractionEnabled = false
+        glassBackground.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(glassBackground)
+
         let textStack = UIStackView(arrangedSubviews: [titleLabel, valueLabel])
         textStack.axis = .vertical
         textStack.spacing = 3
         textStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let rowStack = UIStackView(arrangedSubviews: [iconBadgeView, textStack])
+        let rowStack = UIStackView(arrangedSubviews: [iconBadgeView, textStack, menuIndicatorView])
         rowStack.axis = .horizontal
         rowStack.spacing = 12
         rowStack.alignment = .center
@@ -2058,15 +2082,12 @@ final class QuickSpecTileView: UIControl {
         addSubview(rowStack)
 
         NSLayoutConstraint.activate([
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 78),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 80),
 
-            iconBadgeView.widthAnchor.constraint(equalToConstant: 38),
-            iconBadgeView.heightAnchor.constraint(equalToConstant: 38),
-
-            iconImageView.centerXAnchor.constraint(equalTo: iconBadgeView.centerXAnchor),
-            iconImageView.centerYAnchor.constraint(equalTo: iconBadgeView.centerYAnchor),
-            iconImageView.widthAnchor.constraint(equalToConstant: 22),
-            iconImageView.heightAnchor.constraint(equalToConstant: 22),
+            glassBackground.topAnchor.constraint(equalTo: topAnchor),
+            glassBackground.bottomAnchor.constraint(equalTo: bottomAnchor),
+            glassBackground.leadingAnchor.constraint(equalTo: leadingAnchor),
+            glassBackground.trailingAnchor.constraint(equalTo: trailingAnchor),
 
             rowStack.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             rowStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
@@ -2085,9 +2106,15 @@ final class QuickSpecTileView: UIControl {
 
     override var isHighlighted: Bool {
         didSet {
-            UIView.animate(withDuration: 0.1) {
-                self.alpha = self.isHighlighted ? 0.7 : 1.0
-                self.transform = self.isHighlighted ? CGAffineTransform(scaleX: 0.98, y: 0.98) : .identity
+            UIView.animate(
+                withDuration: 0.22,
+                delay: 0,
+                usingSpringWithDamping: 0.72,
+                initialSpringVelocity: 0.4,
+                options: [.allowUserInteraction, .beginFromCurrentState]
+            ) {
+                self.alpha = self.isHighlighted ? 0.78 : 1.0
+                self.transform = self.isHighlighted ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
             }
         }
     }
@@ -2229,7 +2256,7 @@ final class QuickLayoutDpiViewController: UIViewController {
 
     private func setupUI() {
         title = L10n.layoutDpiModalTitle
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = IOS27Theme.groupedBackdropColor
         preferredContentSize = CGSize(width: 560, height: 500)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -2248,22 +2275,36 @@ final class QuickLayoutDpiViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 12),
+            contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 8),
             contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
             contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 16),
             contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -16),
             contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -32),
 
-            previewView.heightAnchor.constraint(equalToConstant: 260)
+            previewView.heightAnchor.constraint(equalToConstant: 216)
         ])
 
+        contentStack.addArrangedSubview(IOS27SheetGrabberView())
         contentStack.addArrangedSubview(previewView)
 
-        contentStack.addArrangedSubview(fitLabel)
-        contentStack.addArrangedSubview(fitModeSegmentedControl)
+        IOS27Theme.styleSegmentedControl(fitModeSegmentedControl)
+        IOS27Theme.styleSegmentedControl(driverPositionSegmentedControl)
+        IOS27Theme.styleSwitch(autoDpiSwitch, accent: IOS27Theme.accentBlue)
+        IOS27Theme.styleSlider(dpiSlider, accent: IOS27Theme.accentPurple)
 
-        contentStack.addArrangedSubview(driverLabel)
-        contentStack.addArrangedSubview(driverPositionSegmentedControl)
+        let geometryCard = IOS27GlassCardView(style: .medium, cornerRadius: 18)
+        let geometryStack = UIStackView(arrangedSubviews: [fitLabel, fitModeSegmentedControl, driverLabel, driverPositionSegmentedControl])
+        geometryStack.axis = .vertical
+        geometryStack.spacing = 8
+        geometryStack.translatesAutoresizingMaskIntoConstraints = false
+        geometryCard.addSubview(geometryStack)
+        NSLayoutConstraint.activate([
+            geometryStack.topAnchor.constraint(equalTo: geometryCard.topAnchor, constant: 12),
+            geometryStack.bottomAnchor.constraint(equalTo: geometryCard.bottomAnchor, constant: -12),
+            geometryStack.leadingAnchor.constraint(equalTo: geometryCard.leadingAnchor, constant: 14),
+            geometryStack.trailingAnchor.constraint(equalTo: geometryCard.trailingAnchor, constant: -14)
+        ])
+        contentStack.addArrangedSubview(geometryCard)
 
         let autoDpiRow = UIStackView(arrangedSubviews: [autoDpiLabel, autoDpiSwitch])
         autoDpiRow.axis = .horizontal
@@ -2271,24 +2312,35 @@ final class QuickLayoutDpiViewController: UIViewController {
         autoDpiRow.alignment = .center
         autoDpiRow.distribution = .equalSpacing
         autoDpiSwitch.setContentCompressionResistancePriority(.required, for: .horizontal)
-        contentStack.addArrangedSubview(autoDpiRow)
 
-        contentStack.addArrangedSubview(dpiValueLabel)
-        contentStack.addArrangedSubview(dpiSlider)
-
-        contentStack.addArrangedSubview(presetStackView)
         let presets = [120, 160, 200, 240, 280]
         for p in presets {
             var config = UIButton.Configuration.tinted()
             config.title = "\(p)"
             config.cornerStyle = .capsule
             config.buttonSize = .mini
+            config.baseBackgroundColor = IOS27Theme.accentPurple.withAlphaComponent(0.14)
+            config.baseForegroundColor = IOS27Theme.accentPurple
             let btn = UIButton(configuration: config)
             btn.addAction(UIAction { [weak self] _ in
                 self?.applyDpi(val: p, isAuto: false)
             }, for: .touchUpInside)
             presetStackView.addArrangedSubview(btn)
         }
+
+        let dpiCard = IOS27GlassCardView(style: .medium, cornerRadius: 18)
+        let dpiStack = UIStackView(arrangedSubviews: [autoDpiRow, dpiValueLabel, dpiSlider, presetStackView])
+        dpiStack.axis = .vertical
+        dpiStack.spacing = 10
+        dpiStack.translatesAutoresizingMaskIntoConstraints = false
+        dpiCard.addSubview(dpiStack)
+        NSLayoutConstraint.activate([
+            dpiStack.topAnchor.constraint(equalTo: dpiCard.topAnchor, constant: 12),
+            dpiStack.bottomAnchor.constraint(equalTo: dpiCard.bottomAnchor, constant: -12),
+            dpiStack.leadingAnchor.constraint(equalTo: dpiCard.leadingAnchor, constant: 14),
+            dpiStack.trailingAnchor.constraint(equalTo: dpiCard.trailingAnchor, constant: -14)
+        ])
+        contentStack.addArrangedSubview(dpiCard)
 
         fitModeSegmentedControl.addAction(UIAction { [weak self] _ in
             guard let self = self else { return }
@@ -2497,7 +2549,7 @@ final class QuickAudioConfigViewController: UIViewController {
 
     private func setupUI() {
         title = L10n.audioDuckingModalTitle
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = IOS27Theme.groupedBackdropColor
         preferredContentSize = CGSize(width: 580, height: 620)
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -2516,21 +2568,36 @@ final class QuickAudioConfigViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 14),
+            contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 8),
             contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
             contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 16),
             contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -16),
             contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -32)
         ])
 
+        contentStack.addArrangedSubview(IOS27SheetGrabberView())
+
         // Audio Output Destination Section
+        let destCard = IOS27GlassCardView(style: .small, cornerRadius: 16)
         destLabel.text = L10n.audioOutputDestination
         destLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         destLabel.textColor = .secondaryLabel
         destLabel.adjustsFontSizeToFitWidth = true
         destLabel.minimumScaleFactor = 0.75
-        contentStack.addArrangedSubview(destLabel)
-        contentStack.addArrangedSubview(destinationSegmentedControl)
+        IOS27Theme.styleSegmentedControl(destinationSegmentedControl)
+
+        let destStack = UIStackView(arrangedSubviews: [destLabel, destinationSegmentedControl])
+        destStack.axis = .vertical
+        destStack.spacing = 8
+        destStack.translatesAutoresizingMaskIntoConstraints = false
+        destCard.addSubview(destStack)
+        NSLayoutConstraint.activate([
+            destStack.topAnchor.constraint(equalTo: destCard.topAnchor, constant: 12),
+            destStack.bottomAnchor.constraint(equalTo: destCard.bottomAnchor, constant: -12),
+            destStack.leadingAnchor.constraint(equalTo: destCard.leadingAnchor, constant: 14),
+            destStack.trailingAnchor.constraint(equalTo: destCard.trailingAnchor, constant: -14)
+        ])
+        contentStack.addArrangedSubview(destCard)
 
         destinationSegmentedControl.selectedSegmentIndex = (ProjectionSettings.audioOutputTarget == .ipad) ? 0 : 1
         destinationSegmentedControl.addAction(UIAction { [weak self] _ in
@@ -2544,25 +2611,18 @@ final class QuickAudioConfigViewController: UIViewController {
             self.onSettingsChanged?()
         }, for: .valueChanged)
 
-        // Separator
-        let sep1 = UIView()
-        sep1.backgroundColor = .separator
-        sep1.translatesAutoresizingMaskIntoConstraints = false
-        sep1.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
-        contentStack.addArrangedSubview(sep1)
-
         // Channels Header
         chanHeader.text = L10n.independentChannelVolumes
-        chanHeader.font = .systemFont(ofSize: 12, weight: .semibold)
+        chanHeader.font = .systemFont(ofSize: 12, weight: .bold)
         chanHeader.textColor = .secondaryLabel
         chanHeader.adjustsFontSizeToFitWidth = true
         chanHeader.minimumScaleFactor = 0.75
         contentStack.addArrangedSubview(chanHeader)
 
         // 1) Media Channel
-        let mediaBlock = makeChannelRow(
+        let mediaBlock = IOS27Theme.makeAudioChannelGlassCard(
             iconName: "music.note",
-            iconColor: .systemBlue,
+            iconColor: IOS27Theme.accentBlue,
             titleLabel: mediaTitleLabel,
             title: L10n.mediaAudio,
             toggle: mediaSwitch,
@@ -2573,9 +2633,9 @@ final class QuickAudioConfigViewController: UIViewController {
         contentStack.addArrangedSubview(mediaBlock)
 
         // 2) Navigation Channel
-        let navBlock = makeChannelRow(
+        let navBlock = IOS27Theme.makeAudioChannelGlassCard(
             iconName: "location.fill",
-            iconColor: .systemGreen,
+            iconColor: IOS27Theme.accentGreen,
             titleLabel: navTitleLabel,
             title: L10n.navigationGuidance,
             toggle: navSwitch,
@@ -2586,9 +2646,9 @@ final class QuickAudioConfigViewController: UIViewController {
         contentStack.addArrangedSubview(navBlock)
 
         // 3) System Channel
-        let sysBlock = makeChannelRow(
+        let sysBlock = IOS27Theme.makeAudioChannelGlassCard(
             iconName: "bell.fill",
-            iconColor: .systemOrange,
+            iconColor: IOS27Theme.accentOrange,
             titleLabel: sysTitleLabel,
             title: L10n.phoneSystemAlerts,
             toggle: sysSwitch,
@@ -2605,86 +2665,12 @@ final class QuickAudioConfigViewController: UIViewController {
         wireActions()
     }
 
-    private func makeChannelRow(
-        iconName: String,
-        iconColor: UIColor,
-        titleLabel: UILabel,
-        title: String,
-        toggle: UISwitch,
-        slider: UISlider,
-        valueLabel: UILabel,
-        onTone: @escaping () -> Void
-    ) -> UIView {
-        let container = UIStackView()
-        container.axis = .vertical
-        container.spacing = 6
-
-        let topRow = UIStackView()
-        topRow.axis = .horizontal
-        topRow.spacing = 8
-        topRow.alignment = .center
-
-        let iconView = UIImageView(image: UIImage(systemName: iconName))
-        iconView.tintColor = iconColor
-        iconView.contentMode = .scaleAspectFit
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.widthAnchor.constraint(equalToConstant: 20).isActive = true
-        iconView.heightAnchor.constraint(equalToConstant: 20).isActive = true
-
-        titleLabel.text = title
-        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        titleLabel.textColor = .label
-        titleLabel.adjustsFontSizeToFitWidth = true
-        titleLabel.minimumScaleFactor = 0.75
-        titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        var toneConfig = UIButton.Configuration.tinted()
-        toneConfig.title = "♫"
-        toneConfig.cornerStyle = .capsule
-        toneConfig.buttonSize = .mini
-        let toneButton = UIButton(configuration: toneConfig)
-        toneButton.setContentHuggingPriority(.required, for: .horizontal)
-        toneButton.addAction(UIAction { _ in onTone() }, for: .touchUpInside)
-
-        topRow.addArrangedSubview(iconView)
-        topRow.addArrangedSubview(titleLabel)
-        topRow.addArrangedSubview(toneButton)
-        topRow.addArrangedSubview(toggle)
-
-        let sliderRow = UIStackView()
-        sliderRow.axis = .horizontal
-        sliderRow.spacing = 10
-        sliderRow.alignment = .center
-
-        slider.minimumValue = 0.0
-        slider.maximumValue = ProjectionSettings.maxChannelVolume
-
-        valueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
-        valueLabel.textColor = .secondaryLabel
-        valueLabel.textAlignment = .right
-        valueLabel.adjustsFontSizeToFitWidth = true
-        valueLabel.minimumScaleFactor = 0.75
-        valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.widthAnchor.constraint(equalToConstant: 52).isActive = true
-
-        sliderRow.addArrangedSubview(slider)
-        sliderRow.addArrangedSubview(valueLabel)
-
-        container.addArrangedSubview(topRow)
-        container.addArrangedSubview(sliderRow)
-        return container
-    }
-
     private func makeDuckingSection() -> UIView {
+        let card = IOS27GlassCardView(style: .medium, cornerRadius: 18)
         let container = UIStackView()
         container.axis = .vertical
         container.spacing = 8
-
-        let sep = UIView()
-        sep.backgroundColor = .separator
-        sep.translatesAutoresizingMaskIntoConstraints = false
-        sep.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
-        container.addArrangedSubview(sep)
+        container.translatesAutoresizingMaskIntoConstraints = false
 
         let headerRow = UIStackView()
         headerRow.axis = .horizontal
@@ -2699,8 +2685,8 @@ final class QuickAudioConfigViewController: UIViewController {
         duckingTitleLabel.minimumScaleFactor = 0.75
         duckingTitleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
-        duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        duckingStatusLabel.textColor = .systemBlue
+        duckingStatusLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        duckingStatusLabel.textColor = IOS27Theme.accentBlue
         duckingStatusLabel.textAlignment = .right
         duckingStatusLabel.adjustsFontSizeToFitWidth = true
         duckingStatusLabel.minimumScaleFactor = 0.75
@@ -2717,6 +2703,7 @@ final class QuickAudioConfigViewController: UIViewController {
 
         duckingSlider.minimumValue = 0.0
         duckingSlider.maximumValue = 1.0
+        IOS27Theme.styleSlider(duckingSlider, accent: IOS27Theme.accentIndigo)
         container.addArrangedSubview(duckingSlider)
 
         presetStackView.axis = .horizontal
@@ -2751,7 +2738,9 @@ final class QuickAudioConfigViewController: UIViewController {
         testConfig.image = UIImage(systemName: "play.fill")
         testConfig.imagePadding = 4
         testConfig.buttonSize = .small
-        testConfig.cornerStyle = .medium
+        testConfig.cornerStyle = .capsule
+        testConfig.baseBackgroundColor = IOS27Theme.accentBlue.withAlphaComponent(0.16)
+        testConfig.baseForegroundColor = IOS27Theme.accentBlue
         let testBtn = UIButton(configuration: testConfig)
         testBtn.titleLabel?.adjustsFontSizeToFitWidth = true
         testBtn.titleLabel?.minimumScaleFactor = 0.75
@@ -2765,7 +2754,7 @@ final class QuickAudioConfigViewController: UIViewController {
         resetConfig.image = UIImage(systemName: "arrow.counterclockwise")
         resetConfig.imagePadding = 4
         resetConfig.buttonSize = .small
-        resetConfig.cornerStyle = .medium
+        resetConfig.cornerStyle = .capsule
         let resetBtn = UIButton(configuration: resetConfig)
         resetBtn.titleLabel?.adjustsFontSizeToFitWidth = true
         resetBtn.titleLabel?.minimumScaleFactor = 0.75
@@ -2778,7 +2767,14 @@ final class QuickAudioConfigViewController: UIViewController {
         actionsRow.addArrangedSubview(resetBtn)
         container.addArrangedSubview(actionsRow)
 
-        return container
+        card.addSubview(container)
+        NSLayoutConstraint.activate([
+            container.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            container.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
+            container.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            container.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
+        ])
+        return card
     }
 
     private func wireActions() {

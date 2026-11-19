@@ -1811,6 +1811,25 @@ public enum L10n {
         tr(en: "Diagnostics, Logs & Backup", zhHans: "诊断、日志与备份", zhHant: "診斷、日誌與備份", ja: "診断・ログ・バックアップ", ms: "Diagnostik, Log & Sandaran", ko: "진단, 로그 & 백업", ta: "கண்டறிதல், பதிவுகள் & காப்பு")
     }
 
+    public static var categorySessionPill: String {
+        tr(en: "Session", zhHans: "会话", zhHant: "工作階段", ja: "セッション", ms: "Sesi", ko: "세션", ta: "அமர்வு")
+    }
+    public static var categoryDisplayPill: String {
+        tr(en: "Display", zhHans: "显示布局", zhHant: "顯示佈局", ja: "画面", ms: "Paparan", ko: "디스플레이", ta: "திரை")
+    }
+    public static var categoryAudioPill: String {
+        tr(en: "Audio", zhHans: "音视频", zhHant: "影音", ja: "音声・映像", ms: "Audio", ko: "오디오", ta: "ஒலி")
+    }
+    public static var categorySensorsPill: String {
+        tr(en: "Sensors", zhHans: "传感与语言", zhHant: "感測與語言", ja: "センサー", ms: "Sensor", ko: "센서", ta: "சென்சார்")
+    }
+    public static var categoryAutomationPill: String {
+        tr(en: "Automation", zhHans: "自动化", zhHant: "自動化", ja: "自動化", ms: "Automasi", ko: "자동화", ta: "தானியக்கம்")
+    }
+    public static var categoryDiagnosticsPill: String {
+        tr(en: "Diagnostics", zhHans: "诊断与备份", zhHant: "診斷與備份", ja: "診断", ms: "Diagnostik", ko: "진단", ta: "கண்டறிதல்")
+    }
+
     public static var footerDisplayLayoutLocked: String {
         tr(
             en: "Handshake parameters (DPI, Resolution, FPS, Driving Position) are locked during active session. Disconnect to modify. Fit mode and smoothing remain adjustable.",

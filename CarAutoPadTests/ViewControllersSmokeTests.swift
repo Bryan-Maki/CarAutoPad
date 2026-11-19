@@ -585,4 +585,88 @@ final class ViewControllersSmokeTests: XCTestCase {
         XCTAssertFalse(ProjectionSettings.isEdgeSwipeProtectionEnabled)
         XCTAssertEqual(receivedImpact, .uiOnly)
     }
+
+    @MainActor
+    func testIOS27DesignSystemComponentsRenderInLightAndDarkModes() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 640, height: 740))
+        let rootVC = UIViewController()
+        window.rootViewController = rootVC
+        window.makeKeyAndVisible()
+        rootVC.loadViewIfNeeded()
+
+        let ambient = IOS27AmbientBackgroundView(frame: rootVC.view.bounds)
+        rootVC.view.addSubview(ambient)
+
+        let cardLarge = IOS27GlassCardView(style: .large)
+        let cardMedium = IOS27GlassCardView(style: .medium, tintColor: IOS27Theme.accentBlue)
+        let cardSmall = IOS27GlassCardView(style: .small, tintColor: IOS27Theme.accentOrange)
+        let cardClear = IOS27GlassCardView(style: .clear)
+        let cardCapsule = IOS27GlassCardView(style: .capsule)
+        let badge = IOS27IconBadgeView(iconName: "wifi", tint: IOS27Theme.accentBlue)
+        let grabber = IOS27SheetGrabberView()
+
+        let stack = UIStackView(arrangedSubviews: [
+            cardLarge, cardMedium, cardSmall, cardClear, cardCapsule, badge, grabber
+        ])
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        rootVC.view.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: rootVC.view.topAnchor, constant: 20),
+            stack.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor, constant: -20),
+            cardLarge.heightAnchor.constraint(equalToConstant: 44),
+            cardMedium.heightAnchor.constraint(equalToConstant: 44),
+            cardSmall.heightAnchor.constraint(equalToConstant: 44),
+            cardClear.heightAnchor.constraint(equalToConstant: 44),
+            cardCapsule.heightAnchor.constraint(equalToConstant: 36)
+        ])
+
+        for style in [UIUserInterfaceStyle.light, UIUserInterfaceStyle.dark] {
+            window.overrideUserInterfaceStyle = style
+            rootVC.view.layoutIfNeeded()
+            XCTAssertGreaterThan(cardLarge.bounds.width, 0)
+            XCTAssertGreaterThan(cardCapsule.layer.cornerRadius, 0)
+            XCTAssertEqual(grabber.bounds.height, 12, accuracy: 0.5)
+        }
+    }
+
+    @MainActor
+    func testSettingsViewControllerCategoryBarUpdatesAcrossAllLanguages() {
+        L10n.testOverrideLanguage = nil
+        ConnectionManager.shared.setStateForTesting(.disconnected)
+        defer {
+            L10n.testOverrideLanguage = nil
+            ConnectionManager.shared.setStateForTesting(.disconnected)
+        }
+
+        let settingsVC = SettingsViewController()
+        settingsVC.loadViewIfNeeded()
+        settingsVC.view.frame = CGRect(x: 0, y: 0, width: 640, height: 740)
+        settingsVC.view.layoutIfNeeded()
+
+        guard let tableView = settingsVC.view.subviews.first(where: { $0 is UITableView }) as? UITableView,
+              let headerView = tableView.tableHeaderView,
+              let categoryBar = collectSubviews(of: IOS27MenuCategoryBar.self, in: headerView).first else {
+            XCTFail("SettingsViewController must install IOS27MenuCategoryBar in tableHeaderView")
+            return
+        }
+
+        let disconnectedButtons = collectSubviews(of: UIButton.self, in: categoryBar)
+        XCTAssertEqual(disconnectedButtons.count, 5, "Disconnected state should show 5 category pills")
+
+        ConnectionManager.shared.setStateForTesting(.running)
+        settingsVC.viewWillAppear(false)
+        let runningButtons = collectSubviews(of: UIButton.self, in: categoryBar)
+        XCTAssertEqual(runningButtons.count, 6, "Running state should include Active Session category pill")
+
+        for lang in AppLanguage.allCases {
+            L10n.testOverrideLanguage = lang
+            let pills = collectSubviews(of: UIButton.self, in: categoryBar)
+            XCTAssertFalse(pills.isEmpty)
+            XCTAssertTrue(pills.allSatisfy { !($0.configuration?.title ?? "").isEmpty })
+        }
+    }
 }

@@ -143,7 +143,8 @@ public final class DpiPreviewView: UIView {
         isOpaque = false
         contentMode = .redraw
         layer.masksToBounds = true
-        layer.cornerRadius = 14
+        layer.cornerRadius = 16
+        layer.cornerCurve = .continuous
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAppLanguageDidChange),
@@ -233,10 +234,21 @@ public final class DpiPreviewView: UIView {
             return
         }
 
-        let outerBezel = UIBezierPath(roundedRect: rect, cornerRadius: 14)
-        ctx.setFillColor(UIColor(red: 0.07, green: 0.08, blue: 0.10, alpha: 0.98).cgColor)
-        outerBezel.fill()
-        ctx.setStrokeColor(UIColor(white: 0.24, alpha: 0.7).cgColor)
+        let outerBezel = UIBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 16)
+        ctx.saveGState()
+        outerBezel.addClip()
+        let bezelColors = [
+            UIColor(red: 0.08, green: 0.10, blue: 0.15, alpha: 0.98).cgColor,
+            UIColor(red: 0.05, green: 0.06, blue: 0.09, alpha: 0.98).cgColor
+        ] as CFArray
+        if let bezelGrad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: bezelColors, locations: [0.0, 1.0]) {
+            ctx.drawLinearGradient(bezelGrad, start: CGPoint(x: rect.minX, y: rect.minY), end: CGPoint(x: rect.maxX, y: rect.maxY), options: [])
+        } else {
+            ctx.setFillColor(UIColor(red: 0.07, green: 0.08, blue: 0.10, alpha: 0.98).cgColor)
+            outerBezel.fill()
+        }
+        ctx.restoreGState()
+        ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.20).cgColor)
         ctx.setLineWidth(1.0)
         outerBezel.stroke()
 
@@ -258,12 +270,12 @@ public final class DpiPreviewView: UIView {
         let screenRect = CGRect(x: screenLeft, y: screenTop, width: screenW, height: screenH)
 
         ctx.saveGState()
-        let bezelRadius = max(8.0, min(screenW, screenH) * 0.045)
+        let bezelRadius = max(10.0, min(screenW, screenH) * 0.05)
         let screenBezel = UIBezierPath(roundedRect: screenRect, cornerRadius: bezelRadius)
-        ctx.setFillColor(UIColor(red: 0.03, green: 0.035, blue: 0.045, alpha: 1.0).cgColor)
+        ctx.setFillColor(UIColor(red: 0.03, green: 0.035, blue: 0.050, alpha: 1.0).cgColor)
         screenBezel.fill()
-        ctx.setStrokeColor(UIColor(white: 0.32, alpha: 0.85).cgColor)
-        ctx.setLineWidth(1.5)
+        ctx.setStrokeColor(UIColor.white.withAlphaComponent(0.26).cgColor)
+        ctx.setLineWidth(1.25)
         screenBezel.stroke()
 
         let innerInset = max(4.0, min(screenW, screenH) * 0.025)
