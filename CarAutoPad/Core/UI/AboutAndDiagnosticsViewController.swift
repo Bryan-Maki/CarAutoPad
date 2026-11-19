@@ -815,7 +815,7 @@ final class AboutAndDiagnosticsViewController: UIViewController {
         }
 
         linkProtocolValueLabel.text = "AAP v1.6 · TLS 1.3"
-        let vidInfo = onProvideVideoDiagnostics?() ?? (ProjectionSettings.videoCodecPreference == .hevc ? "HEVC" : "H.264", 0)
+        let vidInfo = onProvideVideoDiagnostics?() ?? (codec: ProjectionSettings.videoCodecPreference == .hevc ? "HEVC" : "H.264", droppedFrames: 0)
         linkVideoValueLabel.text = "VideoToolbox \(vidInfo.codec) · \(L10n.diagnosticsDroppedFrames(vidInfo.droppedFrames))"
         let audioCodecText = ProjectionSettings.audioCodecPreference == .aac ? "AAC-LC" : "PCM"
         let duckPct = Int((ProjectionSettings.navigationDuckingAmount * 100).rounded())
